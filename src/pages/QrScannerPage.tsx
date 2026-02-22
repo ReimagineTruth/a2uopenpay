@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, HelpCircle, ImageIcon, RotateCcw } from "lucide-react";
+import { ArrowLeft, HelpCircle, ImageIcon, RotateCcw, Search } from "lucide-react";
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
 import { toast } from "sonner";
 import BrandLogo from "@/components/BrandLogo";
@@ -97,7 +97,11 @@ const QrScannerPage = () => {
   const [pastedCode, setPastedCode] = useState("");
   const [showInstructions, setShowInstructions] = useState(false);
   const [retryToken, setRetryToken] = useState(0);
+  const [solidCameraBackground, setSolidCameraBackground] = useState(true);
+  const [scanMode, setScanMode] = useState<"camera" | "photo" | "paste">("camera");
+  const [manualQuery, setManualQuery] = useState("");
   const scannerRef = useRef<Html5Qrcode | null>(null);
+  const fileScannerRef = useRef<Html5Qrcode | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const handlingDecodeRef = useRef(false);
   const lastInvalidToastAtRef = useRef(0);
@@ -207,6 +211,16 @@ const QrScannerPage = () => {
     let mounted = true;
     handlingDecodeRef.current = false;
 
+    if (scanMode !== "camera") {
+      setScanning(false);
+      setScanError("");
+      setScanHint("Camera paused. Switch back to Camera to scan live QR.");
+      void stopScanner();
+      return () => {
+        mounted = false;
+      };
+    }
+
     const waitForScannerElement = async () => {
       if (typeof document === "undefined") return false;
       for (let i = 0; i < 12; i += 1) {
@@ -305,18 +319,24 @@ const QrScannerPage = () => {
       mounted = false;
       void stopScanner();
       scannerRef.current = null;
+      try {
+        fileScannerRef.current?.clear();
+      } catch {
+        // no-op
+      }
+      fileScannerRef.current = null;
     };
-  }, [returnTo, retryToken]);
+  }, [returnTo, retryToken, scanMode]);
 
   const handleSelectFile = async (file: File) => {
     try {
-      if (!scannerRef.current) {
-        scannerRef.current = new Html5Qrcode("openpay-full-scanner");
+      if (!fileScannerRef.current) {
+        fileScannerRef.current = new Html5Qrcode("openpay-file-scanner");
       }
-      if (scannerRef.current.isScanning) {
-        await scannerRef.current.stop();
+      if (fileScannerRef.current.isScanning) {
+        await fileScannerRef.current.stop();
       }
-      const decoded = await scannerRef.current.scanFile(file, true);
+      const decoded = await fileScannerRef.current.scanFile(file, true);
       await handleDecoded(decoded);
     } catch (error) {
       setScanHint("Could not detect a clear OpenPay QR from this image.");
@@ -332,6 +352,16 @@ const QrScannerPage = () => {
     await handleDecoded(pastedCode.trim());
   };
 
+  const handleManualSearch = async () => {
+    const raw = manualQuery.trim();
+    if (!raw) {
+      toast.error("Enter @username, name, email, or account number");
+      return;
+    }
+    await stopScanner();
+    navigate(`/send?search=${encodeURIComponent(raw)}`, { replace: true });
+  };
+
   const handleAcknowledgeInstructions = () => {
     if (typeof window !== "undefined") {
       localStorage.setItem("openpay_scan_instructions_ack_v1", "1");
@@ -340,16 +370,16 @@ const QrScannerPage = () => {
   };
 
   return (
-    <div className="fixed inset-0 h-[100dvh] w-screen bg-black text-white">
+    <div className="fixed inset-0 h-[100dvh] w-screen bg-slate-950 text-white">
       <div className="relative h-full w-full overflow-hidden">
         <style>{`
           #openpay-full-scanner {
-            position: fixed !important;
+            position: absolute !important;
             inset: 0 !important;
-            width: 100vw !important;
-            height: 100dvh !important;
+            width: 100% !important;
+            height: 100% !important;
             overflow: hidden !important;
-            background: #000 !important;
+            background: ${solidCameraBackground ? "#0b1220" : "transparent"} !important;
           }
           #openpay-full-scanner > div {
             position: absolute !important;
@@ -359,18 +389,18 @@ const QrScannerPage = () => {
             position: absolute !important;
             top: 0 !important;
             left: 0 !important;
-            width: 100vw !important;
-            height: 100dvh !important;
+            width: 100% !important;
+            height: 100% !important;
             object-fit: cover !important;
             transform: translateZ(0);
-            background: #000 !important;
+            background: ${solidCameraBackground ? "#0b1220" : "transparent"} !important;
           }
           #openpay-full-scanner__scan_region {
             position: absolute !important;
             inset: 0 !important;
-            width: 100vw !important;
-            height: 100dvh !important;
-            min-height: 100dvh !important;
+            width: 100% !important;
+            height: 100% !important;
+            min-height: 100% !important;
             margin: 0 !important;
             border: 0 !important;
             background: transparent !important;
@@ -387,11 +417,8 @@ const QrScannerPage = () => {
             display: none !important;
           }
         `}</style>
-        <div id="openpay-full-scanner" className="absolute inset-0" />
-        <div className={`absolute inset-0 ${scanning ? "bg-black/25" : "bg-black/60"} transition`} />
-
-        <div className="relative z-10 h-[100dvh] overflow-y-auto overflow-x-hidden px-5 pt-4 pb-8">
-          <div className="mx-auto flex min-h-[100dvh] w-full max-w-xl flex-col pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+        <div className="relative z-10 h-[100dvh] overflow-hidden px-5 pt-4 pb-5">
+          <div className="mx-auto flex h-full w-full max-w-xl flex-col pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <div className="flex items-center justify-between gap-2">
             <button
               onClick={() => navigate(returnTo)}
@@ -423,25 +450,91 @@ const QrScannerPage = () => {
             </div>
           </div>
 
-          <div className="mt-5 text-center">
-            <p className="text-3xl font-semibold">Please confirm</p>
-            <p className="text-xl text-white/90">which QR you are scanning for payment</p>
+          <div className="mt-4 grid grid-cols-3 gap-2 rounded-2xl border border-white/20 bg-slate-900/80 p-2">
+            <Button
+              type="button"
+              variant={scanMode === "camera" ? "default" : "outline"}
+              className={`h-9 rounded-xl ${scanMode === "camera" ? "bg-paypal-blue text-white hover:bg-[#004dc5]" : "border-white/35 bg-black/25 text-white hover:bg-black/45"}`}
+              onClick={() => setScanMode("camera")}
+            >
+              Camera
+            </Button>
+            <Button
+              type="button"
+              variant={scanMode === "photo" ? "default" : "outline"}
+              className={`h-9 rounded-xl ${scanMode === "photo" ? "bg-paypal-blue text-white hover:bg-[#004dc5]" : "border-white/35 bg-black/25 text-white hover:bg-black/45"}`}
+              onClick={() => setScanMode("photo")}
+            >
+              Photo
+            </Button>
+            <Button
+              type="button"
+              variant={scanMode === "paste" ? "default" : "outline"}
+              className={`h-9 rounded-xl ${scanMode === "paste" ? "bg-paypal-blue text-white hover:bg-[#004dc5]" : "border-white/35 bg-black/25 text-white hover:bg-black/45"}`}
+              onClick={() => setScanMode("paste")}
+            >
+              Paste
+            </Button>
+          </div>
+
+          <div className="mt-3 rounded-2xl border border-white/20 bg-slate-900/80 p-3 text-sm">
+            <p className="font-semibold text-white/90">Scanner test controls</p>
+            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 rounded-xl border-white/35 bg-black/25 text-white hover:bg-black/45"
+                onClick={() => setSolidCameraBackground((prev) => !prev)}
+              >
+                {solidCameraBackground ? "Use transparent camera layer" : "Use solid camera background"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 rounded-xl border-white/35 bg-black/25 text-white hover:bg-black/45"
+                onClick={() => {
+                  setScanError("");
+                  setScanHint("Restarting scanner with new layout...");
+                  setRetryToken((prev) => prev + 1);
+                }}
+              >
+                Restart scanner
+              </Button>
+            </div>
+          </div>
+
+          <div className="mt-3 text-center">
+            <p className="text-xl font-semibold">Please confirm</p>
+            <p className="text-base text-white/90">which QR you are scanning for payment</p>
             <div className="mt-3 flex items-center justify-center gap-2">
               <BrandLogo className="h-8 w-8" />
-              <span className="text-4xl font-bold tracking-tight">OpenPay</span>
+              <span className="text-2xl font-bold tracking-tight">OpenPay</span>
             </div>
           </div>
 
-          <div className="mt-6 flex justify-center">
-            <div className="relative h-[280px] w-[280px] border border-white/60 bg-black/10">
-              <div className="absolute left-0 top-0 h-8 w-8 border-l-[6px] border-t-[6px] border-white" />
-              <div className="absolute right-0 top-0 h-8 w-8 border-r-[6px] border-t-[6px] border-white" />
-              <div className="absolute bottom-0 left-0 h-8 w-8 border-b-[6px] border-l-[6px] border-white" />
-              <div className="absolute bottom-0 right-0 h-8 w-8 border-b-[6px] border-r-[6px] border-white" />
-            </div>
-          </div>
-
-          <p className="mt-6 text-center text-2xl font-semibold">Position the QR code within the frame to pay</p>
+          {scanMode === "camera" && (
+            <>
+              <div className="mt-3">
+                <div className="relative h-[40dvh] min-h-[240px] overflow-hidden rounded-3xl border border-white/40 bg-slate-900/90">
+                  <div id="openpay-full-scanner" className="absolute inset-0" />
+                  <div
+                    className={`pointer-events-none absolute inset-0 ${
+                      scanning ? "bg-slate-950/15" : "bg-slate-950/45"
+                    } transition`}
+                  />
+                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
+                    <div className="relative h-[200px] w-[200px] border border-white/70 bg-black/10">
+                      <div className="absolute left-0 top-0 h-8 w-8 border-l-[6px] border-t-[6px] border-white" />
+                      <div className="absolute right-0 top-0 h-8 w-8 border-r-[6px] border-t-[6px] border-white" />
+                      <div className="absolute bottom-0 left-0 h-8 w-8 border-b-[6px] border-l-[6px] border-white" />
+                      <div className="absolute bottom-0 right-0 h-8 w-8 border-b-[6px] border-r-[6px] border-white" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <p className="mt-3 text-center text-base font-semibold">Position the QR code within the frame to pay</p>
+            </>
+          )}
           {scanError && <p className="mt-3 text-center text-sm text-red-300">{scanError}</p>}
           {scanError && (
             <div className="mt-2 flex justify-center">
@@ -461,9 +554,11 @@ const QrScannerPage = () => {
             </div>
           )}
           {!scanError && <p className="mt-3 text-center text-sm text-white/80">{scanHint}</p>}
-          {!scanError && !scanning && <p className="mt-1 text-center text-xs text-white/70">Opening camera...</p>}
+          {!scanError && scanMode === "camera" && !scanning && (
+            <p className="mt-1 text-center text-xs text-white/70">Opening camera...</p>
+          )}
 
-          <div className="mt-auto">
+          <div className={`${scanMode === "camera" ? "mt-3" : "mt-3 flex flex-1 items-center justify-center"}`}>
             <input
               ref={fileInputRef}
               type="file"
@@ -475,35 +570,77 @@ const QrScannerPage = () => {
                 event.currentTarget.value = "";
               }}
             />
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="w-full rounded-2xl border border-white/40 bg-black/25 py-4 text-3xl font-semibold"
-            >
-              <span className="inline-flex items-center gap-2">
-                <ImageIcon className="h-6 w-6" />
-                Select From Photos
-              </span>
-            </button>
-
-            <div className="mt-3 rounded-2xl border border-white/30 bg-black/30 p-3">
-              <p className="mb-2 text-sm text-white/85">Paste OpenPay code/link</p>
-              <input
-                value={pastedCode}
-                onChange={(event) => setPastedCode(event.target.value)}
-                placeholder="openpay://pay?... or https://.../send?to=..."
-                className="h-11 w-full rounded-xl border border-white/30 bg-black/30 px-3 text-sm text-white placeholder:text-white/55"
-              />
+            {scanMode === "photo" && (
               <button
-                onClick={() => void handleUsePastedCode()}
-                className="mt-2 h-11 w-full rounded-xl border border-white/40 bg-black/35 text-lg font-semibold"
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full max-w-md rounded-2xl border border-white/40 bg-black/25 py-4 text-xl font-semibold"
               >
-                Use Pasted Code
+                <span className="inline-flex items-center gap-2">
+                  <ImageIcon className="h-6 w-6" />
+                  Select From Photos
+                </span>
               </button>
-            </div>
+            )}
+
+            {scanMode === "paste" && (
+              <div className="w-full max-w-md rounded-2xl border border-white/30 bg-black/30 p-3">
+                <p className="mb-2 text-sm text-white/85">Paste OpenPay code/link</p>
+                <input
+                  value={pastedCode}
+                  onChange={(event) => setPastedCode(event.target.value)}
+                  placeholder="openpay://pay?... or https://.../send?to=..."
+                  className="h-11 w-full rounded-xl border border-white/30 bg-black/30 px-3 text-sm text-white placeholder:text-white/55"
+                />
+                <button
+                  onClick={() => void handleUsePastedCode()}
+                  className="mt-2 h-11 w-full rounded-xl border border-white/40 bg-black/35 text-base font-semibold"
+                >
+                  Use Pasted Code
+                </button>
+              </div>
+            )}
+
+            {scanMode === "camera" && (
+              <div className="rounded-2xl border border-white/30 bg-black/30 p-3 text-center text-sm text-white/80">
+                Live camera mode is active.
+              </div>
+            )}
           </div>
+
+          {(scanMode !== "camera" || Boolean(scanError)) && (
+            <div className="mt-3 rounded-2xl border border-white/30 bg-black/30 p-3">
+              <p className="text-sm font-semibold text-white">Express Search (if scanner fails)</p>
+              <p className="mt-1 text-xs text-white/75">Enter @username, name, Gmail/email handle, or OP account number.</p>
+              <div className="mt-2 flex gap-2">
+                <input
+                  value={manualQuery}
+                  onChange={(event) => setManualQuery(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      void handleManualSearch();
+                    }
+                  }}
+                  placeholder="@username, name, gmail, OP123..."
+                  className="h-11 w-full rounded-xl border border-white/30 bg-black/35 px-3 text-sm text-white placeholder:text-white/55"
+                />
+                <Button
+                  type="button"
+                  className="h-11 rounded-xl bg-paypal-blue px-4 text-white hover:bg-[#004dc5]"
+                  onClick={() => void handleManualSearch()}
+                >
+                  <Search className="h-4 w-4" />
+                </Button>
+              </div>
+              <p className="mt-2 text-xs text-white/70">
+                Search opens the same Express Send search logic used in `/send`.
+              </p>
+            </div>
+          )}
           </div>
         </div>
       </div>
+      <div id="openpay-file-scanner" className="pointer-events-none absolute h-0 w-0 overflow-hidden opacity-0" />
 
       <Dialog open={showInstructions} onOpenChange={setShowInstructions}>
         <DialogContent className="rounded-3xl sm:max-w-lg">
@@ -521,9 +658,9 @@ const QrScannerPage = () => {
           </div>
           <div className="rounded-2xl border border-border bg-secondary/40 p-3 text-xs text-foreground">
             <p className="font-semibold">Allowed paste formats:</p>
-            <p className="mt-1 break-all">openpay://pay?uid=&lt;user_uuid&gt;&amp;amount=10.00&amp;currency=USD</p>
-            <p className="mt-1 break-all">https://your-openpay-domain/send?to=&lt;user_uuid&gt;&amp;amount=10.00&amp;currency=USD</p>
-            <p className="mt-1">You can also paste only the recipient UUID.</p>
+            <p className="mt-1 break-all">openpay://pay?username=&lt;recipient_username&gt;&amp;amount=10.00&amp;currency=USD</p>
+            <p className="mt-1 break-all">https://your-openpay-domain/send?username=&lt;recipient_username&gt;&amp;amount=10.00&amp;currency=USD</p>
+            <p className="mt-1">You can also paste `@username`, OpenPay link, or use Express Search.</p>
           </div>
 
           <div className="flex gap-2">

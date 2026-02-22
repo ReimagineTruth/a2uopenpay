@@ -112,9 +112,13 @@ const SendMoney = () => {
       }
 
       const toId = searchParams.get("to");
+      const initialSearch = searchParams.get("search") || "";
       const qrAmount = searchParams.get("amount");
       const qrCurrency = (searchParams.get("currency") || "").toUpperCase();
       const qrNote = searchParams.get("note");
+      if (initialSearch) {
+        setSearchQuery(initialSearch);
+      }
       if (toId && profiles) {
         const found = profiles.find(p => p.id === toId);
         if (found) {
