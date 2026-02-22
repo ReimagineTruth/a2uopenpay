@@ -97,7 +97,6 @@ const QrScannerPage = () => {
   const [pastedCode, setPastedCode] = useState("");
   const [showInstructions, setShowInstructions] = useState(false);
   const [retryToken, setRetryToken] = useState(0);
-  const [solidCameraBackground, setSolidCameraBackground] = useState(true);
   const [scanMode, setScanMode] = useState<"camera" | "photo" | "paste">("camera");
   const [manualQuery, setManualQuery] = useState("");
   const scannerRef = useRef<Html5Qrcode | null>(null);
@@ -136,6 +135,31 @@ const QrScannerPage = () => {
     video.setAttribute("webkit-playsinline", "true");
     video.setAttribute("autoplay", "true");
     video.setAttribute("muted", "true");
+  };
+
+  const playScanBeep = () => {
+    if (typeof window === "undefined") return;
+    const AudioCtx = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioCtx) return;
+    try {
+      const audioContext = new AudioCtx();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      oscillator.type = "sine";
+      oscillator.frequency.setValueAtTime(1046, audioContext.currentTime);
+      gainNode.gain.setValueAtTime(0.0001, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.08, audioContext.currentTime + 0.01);
+      gainNode.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.12);
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.12);
+      oscillator.onended = () => {
+        void audioContext.close();
+      };
+    } catch {
+      // no-op
+    }
   };
 
   const handleDecoded = async (decodedText: string) => {
@@ -193,6 +217,7 @@ const QrScannerPage = () => {
       }
 
       setScanHint("Recipient found. Opening payment...");
+      playScanBeep();
       await stopScanner();
       navigate(`${returnTo}?${params.toString()}`, { replace: true });
     } finally {
@@ -379,7 +404,7 @@ const QrScannerPage = () => {
             width: 100% !important;
             height: 100% !important;
             overflow: hidden !important;
-            background: ${solidCameraBackground ? "#0b1220" : "transparent"} !important;
+            background: #0b1220 !important;
           }
           #openpay-full-scanner > div {
             position: absolute !important;
@@ -393,7 +418,7 @@ const QrScannerPage = () => {
             height: 100% !important;
             object-fit: cover !important;
             transform: translateZ(0);
-            background: ${solidCameraBackground ? "#0b1220" : "transparent"} !important;
+            background: #0b1220 !important;
           }
           #openpay-full-scanner__scan_region {
             position: absolute !important;
@@ -475,32 +500,6 @@ const QrScannerPage = () => {
             >
               Paste
             </Button>
-          </div>
-
-          <div className="mt-3 rounded-2xl border border-white/20 bg-slate-900/80 p-3 text-sm">
-            <p className="font-semibold text-white/90">Scanner test controls</p>
-            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <Button
-                type="button"
-                variant="outline"
-                className="h-10 rounded-xl border-white/35 bg-black/25 text-white hover:bg-black/45"
-                onClick={() => setSolidCameraBackground((prev) => !prev)}
-              >
-                {solidCameraBackground ? "Use transparent camera layer" : "Use solid camera background"}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="h-10 rounded-xl border-white/35 bg-black/25 text-white hover:bg-black/45"
-                onClick={() => {
-                  setScanError("");
-                  setScanHint("Restarting scanner with new layout...");
-                  setRetryToken((prev) => prev + 1);
-                }}
-              >
-                Restart scanner
-              </Button>
-            </div>
           </div>
 
           <div className="mt-3 text-center">
@@ -607,7 +606,7 @@ const QrScannerPage = () => {
             )}
           </div>
 
-          {(scanMode !== "camera" || Boolean(scanError)) && (
+          {scanMode !== "camera" && (
             <div className="mt-3 rounded-2xl border border-white/30 bg-black/30 p-3">
               <p className="text-sm font-semibold text-white">Express Search (if scanner fails)</p>
               <p className="mt-1 text-xs text-white/75">Enter @username, name, Gmail/email handle, or OP account number.</p>

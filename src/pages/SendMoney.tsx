@@ -22,6 +22,40 @@ interface RecentRecipient extends UserProfile {
   last_sent_at: string;
 }
 
+const playSendSuccessSound = () => {
+  if (typeof window === "undefined") return;
+  const AudioCtx = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!AudioCtx) return;
+  try {
+    const context = new AudioCtx();
+    const gain = context.createGain();
+    gain.connect(context.destination);
+    gain.gain.setValueAtTime(0.0001, context.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.08, context.currentTime + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.2);
+
+    const osc1 = context.createOscillator();
+    osc1.type = "triangle";
+    osc1.frequency.setValueAtTime(784, context.currentTime);
+    osc1.connect(gain);
+    osc1.start(context.currentTime);
+    osc1.stop(context.currentTime + 0.09);
+
+    const osc2 = context.createOscillator();
+    osc2.type = "triangle";
+    osc2.frequency.setValueAtTime(1046, context.currentTime + 0.1);
+    osc2.connect(gain);
+    osc2.start(context.currentTime + 0.1);
+    osc2.stop(context.currentTime + 0.19);
+
+    osc2.onended = () => {
+      void context.close();
+    };
+  } catch {
+    // no-op
+  }
+};
+
 const SendMoney = () => {
   const [step, setStep] = useState<"select" | "amount" | "confirm">("select");
   const [searchQuery, setSearchQuery] = useState("");
@@ -316,6 +350,7 @@ const SendMoney = () => {
       date: new Date(),
     });
     setReceiptOpen(true);
+    playSendSuccessSound();
     if (usedFallback) {
       toast.success(`${currency.symbol}${parseFloat(amount).toFixed(2)} sent to ${selectedUser.full_name}! (fallback route)`);
     } else {

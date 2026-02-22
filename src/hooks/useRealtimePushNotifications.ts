@@ -2,6 +2,40 @@ import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+const playIncomingNotificationSound = () => {
+  if (typeof window === "undefined") return;
+  const AudioCtx = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!AudioCtx) return;
+  try {
+    const context = new AudioCtx();
+    const gain = context.createGain();
+    gain.connect(context.destination);
+    gain.gain.setValueAtTime(0.0001, context.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.07, context.currentTime + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.26);
+
+    const oscA = context.createOscillator();
+    oscA.type = "sine";
+    oscA.frequency.setValueAtTime(660, context.currentTime);
+    oscA.connect(gain);
+    oscA.start(context.currentTime);
+    oscA.stop(context.currentTime + 0.12);
+
+    const oscB = context.createOscillator();
+    oscB.type = "sine";
+    oscB.frequency.setValueAtTime(880, context.currentTime + 0.13);
+    oscB.connect(gain);
+    oscB.start(context.currentTime + 0.13);
+    oscB.stop(context.currentTime + 0.25);
+
+    oscB.onended = () => {
+      void context.close();
+    };
+  } catch {
+    // no-op
+  }
+};
+
 const showSystemNotification = async (title: string, body: string) => {
   if (typeof window === "undefined" || !("Notification" in window)) return;
   if (Notification.permission !== "granted") return;
@@ -40,6 +74,7 @@ export const useRealtimePushNotifications = () => {
       if (!user || !isMounted) return;
 
       const maybeNotify = async (title: string, body: string) => {
+        playIncomingNotificationSound();
         if (document.visibilityState === "visible") {
           toast.info(`${title}: ${body}`);
         }
