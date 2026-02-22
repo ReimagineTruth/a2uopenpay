@@ -233,7 +233,7 @@ serve(async (req) => {
         sender_id: user.id,
         receiver_id: user.id,
         amount: parsedAmount,
-        note: `Wallet top up (PI -> USD) | ${parsedAmount.toFixed(2)} PI = ${parsedAmountUsd.toFixed(2)} USD`,
+        note: `Wallet top up (PI -> OPEN USD) | ${parsedAmount.toFixed(2)} PI = ${parsedAmountUsd.toFixed(2)} OPEN USD`,
         status: "completed",
       });
 

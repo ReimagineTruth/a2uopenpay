@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { ChevronDown, Search } from "lucide-react";
 import {
@@ -242,4 +242,5 @@ const CurrencySelector = () => {
 };
 
 export default CurrencySelector;
+
 

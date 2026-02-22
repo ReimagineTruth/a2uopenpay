@@ -220,7 +220,7 @@ const TopUp = () => {
         transactionId: completedPaymentId || completedTxid || crypto.randomUUID(),
         type: "topup",
         amount: parsedAmount,
-        note: "Pi Network top up (PI -> USD)",
+        note: "Pi Network top up (PI -> OPEN USD)",
         date: new Date(),
       });
       setReceiptOpen(true);
@@ -235,7 +235,7 @@ const TopUp = () => {
   const topUpButtonLabel = loading
     ? "Processing Pi payment..."
     : safeAmount > 0
-      ? `Pay with Pi and add ${usdCurrency.symbol}${safeAmount.toFixed(2)} PI USD`
+      ? `Pay with Pi and add ${usdCurrency.symbol}${safeAmount.toFixed(2)} OPEN USD`
       : "Enter amount to top up";
 
   return (
@@ -255,7 +255,7 @@ const TopUp = () => {
       <div className="paypal-surface mt-10 rounded-3xl p-6">
         <div className="mb-8 text-center">
           <p className="text-5xl font-bold text-foreground">{usdCurrency.symbol}{safeAmount.toFixed(2)}</p>
-          <p className="mt-2 text-muted-foreground">Enter amount to add - PI USD</p>
+          <p className="mt-2 text-muted-foreground">Enter amount to add - OPEN USD</p>
         </div>
         <Input
           type="number"
@@ -268,9 +268,9 @@ const TopUp = () => {
         />
         <div className="mb-4 grid grid-cols-2 gap-3 text-center text-xs text-muted-foreground">
           <p className="rounded-xl border border-border px-3 py-2">Pay: {safeAmount.toFixed(2)} PI</p>
-          <p className="rounded-xl border border-border px-3 py-2">Add: {usdCurrency.symbol}{safeAmount.toFixed(2)} PI USD</p>
+          <p className="rounded-xl border border-border px-3 py-2">Add: {usdCurrency.symbol}{safeAmount.toFixed(2)} OPEN USD</p>
         </div>
-        <p className="mb-4 text-center text-xs text-muted-foreground">OpenPay uses a stable in-app value: 1 Pi = 1 PI USD.</p>
+        <p className="mb-4 text-center text-xs text-muted-foreground">OpenPay uses a stable in-app value: 1 Pi = 1 OPEN USD.</p>
         <Button
           onClick={handleTopUp}
           disabled={loading || safeAmount <= 0}

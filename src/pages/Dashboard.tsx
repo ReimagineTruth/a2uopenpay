@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Link, useNavigate } from "react-router-dom";
 import BottomNav from "@/components/BottomNav";
-import { Bell, CircleDollarSign, Copy, CreditCard, Eye, EyeOff, FileText, HandCoins, PiggyBank, QrCode, RefreshCw, Settings, Store, Users } from "lucide-react";
+import { Bell, Check, ChevronDown, CircleDollarSign, Copy, CreditCard, Eye, EyeOff, FileText, HandCoins, PiggyBank, QrCode, RefreshCw, Settings, Store, Users } from "lucide-react";
 import { format } from "date-fns";
 import CurrencySelector from "@/components/CurrencySelector";
 import { useCurrency } from "@/contexts/CurrencyContext";
@@ -36,8 +36,10 @@ interface UserAccount {
   account_username: string;
 }
 
-type DashboardSection = "wallet" | "savings" | "credit" | "loans" | "cards";
+type DashboardSection = "wallet" | "savings" | "credit" | "loans" | "cards" | "buy";
 type MerchantMode = "sandbox" | "live";
+type BuyOnrampProvider = "Pi Payment" | "TransFi" | "Onramp Money" | "Banxa";
+type BuyPaymentMethod = "Pi Payment" | "Ewallet" | "Debit Card" | "Credit Card" | "Apple Pay";
 
 interface SavingsDashboard {
   wallet_balance: number;
@@ -188,6 +190,12 @@ const Dashboard = () => {
   const [virtualCardNumber, setVirtualCardNumber] = useState("**** **** **** 4242");
   const [virtualCardActive, setVirtualCardActive] = useState(false);
   const [hideCardPreviewDetails, setHideCardPreviewDetails] = useState(false);
+  const [buySpendAmount, setBuySpendAmount] = useState("");
+  const buyFiatCurrency = "PI";
+  const [buyOnrampProvider, setBuyOnrampProvider] = useState<BuyOnrampProvider>("Pi Payment");
+  const [buyPaymentMethod, setBuyPaymentMethod] = useState<BuyPaymentMethod>("Pi Payment");
+  const [showOnrampPicker, setShowOnrampPicker] = useState(false);
+  const [showPaymentMethodPicker, setShowPaymentMethodPicker] = useState(false);
   const navigate = useNavigate();
   const { format: formatCurrency, currency } = useCurrency();
   const currencyLabel = currency.code === "OUSD" ? "OPEN USD" : currency.code;
@@ -786,11 +794,54 @@ const Dashboard = () => {
   const creditReceiveCount = transactions.filter((tx) => !tx.is_sent && !tx.is_topup && tx.status === "completed").length;
   const creditCheckoutCount = transactions.filter((tx) => String(tx.note || "").toLowerCase().includes("merchant checkout")).length;
   const creditActivityRows = [
-    { key: "topup", label: "Top Up activity", count: creditTopupCount, points: 3 },
+    { key: "topup", label: "Buy activity", count: creditTopupCount, points: 3 },
     { key: "send", label: "Send activity", count: creditSendCount, points: 4 },
     { key: "receive", label: "Receive activity", count: creditReceiveCount, points: 3 },
     { key: "checkout", label: "Checkout activity", count: creditCheckoutCount, points: 4 },
   ];
+  const parsedBuySpend = Number(buySpendAmount);
+  const safeBuySpend = Number.isFinite(parsedBuySpend) && parsedBuySpend > 0 ? parsedBuySpend : 0;
+  const onrampRates: Record<BuyOnrampProvider, number> = {
+    "Pi Payment": 9.39,
+    TransFi: 9.39,
+    "Onramp Money": 10.13,
+    Banxa: 9.8,
+  };
+  const selectedRate = 1;
+  const buyOpenUsdAmount = safeBuySpend > 0 ? safeBuySpend : 0;
+  const buyOpenUsdDisplay = buyOpenUsdAmount > 0 ? buyOpenUsdAmount.toFixed(6) : "0.000000";
+  const buyOpenUsdMinimum = 1;
+  const buyOpenUsdMeetsMinimum = buyOpenUsdAmount >= buyOpenUsdMinimum;
+  const onrampRows: Array<{ key: BuyOnrampProvider; disabled?: boolean; subtitle: string; delta?: string; recommended?: boolean }> = [
+    { key: "Pi Payment", subtitle: "Active", recommended: true },
+    { key: "TransFi", subtitle: "Coming Soon", disabled: true },
+    { key: "Onramp Money", subtitle: "Coming Soon", disabled: true },
+    { key: "Banxa", subtitle: "Coming Soon", disabled: true },
+  ];
+  const paymentMethodRows: Array<{ key: BuyPaymentMethod; recommended?: boolean; disabled?: boolean }> = [
+    { key: "Pi Payment", recommended: true },
+    { key: "Ewallet" },
+    { key: "Debit Card" },
+    { key: "Credit Card" },
+    { key: "Apple Pay" },
+  ];
+
+  const handleBuyOpenUsd = () => {
+    if (safeBuySpend <= 0) {
+      toast.error("Enter a valid amount");
+      return;
+    }
+    if (!buyOpenUsdMeetsMinimum) {
+      toast.error("Minimum buy is 1 OPEN USD");
+      return;
+    }
+    if (buyPaymentMethod !== "Pi Payment") {
+      toast.error("OpenUSD buy currently supports Pi Payment only");
+      return;
+    }
+    const amountForTopUp = Math.max(0.01, Number(buyOpenUsdAmount.toFixed(2)));
+    navigate(`/topup?amount=${amountForTopUp.toFixed(2)}`);
+  };
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-background pb-28">
@@ -818,13 +869,13 @@ const Dashboard = () => {
       {/* Greeting */}
       <div className="px-4 mt-3">
         <h1 className="text-2xl font-bold text-foreground">
-          {activeSection === "cards" ? "OpenPay Cards" : `${getGreeting()}, ${userName.split(" ")[0] || "there"}!`}
+          {activeSection === "cards" ? "OpenPay Cards" : activeSection === "buy" ? "Buy OpenUSD" : `${getGreeting()}, ${userName.split(" ")[0] || "there"}!`}
         </h1>
-        {activeSection !== "cards" && username && <p className="text-sm text-muted-foreground">@{username}</p>}
+        {activeSection !== "cards" && activeSection !== "buy" && username && <p className="text-sm text-muted-foreground">@{username}</p>}
       </div>
 
       <div className="mt-4 px-4">
-        <div className="paypal-surface overflow-x-auto rounded-2xl p-1">
+        <div className="paypal-surface overflow-x-auto rounded-2xl p-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           <div className="flex min-w-max gap-1">
             {([
               { key: "wallet", label: "Wallet" },
@@ -832,6 +883,7 @@ const Dashboard = () => {
               { key: "credit", label: "Credit" },
               { key: "loans", label: "Loans" },
               { key: "cards", label: "Cards" },
+              { key: "buy", label: "Buy" },
             ] as Array<{ key: DashboardSection; label: string }>).map((item) => (
               <button
                 key={item.key}
@@ -982,7 +1034,7 @@ const Dashboard = () => {
             </div>
 
             <div className="mt-3 rounded-2xl bg-white/15 p-4 text-sm text-white/90">
-              Credit uses send, receive, top up, checkout, invoice, and request activity.
+              Credit uses send, receive, buy, checkout, invoice, and request activity.
             </div>
 
             <div className="mt-3 grid grid-cols-3 gap-2">
@@ -1002,10 +1054,10 @@ const Dashboard = () => {
               </button>
               <button
                 type="button"
-                onClick={() => navigate("/topup")}
+                onClick={() => setActiveSection("buy")}
                 className="h-11 rounded-full bg-white/10 text-sm font-semibold text-white"
               >
-                Top Up
+                Buy
               </button>
             </div>
             </div>
@@ -1243,10 +1295,10 @@ const Dashboard = () => {
             </button>
             <button
               type="button"
-              onClick={() => navigate("/topup")}
+              onClick={() => setActiveSection("buy")}
               className="h-11 rounded-full bg-white/10 text-sm font-semibold text-white"
             >
-              Top Up
+              Buy
             </button>
           </div>
 
@@ -1302,6 +1354,82 @@ const Dashboard = () => {
             }).length === 0 && <p className="px-3 py-8 text-center text-sm text-muted-foreground">No card activity yet.</p>}
           </div>
         </div>
+        </div>
+      )}
+
+      {activeSection === "buy" && (
+        <div className="mx-4 mt-4 space-y-4">
+          <div className="paypal-surface rounded-3xl p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-xl font-semibold text-foreground">Onramper</p>
+              <span className="rounded-full border border-border/70 px-3 py-1 text-xs font-semibold text-muted-foreground">Buy OpenUSD</span>
+            </div>
+
+            <div className="space-y-3">
+              <div className="rounded-2xl bg-secondary/50 p-4">
+                <p className="text-sm text-muted-foreground">You spend (PI amount)</p>
+                <div className="mt-2 flex items-center justify-between gap-3">
+                  <input
+                    value={buySpendAmount}
+                    onChange={(e) => setBuySpendAmount(e.target.value)}
+                    type="number"
+                    min="1"
+                    step="0.01"
+                    placeholder="Custom amount (min 1)"
+                    className="h-10 w-full bg-transparent text-4xl font-semibold text-foreground outline-none"
+                  />
+                  <span className="inline-flex h-11 items-center rounded-xl bg-white px-3 text-sm font-semibold text-foreground">
+                    {buyFiatCurrency}
+                  </span>
+                </div>
+                <p className="mt-2 text-xs font-medium text-foreground">1 PI = 1 OPEN USD</p>
+              </div>
+
+              <div className="rounded-2xl bg-secondary/50 p-4">
+                <p className="text-sm text-muted-foreground">You get (OPEN USD amount)</p>
+                <div className="mt-2 flex items-center justify-between gap-3">
+                  <p className="text-4xl font-semibold text-foreground">{buyOpenUsdDisplay}</p>
+                  <span className="inline-flex h-11 items-center rounded-xl bg-white px-3 text-sm font-semibold text-foreground">OPEN USD</span>
+                </div>
+                <p className="mt-2 text-xs font-medium text-foreground">1 OPEN USD = 1 USD stable coin</p>
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-border/50 pt-3 text-sm text-muted-foreground">
+                  <p>1 OUSD ~ {selectedRate.toFixed(4)} PI</p>
+                  <button
+                    type="button"
+                    onClick={() => setShowOnrampPicker(true)}
+                    className="inline-flex items-center gap-1 font-semibold text-foreground"
+                  >
+                    By {buyOnrampProvider}
+                    <ChevronDown className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <p className="mt-4 text-base text-foreground">Pay using</p>
+            <button
+              type="button"
+              onClick={() => setShowPaymentMethodPicker(true)}
+              className="mt-2 flex h-14 w-full items-center justify-between rounded-2xl border border-border/70 bg-white px-4"
+            >
+              <span className="text-base font-semibold text-foreground">{buyPaymentMethod}</span>
+              <ChevronDown className="h-5 w-5 text-muted-foreground" />
+            </button>
+            <button
+              type="button"
+              onClick={handleBuyOpenUsd}
+              disabled={!buyOpenUsdMeetsMinimum}
+              className="mt-3 h-11 w-full rounded-xl bg-paypal-blue text-sm font-semibold text-white hover:bg-[#004dc5] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Buy OpenUSD with Pi Payment
+            </button>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Minimum buy: 1 OPEN USD. Purchase flow uses OpenPay Pi buy and credits OPEN USD balance.
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Stable mode enabled: 1 PI = 1 OPEN USD.
+            </p>
+          </div>
         </div>
       )}
 
@@ -1485,7 +1613,7 @@ const Dashboard = () => {
                     {tx.other_username && <p className="text-xs text-muted-foreground">@{tx.other_username}</p>}
                     <p className="text-xs text-muted-foreground">{format(new Date(tx.created_at), "MMM d, yyyy")}</p>
                     <p className="text-xs text-muted-foreground">
-                      {tx.is_topup ? "Top up" : tx.is_sent ? "Payment" : "Received"}
+                      {tx.is_topup ? "Buy" : tx.is_sent ? "Payment" : "Received"}
                     </p>
                     {tx.note && <p className="text-xs text-muted-foreground">{toPreviewText(tx.note)}</p>}
                   </div>
@@ -1510,7 +1638,7 @@ const Dashboard = () => {
           </button>
           <button onClick={() => navigate("/send")} className="min-w-0 flex-1 rounded-full bg-paypal-blue py-3.5 text-center text-sm font-semibold text-white shadow-lg shadow-[#0057d8]/30">Pay</button>
           <button onClick={() => setShowReceiveOptions(true)} className="min-w-0 flex-1 rounded-full border border-paypal-blue/25 bg-white py-3.5 text-center text-sm font-semibold text-paypal-blue">Receive</button>
-          <button onClick={() => navigate("/topup")} className="min-w-0 flex-1 rounded-full border border-paypal-blue/25 bg-white py-3.5 text-center text-sm font-semibold text-paypal-blue">Top Up</button>
+          <button onClick={() => setActiveSection("buy")} className="min-w-0 flex-1 rounded-full border border-paypal-blue/25 bg-white py-3.5 text-center text-sm font-semibold text-paypal-blue">Buy</button>
         </div>
       </div>
       </>
@@ -1610,6 +1738,102 @@ const Dashboard = () => {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={showOnrampPicker} onOpenChange={setShowOnrampPicker}>
+        <DialogContent className="top-auto bottom-0 translate-y-0 rounded-b-none rounded-t-3xl px-5 pb-7 pt-5 sm:max-w-lg">
+          <DialogTitle className="text-center text-2xl font-bold text-foreground">Choose onramp</DialogTitle>
+          <DialogDescription className="text-center text-sm text-muted-foreground">
+            Select the provider for your OpenUSD buy quote.
+          </DialogDescription>
+          <p className="mt-1 text-center text-xs font-medium text-foreground">
+            Stable mode: 1 PI = 1 OPEN USD
+          </p>
+          <div className="mt-3 space-y-3">
+            {onrampRows.map((row) => {
+              const getAmount = safeBuySpend > 0
+                ? safeBuySpend.toFixed(5)
+                : "0.00000";
+              const selected = buyOnrampProvider === row.key;
+              return (
+                <button
+                  key={row.key}
+                  type="button"
+                  disabled={row.disabled}
+                  onClick={() => {
+                    if (row.disabled) return;
+                    setBuyOnrampProvider(row.key);
+                    setShowOnrampPicker(false);
+                  }}
+                  className={`w-full rounded-2xl border px-4 py-3 text-left transition ${
+                    row.disabled
+                      ? "border-border/50 bg-secondary/40 text-muted-foreground"
+                      : selected
+                        ? "border-paypal-blue/50 bg-white"
+                        : "border-border/70 bg-secondary/20 hover:bg-secondary/40"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-2xl font-semibold text-foreground">{row.key}</p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm text-muted-foreground">{row.subtitle}</p>
+                        {row.recommended && (
+                          <span className="rounded-md bg-paypal-blue/10 px-2 py-0.5 text-xs font-semibold text-paypal-blue">
+                            Recommended
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      {!row.disabled && <p className="text-3xl font-semibold text-foreground">{getAmount} PI</p>}
+                      {row.delta && <p className="text-sm font-semibold text-red-500">{row.delta}</p>}
+                      {!row.disabled && selected && <Check className="ml-auto mt-1 h-4 w-4 text-paypal-blue" />}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showPaymentMethodPicker} onOpenChange={setShowPaymentMethodPicker}>
+        <DialogContent className="top-auto bottom-0 translate-y-0 rounded-b-none rounded-t-3xl px-5 pb-7 pt-5 sm:max-w-lg">
+          <DialogTitle className="text-center text-2xl font-bold text-foreground">Choose payment method</DialogTitle>
+          <DialogDescription className="text-center text-sm text-muted-foreground">
+            Pi Payment is currently supported for OpenUSD buy.
+          </DialogDescription>
+          <div className="mt-3 space-y-2">
+            {paymentMethodRows.map((row) => {
+              const selected = buyPaymentMethod === row.key;
+              const disabled = row.key !== "Pi Payment";
+              return (
+                <button
+                  key={row.key}
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => {
+                    if (disabled) return;
+                    setBuyPaymentMethod(row.key);
+                    setShowPaymentMethodPicker(false);
+                  }}
+                  className={`flex h-14 w-full items-center justify-between rounded-2xl border px-4 ${
+                    disabled
+                      ? "border-border/60 bg-secondary/30 text-muted-foreground"
+                      : "border-border/70 bg-white hover:bg-secondary/20"
+                  }`}
+                >
+                  <span className="text-base font-semibold">{row.key}</span>
+                  <div className="flex items-center gap-2">
+                    {row.recommended && <span className="rounded-md bg-paypal-blue/10 px-2 py-0.5 text-xs font-semibold text-paypal-blue">Recommended</span>}
+                    {selected && <Check className="h-5 w-5 text-paypal-blue" />}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={showAgreement} onOpenChange={() => undefined}>
         <DialogContent className="rounded-3xl sm:max-w-md">
           <DialogTitle className="text-xl font-bold text-foreground">Platform, User, and Merchant Protection Agreement</DialogTitle>
@@ -1700,4 +1924,5 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
+
 
