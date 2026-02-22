@@ -14,62 +14,69 @@ type CheckoutSessionPublic = {
   amount: number;
   merchant_name: string;
   merchant_username: string;
-  merchant_logo_url: string | null;
 };
 
 const MerchantCheckoutThankYouPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { currencies } = useCurrency();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = supabase as any;
 
   const sessionToken = searchParams.get("session") || "";
-  const transactionId = searchParams.get("tx") || "";
-  const confirmationMessage = searchParams.get("message") || "Your payment was processed successfully.";
+  const initialTx = searchParams.get("tx") || "";
+  const confirmationMessage = searchParams.get("message") || "Thank you. Your POS payment was processed successfully.";
   const fallbackMerchantName = searchParams.get("merchant_name") || "OpenPay Merchant";
   const fallbackMerchantUsername = searchParams.get("merchant_username") || "";
   const fallbackCurrency = (searchParams.get("currency") || "USD").toUpperCase();
   const fallbackAmount = Number(searchParams.get("amount") || "0");
 
   const [loading, setLoading] = useState(false);
-  const [viewerEmail, setViewerEmail] = useState("");
   const [receiptOpen, setReceiptOpen] = useState(false);
+  const [transactionId, setTransactionId] = useState(initialTx);
   const [sessionData, setSessionData] = useState<CheckoutSessionPublic | null>(null);
   const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
 
   useEffect(() => {
-    const boot = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (user?.email) setViewerEmail(user.email);
-
+    const load = async () => {
       if (!sessionToken) return;
-
       setLoading(true);
-      const { data } = await db.rpc("get_public_merchant_checkout_session", { p_session_token: sessionToken });
-      setLoading(false);
+      const { data } = await supabase.rpc("get_public_merchant_checkout_session", { p_session_token: sessionToken });
       const row = Array.isArray(data) ? data[0] : data;
-      if (!row) return;
-
-      setSessionData({
-        session_id: String(row.session_id || ""),
-        currency: String(row.currency || "USD"),
-        amount: Number(row.amount || 0),
-        merchant_name: String(row.merchant_name || "OpenPay Merchant"),
-        merchant_username: String(row.merchant_username || ""),
-        merchant_logo_url: row.merchant_logo_url ? String(row.merchant_logo_url) : null,
-      });
+      if (row) {
+        setSessionData({
+          session_id: String(row.session_id || ""),
+          currency: String(row.currency || "USD"),
+          amount: Number(row.amount || 0),
+          merchant_name: String(row.merchant_name || "OpenPay Merchant"),
+          merchant_username: String(row.merchant_username || ""),
+        });
+      }
+      setLoading(false);
     };
+    void load();
+  }, [sessionToken]);
 
-    void boot();
-  }, [db, sessionToken]);
+  useEffect(() => {
+    const loadTx = async () => {
+      if (transactionId) return;
+      const lookupSessionId = sessionData?.session_id;
+      if (!lookupSessionId) return;
+      const { data } = await supabase
+        .from("merchant_payments")
+        .select("transaction_id")
+        .eq("session_id", lookupSessionId)
+        .maybeSingle();
+      if (data?.transaction_id) {
+        setTransactionId(String(data.transaction_id));
+      }
+    };
+    void loadTx();
+  }, [sessionData?.session_id, transactionId]);
 
   const mergedCurrency = sessionData?.currency || fallbackCurrency;
   const mergedAmount = sessionData?.amount || fallbackAmount;
   const mergedMerchantName = sessionData?.merchant_name || fallbackMerchantName;
   const mergedMerchantUsername = sessionData?.merchant_username || fallbackMerchantUsername;
+  const mergedSessionId = sessionData?.session_id || sessionToken || "N/A";
 
   const amountInUsd = useMemo(() => {
     const rate = currencies.find((c) => c.code === mergedCurrency)?.rate ?? 1;
@@ -78,87 +85,52 @@ const MerchantCheckoutThankYouPage = () => {
 
   useEffect(() => {
     if (!transactionId) return;
-    const noteSessionId = sessionData?.session_id || sessionToken || "N/A";
     setReceiptData({
       transactionId,
       type: "send",
       amount: amountInUsd,
       otherPartyName: mergedMerchantName,
       otherPartyUsername: mergedMerchantUsername || undefined,
-      note: `Merchant checkout session: ${noteSessionId}`,
+      note: `Merchant checkout session: ${mergedSessionId}`,
       date: new Date(),
     });
-  }, [amountInUsd, mergedMerchantName, mergedMerchantUsername, sessionData?.session_id, sessionToken, transactionId]);
+  }, [amountInUsd, mergedMerchantName, mergedMerchantUsername, mergedSessionId, transactionId]);
 
-  if (loading) {
-    return <SplashScreen message="Loading payment confirmation..." />;
-  }
+  if (loading) return <SplashScreen message="Loading payment confirmation..." />;
 
   return (
     <div className="min-h-screen bg-[#f5f6fa] px-4 py-10">
       <div className="mx-auto w-full max-w-xl rounded-2xl border border-border bg-white p-6 shadow-sm">
         <div className="flex items-center gap-3">
           <CheckCircle2 className="h-7 w-7 text-emerald-600" />
-          <h1 className="text-2xl font-semibold text-foreground">Thank you. Payment completed.</h1>
+          <h1 className="text-2xl font-semibold text-foreground">POS payment completed</h1>
         </div>
         <p className="mt-2 text-sm text-muted-foreground">{confirmationMessage}</p>
 
-        <div className="mt-4 space-y-2 rounded-xl border border-border bg-secondary/30 p-4 text-sm">
-          <p className="flex items-center justify-between">
-            <span className="text-muted-foreground">Merchant</span>
-            <span className="font-medium text-foreground">{mergedMerchantName}</span>
+        {!!transactionId && (
+          <p className="mt-4 text-xs text-muted-foreground">
+            Transaction ID: <span className="font-mono text-foreground">{transactionId}</span>
           </p>
-          {!!mergedMerchantUsername && (
-            <p className="flex items-center justify-between">
-              <span className="text-muted-foreground">Username</span>
-              <span className="font-medium text-foreground">@{mergedMerchantUsername}</span>
-            </p>
-          )}
-          {!!transactionId && (
-            <p className="flex items-center justify-between">
-              <span className="text-muted-foreground">Transaction ID</span>
-              <span className="max-w-[68%] break-all text-right font-mono text-xs text-foreground">{transactionId}</span>
-            </p>
-          )}
-        </div>
+        )}
 
         <div className="mt-5 flex flex-wrap gap-2">
-          <Button
-            variant="outline"
-            className="h-10 rounded-lg"
-            onClick={() => setReceiptOpen(true)}
-            disabled={!receiptData}
-          >
+          <Button variant="outline" className="h-10 rounded-lg" onClick={() => setReceiptOpen(true)} disabled={!receiptData}>
             <ReceiptText className="mr-2 h-4 w-4" />
             View receipt
           </Button>
           <Button
             className="h-10 rounded-lg bg-paypal-blue text-white hover:bg-[#004dc5]"
-            onClick={() => navigate("/merchant-onboarding")}
+            onClick={() => navigate("/dashboard")}
           >
-            Merchant dashboard
+            Back to wallet
           </Button>
-          <Button
-            variant="ghost"
-            className="h-10 rounded-lg"
-            onClick={() => {
-              if (sessionToken) {
-                navigate(`/merchant-checkout?session=${encodeURIComponent(sessionToken)}`);
-                return;
-              }
-              navigate("/merchant-checkout");
-            }}
-          >
-            Back to checkout
+          <Button variant="ghost" className="h-10 rounded-lg" onClick={() => navigate("/activity")}>
+            Activity
           </Button>
         </div>
 
-        {!!viewerEmail && (
-          <p className="mt-4 text-sm text-muted-foreground">Signed in as {viewerEmail}</p>
-        )}
         <p className="mt-6 text-center text-sm text-muted-foreground">Powered by OpenPay</p>
       </div>
-
       <TransactionReceipt open={receiptOpen} onOpenChange={setReceiptOpen} receipt={receiptData} />
     </div>
   );
