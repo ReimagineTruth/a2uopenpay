@@ -67,12 +67,17 @@ type PosApiKeySettings = {
 
 const OFFLINE_POS_KEY = "openpay_pos_offline_queue_v1";
 const SETTINGS_KEY = "openpay_pos_settings_v1";
+const MERCHANT_MODE_KEY = "openpay_merchant_mode_v1";
 
 const MerchantPosPage = () => {
   const navigate = useNavigate();
   const { currencies, currency: activeCurrency } = useCurrency();
   const [activeView, setActiveView] = useState<PosView>("home");
-  const [mode, setMode] = useState<"sandbox" | "live">("live");
+  const [mode, setMode] = useState<"sandbox" | "live">(() => {
+    if (typeof window === "undefined") return "live";
+    const savedMode = window.localStorage.getItem(MERCHANT_MODE_KEY);
+    return savedMode === "sandbox" || savedMode === "live" ? savedMode : "live";
+  });
   const [dashboard, setDashboard] = useState<PosDashboard | null>(null);
   const [transactions, setTransactions] = useState<PosTx[]>([]);
   const [amountInput, setAmountInput] = useState("0");
@@ -113,22 +118,32 @@ const MerchantPosPage = () => {
 
   const getPiCodeLabel = (code: string) => (code === "PI" ? "PI" : `PI ${code}`);
 
+  const sessionAmountLabel = useMemo(() => {
+    if (!currentSession) return "";
+    const parsed = Number(currentSession.total_amount || 0);
+    return parsed > 0 ? parsed.toFixed(2) : "";
+  }, [currentSession]);
+
   const qrDisplayValue = useMemo(() => {
-    if (!merchantUserId) return "openpay-pos://waiting";
+    if (!merchantUserId || !currentSession?.session_token) return "openpay-pos://waiting";
     const params = new URLSearchParams({
       uid: merchantUserId,
       name: (storeName || dashboard?.merchant_name || "OpenPay Merchant").trim(),
       username: dashboard?.merchant_username || "",
-      currency,
+      currency: currentSession.currency || currency,
       note: "POS payment",
     });
-    if (normalizedAmount) params.set("amount", normalizedAmount);
-    if (currentSession?.session_token) params.set("checkout_session", currentSession.session_token);
+    const sessionAmount = Number(currentSession.total_amount || 0);
+    if (Number.isFinite(sessionAmount) && sessionAmount > 0) {
+      params.set("amount", sessionAmount.toFixed(2));
+    }
+    params.set("checkout_session", currentSession.session_token);
     return `openpay://pay?${params.toString()}`;
-  }, [currency, currentSession?.session_token, dashboard?.merchant_name, dashboard?.merchant_username, merchantUserId, normalizedAmount, storeName]);
+  }, [currency, currentSession, dashboard?.merchant_name, dashboard?.merchant_username, merchantUserId, storeName]);
   const selectedUnitLabel = getPiCodeLabel(currency);
   const qrStoreName = (storeName || dashboard?.merchant_name || "OpenPay Merchant").trim();
   const qrMerchantUsername = (dashboard?.merchant_username || "merchant").replace(/^@+/, "");
+  const isSessionLocked = Boolean(currentSession?.session_token) && paymentStatus === "waiting";
 
   const pushNotification = (message: string, status: "success" | "error" = "success") => {
     if (status === "success") toast.success(message);
@@ -168,11 +183,12 @@ const MerchantPosPage = () => {
     }
     setMerchantUserId(user.id);
 
+    const profileCurrency = currency.length === 3 ? currency : "USD";
     await (supabase as any).rpc("upsert_my_merchant_profile", {
       p_merchant_name: null,
       p_merchant_username: null,
       p_merchant_logo_url: null,
-      p_default_currency: currency,
+      p_default_currency: profileCurrency,
     });
 
     const [{ data: summary, error: summaryError }, { data: txRows, error: txError }] = await Promise.all([
@@ -298,12 +314,22 @@ const MerchantPosPage = () => {
   }, [historySearch, historyStatus, mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(MERCHANT_MODE_KEY, mode);
+  }, [mode]);
+
+  useEffect(() => {
     if (!currencies.find((c) => c.code === currency)) {
       setCurrency(activeCurrency.code);
     }
   }, [activeCurrency.code, currencies, currency]);
 
   const pressKey = (key: string) => {
+    if (currentSession) {
+      setCurrentSession(null);
+      setPaymentStatus("idle");
+      setReceiptIssuedAt(null);
+    }
     setAmountInput((prev) => {
       if (key === "C") return "0";
       if (key === "DEL") return prev.length <= 1 ? "0" : prev.slice(0, -1);
@@ -316,15 +342,6 @@ const MerchantPosPage = () => {
   const createPaymentSession = async () => {
     if (amountValue <= 0) {
       toast.error("Enter a valid amount");
-      return;
-    }
-
-    if (currency === "PI") {
-      setCurrentSession(null);
-      setPaymentStatus("idle");
-      setActiveView("receive");
-      setReceiptIssuedAt(new Date().toISOString());
-      toast.success("PI QR code generated");
       return;
     }
 
@@ -445,6 +462,10 @@ const MerchantPosPage = () => {
   };
 
   const copyQrValue = async () => {
+    if (!currentSession?.session_token) {
+      toast.error("Generate QR code first");
+      return;
+    }
     try {
       await navigator.clipboard.writeText(qrDisplayValue);
       toast.success("QR payment link copied");
@@ -454,7 +475,11 @@ const MerchantPosPage = () => {
   };
 
   const printPosReceipt = () => {
-    if (!normalizedAmount) {
+    if (!currentSession?.session_token) {
+      toast.error("Generate QR code first");
+      return;
+    }
+    if (!(sessionAmountLabel || normalizedAmount)) {
       toast.error("Enter an amount first");
       return;
     }
@@ -576,7 +601,19 @@ const MerchantPosPage = () => {
                   <option value="live">Live</option>
                   <option value="sandbox">Sandbox</option>
                 </select>
-                <select value={currency} onChange={(e) => setCurrency(e.target.value)} className="rounded-lg border border-border px-3 py-1.5 text-sm">
+                <select
+                  value={currency}
+                  onChange={(e) => {
+                    if (currentSession) {
+                      setCurrentSession(null);
+                      setPaymentStatus("idle");
+                      setReceiptIssuedAt(null);
+                    }
+                    setCurrency(e.target.value);
+                  }}
+                  disabled={isSessionLocked}
+                  className="rounded-lg border border-border px-3 py-1.5 text-sm"
+                >
                   {currencies.map((c) => (
                     <option key={c.code} value={c.code}>
                       {c.flag} {getPiCodeLabel(c.code)} - {c.name}
@@ -594,6 +631,7 @@ const MerchantPosPage = () => {
                       <button
                         key={key}
                         onClick={() => pressKey(key)}
+                        disabled={isSessionLocked}
                         className="rounded-lg border border-border py-2 text-lg font-semibold text-foreground hover:bg-muted"
                       >
                         {key}
@@ -601,7 +639,7 @@ const MerchantPosPage = () => {
                     ))}
                   </div>
                   <div className="mt-3 grid grid-cols-2 gap-2">
-                    <Button onClick={() => pressKey("C")} variant="outline" className="h-11 rounded-lg">Clear</Button>
+                    <Button onClick={() => pressKey("C")} disabled={isSessionLocked} variant="outline" className="h-11 rounded-lg">Clear</Button>
                     <Button
                       onClick={createPaymentSession}
                       disabled={creatingPayment || !hasActiveApiKey}
@@ -643,7 +681,9 @@ const MerchantPosPage = () => {
                     />
                   </div>
                   <p className="mt-2 text-xs text-muted-foreground">
-                    {normalizedAmount ? `${normalizedAmount} ${getPiCodeLabel(currency)}` : `Select amount and ${getPiCodeLabel(currency)}`}
+                    {sessionAmountLabel
+                      ? `${sessionAmountLabel} ${getPiCodeLabel(currentSession?.currency || currency)}`
+                      : `Select amount and ${getPiCodeLabel(currency)}`}
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">@{qrMerchantUsername}</p>
                   <div className="mt-3 flex justify-center gap-2">
@@ -817,8 +857,8 @@ const MerchantPosPage = () => {
           <p className="mt-2 border-t border-dashed border-black pt-2 text-center font-bold">ACKNOWLEDGEMENT RECEIPT</p>
           <p className="mt-2">Type: POS RECEIVE</p>
           <p>Mode: {mode.toUpperCase()}</p>
-          <p>Currency: {getPiCodeLabel(currency)}</p>
-          <p>Amount: {normalizedAmount || "0.00"}</p>
+          <p>Currency: {getPiCodeLabel(currentSession?.currency || currency)}</p>
+          <p>Amount: {sessionAmountLabel || normalizedAmount || "0.00"}</p>
           <p>Status: {paymentStatus.toUpperCase()}</p>
           <p className="break-all">Session: {currentSession?.session_token || "N/A"}</p>
           <p className="mt-2 border-t border-dashed border-black pt-2 text-center">SCAN QR CODE TO PAY</p>

@@ -30,7 +30,12 @@ const extractQrPayload = (rawValue: string) => {
     const amount = parsed.searchParams.get("amount") || "";
     const currencyCode = (parsed.searchParams.get("currency") || "").toUpperCase();
     const note = parsed.searchParams.get("note") || "";
-    const checkoutSession = parsed.searchParams.get("checkout_session") || "";
+    const checkoutSessionFromQuery = parsed.searchParams.get("checkout_session") || "";
+    const checkoutSessionFromPosPath =
+      parsed.protocol.toLowerCase() === "openpay-pos:" && parsed.hostname.toLowerCase() === "checkout"
+        ? parsed.pathname.replace(/^\/+/, "")
+        : "";
+    const checkoutSession = checkoutSessionFromQuery || checkoutSessionFromPosPath;
     return {
       uid: uidOrTo && uuidRegex.test(uidOrTo) ? uidOrTo : null,
       username: normalizedUsername,
@@ -48,7 +53,10 @@ const extractQrPayload = (rawValue: string) => {
   const maybeAmount = value.split("amount=")[1]?.split("&")[0] || "";
   const maybeCurrency = (value.split("currency=")[1]?.split("&")[0] || "").toUpperCase();
   const maybeNote = value.split("note=")[1]?.split("&")[0] || "";
-  const maybeCheckoutSession = value.split("checkout_session=")[1]?.split("&")[0] || "";
+  const maybeCheckoutSession =
+    value.split("checkout_session=")[1]?.split("&")[0] ||
+    value.match(/^openpay-pos:\/\/checkout\/([^/?#]+)/i)?.[1] ||
+    "";
   return {
     uid: maybeUid && uuidRegex.test(maybeUid) ? maybeUid : null,
     username: maybeUsername,
@@ -76,10 +84,16 @@ const isOpenPayQrCode = (rawValue: string) => {
       return hasRecipient && (host === "pay" || host === "send");
     }
 
+    if (protocol === "openpay-pos:") {
+      const sessionToken = parsed.pathname.replace(/^\/+/, "");
+      return host === "checkout" && sessionToken.startsWith("opsess_");
+    }
+
     if (protocol === "http:" || protocol === "https:") {
       const isOpenPayDomain = host.includes("openpay");
       const isPayPath = path.startsWith("/send") || path.startsWith("/pay");
-      return hasRecipient && isPayPath && isOpenPayDomain;
+      const hasCheckoutSession = Boolean(parsed.searchParams.get("checkout_session"));
+      return isOpenPayDomain && ((hasRecipient && isPayPath) || hasCheckoutSession);
     }
   } catch {
     return false;
@@ -241,6 +255,28 @@ const QrScannerPage = () => {
       setScanHint("OpenPay QR detected. Validating...");
       const payload = extractQrPayload(decodedText);
       let recipientId = payload.uid;
+      let resolvedAmount = payload.amount;
+      let resolvedCurrency = payload.currency;
+      let resolvedNote = payload.note;
+
+      if (!recipientId && payload.checkoutSession) {
+        const { data: checkoutPayload } = await (supabase as any).rpc("get_public_merchant_checkout_session", {
+          p_session_token: payload.checkoutSession,
+        });
+        const checkoutRow = Array.isArray(checkoutPayload) ? checkoutPayload[0] : checkoutPayload;
+        if (checkoutRow) {
+          const merchantUserId = String(checkoutRow.merchant_user_id || "");
+          if (merchantUserId) recipientId = merchantUserId;
+          const checkoutAmount = Number(checkoutRow.total_amount || 0);
+          if (checkoutAmount > 0) resolvedAmount = checkoutAmount.toFixed(2);
+          const checkoutCurrency = String(checkoutRow.currency || "").toUpperCase();
+          if (checkoutCurrency) resolvedCurrency = checkoutCurrency;
+          if (!resolvedNote) {
+            resolvedNote = `Merchant checkout ${String(checkoutRow.session_token || payload.checkoutSession)}`;
+          }
+        }
+      }
+
       if (!recipientId && payload.username) {
         const { data } = await supabase
           .from("profiles")
@@ -263,14 +299,14 @@ const QrScannerPage = () => {
       }
 
       const params = new URLSearchParams({ to: recipientId });
-      if (payload.amount && Number.isFinite(Number(payload.amount)) && Number(payload.amount) > 0) {
-        params.set("amount", Number(payload.amount).toFixed(2));
+      if (resolvedAmount && Number.isFinite(Number(resolvedAmount)) && Number(resolvedAmount) > 0) {
+        params.set("amount", Number(resolvedAmount).toFixed(2));
       }
-      if (payload.currency) {
-        params.set("currency", payload.currency);
+      if (resolvedCurrency) {
+        params.set("currency", resolvedCurrency);
       }
-      if (payload.note) {
-        params.set("note", payload.note);
+      if (resolvedNote) {
+        params.set("note", resolvedNote);
       }
       if (payload.checkoutSession) {
         params.set("checkout_session", payload.checkoutSession);

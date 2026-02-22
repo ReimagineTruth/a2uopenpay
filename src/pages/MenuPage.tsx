@@ -2,10 +2,13 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import BottomNav from "@/components/BottomNav";
-import { Send, ArrowLeftRight, CircleDollarSign, FileText, Wallet, Activity, HelpCircle, Info, Scale, LogOut, Clapperboard, ShieldAlert, FileCheck, Lock, Users, Store, BookOpen, Download, Megaphone, Smartphone, CreditCard, ShieldCheck, Handshake, Monitor } from "lucide-react";
+import { Send, ArrowLeftRight, CircleDollarSign, FileText, Wallet, Activity, HelpCircle, Info, Scale, LogOut, Clapperboard, ShieldAlert, FileCheck, Lock, Users, Store, BookOpen, Download, Megaphone, Smartphone, CreditCard, ShieldCheck, Handshake, Monitor, Copy, X } from "lucide-react";
 import { toast } from "sonner";
 import { clearAllAppSecurityUnlocks } from "@/lib/appSecurity";
 import { canAccessRemittanceMerchant, isRemittanceUiEnabled } from "@/lib/remittanceAccess";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import BrandLogo from "@/components/BrandLogo";
+import { QRCodeSVG } from "qrcode.react";
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -14,10 +17,12 @@ type BeforeInstallPromptEvent = Event & {
 
 const MenuPage = () => {
   const OPENPAY_APK_URL = "https://mega.nz/file/pFsECZjD#Lwdlo7tjgprWpU-N7UzKOy_aolGk5t4pgzHXA4VLm7M";
+  const OPENPAY_DESKTOP_EXE_URL = String(import.meta.env.VITE_OPENPAY_DESKTOP_EXE_URL || "").trim();
   const navigate = useNavigate();
   const remittanceUiEnabled = isRemittanceUiEnabled();
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [canInstall, setCanInstall] = useState(false);
+  const [showApkModal, setShowApkModal] = useState(false);
   const [welcomeClaimedAt, setWelcomeClaimedAt] = useState<string | null>(null);
   const [claimingWelcome, setClaimingWelcome] = useState(false);
   const [hasRemittanceAccess, setHasRemittanceAccess] = useState(false);
@@ -77,6 +82,41 @@ const MenuPage = () => {
       return;
     }
     window.open(OPENPAY_APK_URL, "_blank", "noopener,noreferrer");
+  };
+
+  const handleDesktopExe = () => {
+    if (!OPENPAY_DESKTOP_EXE_URL) {
+      toast.message("OpenPay Desktop EXE coming soon");
+      return;
+    }
+    window.open(OPENPAY_DESKTOP_EXE_URL, "_blank", "noopener,noreferrer");
+  };
+
+  const handleOpenApkModal = () => {
+    setShowApkModal(true);
+  };
+
+  const handleDownloadApk = () => {
+    window.open(OPENPAY_APK_URL, "_blank", "noopener,noreferrer");
+  };
+
+  const handleCopyApkLink = async () => {
+    try {
+      await navigator.clipboard.writeText(OPENPAY_APK_URL);
+      toast.success("APK link copied");
+    } catch {
+      toast.error("Copy failed");
+    }
+  };
+
+  const handleCopyMegaKey = async () => {
+    const megaKey = "Lwdlo7tjgprWpU-N7UzKOy_aolGk5t4pgzHXA4VLm7M";
+    try {
+      await navigator.clipboard.writeText(megaKey);
+      toast.success("Mega key copied");
+    } catch {
+      toast.error("Copy failed");
+    }
   };
 
   const handleLogout = async () => {
@@ -205,10 +245,29 @@ const MenuPage = () => {
           subtitle: "Pi Browser sign-in",
         },
         {
+          icon: Monitor,
+          label: "OpenPay Desktop EXE",
+          action: () => handleDesktopExe(),
+          subtitle: OPENPAY_DESKTOP_EXE_URL ? "Desktop browser app" : "Coming soon",
+        },
+        {
           icon: Download,
           label: canInstall ? "Install OpenPay" : "Install OpenPay APK",
-          action: () => handleInstall(),
-          subtitle: "Android APK",
+          action: () => handleOpenApkModal(),
+          subtitle: "Android phone & tablet APK",
+        },
+        {
+          icon: Smartphone,
+          label: "OpenPay App Tablet",
+          action: () => handleOpenApkModal(),
+          subtitle: "Android tablets APK",
+        },
+        {
+          icon: Smartphone,
+          label: "OpenPay App for iOS",
+          action: () => toast.message("Coming soon"),
+          subtitle: "Coming soon",
+          disabled: true,
         },
       ],
     },
@@ -252,6 +311,85 @@ const MenuPage = () => {
       </div>
 
       <BottomNav active="menu" />
+
+      <Dialog open={showApkModal} onOpenChange={setShowApkModal}>
+        <DialogContent className="rounded-3xl p-0 sm:max-w-2xl [&>button]:hidden">
+          <div className="relative bg-white px-6 py-6 text-foreground">
+            <button
+              type="button"
+              onClick={() => setShowApkModal(false)}
+              className="absolute right-4 top-4 rounded-full p-1 text-foreground/70 hover:bg-black/5"
+              aria-label="Close APK modal"
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            <div className="mx-auto flex max-w-md flex-col items-center text-center">
+              <BrandLogo className="h-16 w-16 rounded-2xl" />
+              <p className="mt-2 text-3xl font-bold">OpenPay</p>
+              <p className="mt-6 text-xl text-foreground/85">
+                Scan this QR to open OpenPay on your Android phone or tablet, then download and install the APK.
+              </p>
+
+              <div className="mt-5 rounded-2xl bg-white p-2">
+                <QRCodeSVG
+                  value={OPENPAY_APK_URL}
+                  size={180}
+                  bgColor="#ffffff"
+                  fgColor="#000000"
+                  includeMargin
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={() => void handleCopyApkLink()}
+                className="mt-4 h-12 w-full rounded-xl bg-neutral-200 px-4 text-lg font-semibold hover:bg-neutral-300"
+              >
+                <span className="inline-flex items-center gap-2">
+                  <Copy className="h-4 w-4" />
+                  Copy download link
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => void handleCopyMegaKey()}
+                className="mt-3 h-12 w-full rounded-xl bg-neutral-200 px-4 text-lg font-semibold hover:bg-neutral-300"
+              >
+                <span className="inline-flex items-center gap-2">
+                  <Copy className="h-4 w-4" />
+                  If Mega asks key, copy Mega key
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleDownloadApk}
+                className="mt-6 h-12 w-full rounded-xl bg-neutral-200 px-4 text-lg font-semibold hover:bg-neutral-300"
+              >
+                <span className="inline-flex items-center gap-2">
+                  <Download className="h-4 w-4" />
+                  Download Android Phone/Tablet APK
+                </span>
+              </button>
+
+              <p className="mt-4 text-sm text-foreground/80">
+                If download is blocked in Pi Browser, copy the link and open it in another browser on phone or tablet.
+              </p>
+              {canInstall && (
+                <button
+                  type="button"
+                  onClick={() => void handleInstall()}
+                  className="mt-3 h-11 w-full rounded-xl border border-neutral-300 px-4 text-base font-semibold hover:bg-neutral-100"
+                >
+                  Use browser install prompt
+                </button>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

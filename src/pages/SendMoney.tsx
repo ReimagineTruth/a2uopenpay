@@ -231,9 +231,36 @@ const SendMoney = () => {
           setStep("amount");
         }
       }
+
+      if (checkoutSessionToken) {
+        const { data: checkoutPayload } = await (supabase as any).rpc("get_public_merchant_checkout_session", {
+          p_session_token: checkoutSessionToken,
+        });
+        const checkoutRow = Array.isArray(checkoutPayload) ? checkoutPayload[0] : checkoutPayload;
+        if (checkoutRow) {
+          const checkoutAmount = Number(checkoutRow.total_amount || 0);
+          const checkoutCurrency = String(checkoutRow.currency || "").toUpperCase();
+          const checkoutMerchantId = String(checkoutRow.merchant_user_id || "");
+
+          if (checkoutAmount > 0) {
+            setAmount(checkoutAmount.toFixed(2));
+          }
+          if (checkoutCurrency) {
+            const foundCurrency = currencies.find((c) => c.code === checkoutCurrency);
+            if (foundCurrency) setCurrency(foundCurrency);
+          }
+          if (checkoutMerchantId && profiles) {
+            const merchantProfile = profiles.find((p) => p.id === checkoutMerchantId);
+            if (merchantProfile) {
+              setSelectedUser(merchantProfile);
+              setStep("amount");
+            }
+          }
+        }
+      }
     };
     load();
-  }, [currencies, navigate, searchParams, setCurrency]);
+  }, [checkoutSessionToken, currencies, navigate, searchParams, setCurrency]);
 
   const normalizedSearch = searchQuery.trim().toLowerCase();
   const normalizedSearchRaw = searchQuery.trim();
@@ -326,6 +353,28 @@ const SendMoney = () => {
     if (usdAmount > balance) { toast.error("Amount exceeds your available balance"); return; }
     setLoading(true);
 
+    if (checkoutSessionToken) {
+      const { data: checkoutTxId, error: checkoutError } = await (supabase as any).rpc("pay_merchant_checkout_with_wallet", {
+        p_session_token: checkoutSessionToken,
+        p_note: note || "Completed via OpenPay wallet /send flow",
+        p_customer_name: checkoutCustomerName || null,
+        p_customer_email: checkoutCustomerEmail || null,
+        p_customer_phone: checkoutCustomerPhone || null,
+        p_customer_address: checkoutCustomerAddress || null,
+      });
+
+      if (checkoutError) {
+        setLoading(false);
+        toast.error(checkoutError.message || "Checkout payment failed");
+        return;
+      }
+
+      const txId = String(checkoutTxId || "");
+      navigate(`/merchant-checkout?session=${encodeURIComponent(checkoutSessionToken)}&status=paid&tx=${encodeURIComponent(txId)}`, { replace: true });
+      setLoading(false);
+      return;
+    }
+
     const transferViaSecureRpcFallback = async () => {
       const { data: txId, error: rpcError } = await supabase.rpc("transfer_funds_authenticated", {
         p_receiver_id: selectedUser.id,
@@ -367,37 +416,6 @@ const SendMoney = () => {
       }
     } else {
       txId = (data as { transaction_id?: string } | null)?.transaction_id || "";
-    }
-
-    if (checkoutSessionToken && txId) {
-      const { error: completeError } = await (supabase as any).rpc("complete_merchant_checkout_with_transaction", {
-        p_session_token: checkoutSessionToken,
-        p_transaction_id: txId,
-        p_note: "Completed via OpenPay wallet /send flow",
-        p_customer_name: checkoutCustomerName || null,
-        p_customer_email: checkoutCustomerEmail || null,
-        p_customer_phone: checkoutCustomerPhone || null,
-        p_customer_address: checkoutCustomerAddress || null,
-      });
-      if (completeError) {
-        const { error: fallbackCompleteError } = await (supabase as any).rpc("complete_merchant_checkout_with_transaction", {
-          p_session_token: checkoutSessionToken,
-          p_transaction_id: txId,
-          p_note: "Completed via OpenPay wallet /send flow",
-        });
-        if (fallbackCompleteError) {
-          toast.error(`Payment sent, but checkout completion failed: ${fallbackCompleteError.message}`);
-        } else {
-          toast.message("Payment completed, but customer checkout details were not saved.");
-          navigate(`/merchant-checkout?session=${encodeURIComponent(checkoutSessionToken)}&status=paid&tx=${encodeURIComponent(txId)}`, { replace: true });
-          setLoading(false);
-          return;
-        }
-      } else {
-        navigate(`/merchant-checkout?session=${encodeURIComponent(checkoutSessionToken)}&status=paid&tx=${encodeURIComponent(txId)}`, { replace: true });
-        setLoading(false);
-        return;
-      }
     }
 
     setLoading(false);

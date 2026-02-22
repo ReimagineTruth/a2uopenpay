@@ -76,6 +76,7 @@ type MerchantActivityRow = {
 
 type CustomerProfile = { id: string; full_name: string; username: string | null };
 const PURE_PI_ICON_URL = "https://i.ibb.co/BV8PHjB4/Pi-200x200.png";
+const MERCHANT_MODE_KEY = "openpay_merchant_mode_v1";
 
 const navItems: { key: PortalView; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { key: "home", label: "Home", icon: LayoutDashboard },
@@ -98,7 +99,11 @@ const MerchantOnboardingPage = () => {
   const [userId, setUserId] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<PortalView>("home");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [mode, setMode] = useState<Mode>("sandbox");
+  const [mode, setMode] = useState<Mode>(() => {
+    if (typeof window === "undefined") return "live";
+    const savedMode = window.localStorage.getItem(MERCHANT_MODE_KEY);
+    return savedMode === "sandbox" || savedMode === "live" ? savedMode : "live";
+  });
   const [unreadNotifications, setUnreadNotifications] = useState(0);
 
   const [merchantName, setMerchantName] = useState("OpenPay Merchant");
@@ -176,6 +181,10 @@ const MerchantOnboardingPage = () => {
     return map;
   }, [apiKeys]);
   const modePayments = useMemo(() => payments.filter((p) => p.key_mode === mode).sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at)), [payments, mode]);
+  const otherModePaymentCount = useMemo(() => {
+    const otherMode: Mode = mode === "live" ? "sandbox" : "live";
+    return payments.filter((payment) => payment.key_mode === otherMode && payment.status === "succeeded").length;
+  }, [mode, payments]);
   const modeSessions = useMemo(() => sessions.filter((s) => s.key_mode === mode).sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at)), [sessions, mode]);
   const uniqueCustomers = useMemo(() => Array.from(new Set(modePayments.map((p) => p.buyer_user_id).filter(Boolean))), [modePayments]);
 
@@ -325,6 +334,11 @@ const MerchantOnboardingPage = () => {
     if (!userId) return;
     loadPortal(userId, mode);
   }, [mode, userId]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(MERCHANT_MODE_KEY, mode);
+  }, [mode]);
 
   const modeLabel = mode === "sandbox" ? "Sandbox" : "Live";
   const shortenValue = (value: string, start = 10, end = 6) => {
@@ -1013,6 +1027,11 @@ const MerchantOnboardingPage = () => {
               <button onClick={() => setMode("live")} className={`h-9 rounded-lg px-3 text-sm ${mode === "live" ? "bg-blue-600 text-white" : "bg-card text-foreground border border-border"}`}>Live</button>
             </div>
           </div>
+          {otherModePaymentCount > 0 && (
+            <p className="mb-4 text-sm text-amber-600">
+              Your current view is filtered by `{mode}` mode. You have {otherModePaymentCount} completed payment(s) in the other mode.
+            </p>
+          )}
 
           <div className="mb-4 flex items-center justify-between rounded-xl border border-border bg-card px-3 py-2 md:hidden">
             <p className="text-sm text-muted-foreground">Section: <span className="font-semibold text-foreground">{navItems.find((x) => x.key === activeView)?.label}</span></p>

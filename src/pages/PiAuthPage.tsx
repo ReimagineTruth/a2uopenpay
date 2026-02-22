@@ -256,7 +256,7 @@ const PiAuthPage = () => {
               </a>
             </Button>
             <p className="mt-2 text-xs text-muted-foreground">
-              Use email sign in if you use OpenPay App and OpenPay Desktop Browser. Experience the full-screen experience, notifications, and more.
+              Use Email Sign In when using OpenPay App, Desktop, Tablet, or Browser. Enjoy full-screen experience, notifications, POS, Merchant Portal access, and more.
             </p>
             {piUser && (
               <p className="mt-3 text-sm text-foreground">
