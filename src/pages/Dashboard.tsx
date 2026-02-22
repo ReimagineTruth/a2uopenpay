@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { Button } from "@/components/ui/button";
 import { getAppCookie, loadUserPreferences, setAppCookie, upsertUserPreferences } from "@/lib/userPreferences";
 import { isRemittanceUiEnabled } from "@/lib/remittanceAccess";
+import { playUiSound } from "@/lib/appSounds";
 
 interface Transaction {
   id: string;
@@ -155,7 +156,7 @@ const Dashboard = () => {
   const [activeSection, setActiveSection] = useState<DashboardSection>("wallet");
   const [savings, setSavings] = useState<SavingsDashboard | null>(null);
   const [savingsTransfers, setSavingsTransfers] = useState<SavingsTransferActivity[]>([]);
-  const [creditScore, setCreditScore] = useState(620);
+  const [creditScore, setCreditScore] = useState(0);
   const [loan, setLoan] = useState<LoanDashboard | null>(null);
   const [loanApplication, setLoanApplication] = useState<LoanApplication | null>(null);
   const [loanPaymentHistory, setLoanPaymentHistory] = useState<LoanPaymentHistoryRow[]>([]);
@@ -184,6 +185,9 @@ const Dashboard = () => {
   });
   const [showMerchantFeatures, setShowMerchantFeatures] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [virtualCardNumber, setVirtualCardNumber] = useState("**** **** **** 4242");
+  const [virtualCardActive, setVirtualCardActive] = useState(false);
+  const [hideCardPreviewDetails, setHideCardPreviewDetails] = useState(false);
   const navigate = useNavigate();
   const { format: formatCurrency, currency } = useCurrency();
   const currencyTag = currency.code === "PI" ? "PI" : `${currency.code} (Pi rate)`;
@@ -242,7 +246,7 @@ const Dashboard = () => {
             monthly_fee_rate: Number(loanRow.monthly_fee_rate || 0),
             term_months: Number(loanRow.term_months || 0),
             paid_months: Number(loanRow.paid_months || 0),
-            credit_score: Number(loanRow.credit_score || 620),
+            credit_score: Number(loanRow.credit_score || 0),
             status: String(loanRow.status || "none"),
             next_due_date: String(loanRow.next_due_date || ""),
             created_at: String(loanRow.created_at || ""),
@@ -257,7 +261,7 @@ const Dashboard = () => {
             id: String(applicationRow.id),
             requested_amount: Number(applicationRow.requested_amount || 0),
             requested_term_months: Number(applicationRow.requested_term_months || 0),
-            credit_score_snapshot: Number(applicationRow.credit_score_snapshot || 620),
+            credit_score_snapshot: Number(applicationRow.credit_score_snapshot || 0),
             full_name: String(applicationRow.full_name || ""),
             contact_number: String(applicationRow.contact_number || ""),
             address_line: String(applicationRow.address_line || ""),
@@ -294,7 +298,7 @@ const Dashboard = () => {
         ? creditScoreData[0]
         : creditScoreData,
     );
-    setCreditScore(Number.isFinite(parsedCreditScore) ? parsedCreditScore : 620);
+    setCreditScore(Number.isFinite(parsedCreditScore) ? parsedCreditScore : 0);
   };
 
   const loadDashboard = async () => {
@@ -338,6 +342,20 @@ const Dashboard = () => {
         .eq("user_id", user.id)
         .single();
       setBalance(wallet?.balance || 0);
+
+      const { data: virtualCardRow } = await supabase
+        .from("virtual_cards")
+        .select("card_number, is_active")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      const cardNumberRaw = String(virtualCardRow?.card_number || "").replace(/\D/g, "");
+      if (cardNumberRaw.length >= 4) {
+        const grouped = cardNumberRaw.replace(/(\d{4})(?=\d)/g, "$1 ").trim();
+        setVirtualCardNumber(grouped);
+      } else {
+        setVirtualCardNumber("**** **** **** 4242");
+      }
+      setVirtualCardActive(Boolean(virtualCardRow?.is_active));
 
       const { data: accountData } = await supabase.rpc("upsert_my_user_account");
       setUserAccount(accountData as unknown as UserAccount);
@@ -640,6 +658,7 @@ const Dashboard = () => {
     }
     setSavingsAmount("");
     toast.success("Moved to savings");
+    playUiSound("send");
     await loadDashboard();
   };
 
@@ -661,6 +680,7 @@ const Dashboard = () => {
     }
     setWithdrawAmount("");
     toast.success("Moved to wallet");
+    playUiSound("receive");
     await loadDashboard();
   };
 
@@ -747,6 +767,27 @@ const Dashboard = () => {
   const walletCardAmount = walletView === "personal"
     ? balance
     : Number(selectedMerchantBalance?.available_balance ?? 0);
+  const [loanView, setLoanView] = useState<"overview" | "form">("overview");
+  const availableToBorrow = Math.max(
+    0,
+    Number((savings?.wallet_balance ?? balance) || 0) + Number((savings?.savings_balance ?? 0) || 0),
+  );
+  const previewLoanAmount = Math.max(0, Number(loanAmount || 0) || 500);
+  const previewTermDays = 30;
+  const previewApr = 3.5;
+  const previewRepayment = previewLoanAmount * (1 + (previewApr / 100) * (previewTermDays / 365));
+  const creditScoreDisplay = loan?.credit_score ?? creditScore;
+  const creditProgressPercent = Math.max(0, Math.min(100, (creditScoreDisplay / 900) * 100));
+  const creditTopupCount = transactions.filter((tx) => tx.is_topup && tx.status === "completed").length;
+  const creditSendCount = transactions.filter((tx) => tx.is_sent && !tx.is_topup && tx.status === "completed").length;
+  const creditReceiveCount = transactions.filter((tx) => !tx.is_sent && !tx.is_topup && tx.status === "completed").length;
+  const creditCheckoutCount = transactions.filter((tx) => String(tx.note || "").toLowerCase().includes("merchant checkout")).length;
+  const creditActivityRows = [
+    { key: "topup", label: "Top Up activity", count: creditTopupCount, points: 3 },
+    { key: "send", label: "Send activity", count: creditSendCount, points: 4 },
+    { key: "receive", label: "Receive activity", count: creditReceiveCount, points: 3 },
+    { key: "checkout", label: "Checkout activity", count: creditCheckoutCount, points: 4 },
+  ];
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-background pb-28">
@@ -773,8 +814,10 @@ const Dashboard = () => {
 
       {/* Greeting */}
       <div className="px-4 mt-3">
-        <h1 className="text-2xl font-bold text-foreground">{getGreeting()}, {userName.split(" ")[0] || "there"}!</h1>
-        {username && <p className="text-sm text-muted-foreground">@{username}</p>}
+        <h1 className="text-2xl font-bold text-foreground">
+          {activeSection === "cards" ? "OpenPay Cards" : `${getGreeting()}, ${userName.split(" ")[0] || "there"}!`}
+        </h1>
+        {activeSection !== "cards" && username && <p className="text-sm text-muted-foreground">@{username}</p>}
       </div>
 
       <div className="mt-4 px-4">
@@ -893,20 +936,94 @@ const Dashboard = () => {
       )}
 
       {activeSection === "credit" && (
-        <div className="mx-4 mt-4 paypal-surface rounded-3xl p-4">
-          <div className="mb-3 flex items-center gap-2">
-            <HandCoins className="h-5 w-5 text-paypal-blue" />
-            <h2 className="text-lg font-bold text-paypal-dark">Credit Overview</h2>
+        <div className="mx-4 mt-4 space-y-4">
+          <div className="paypal-surface rounded-3xl p-4">
+            <div className="rounded-2xl bg-gradient-to-br from-paypal-blue to-[#2f67dc] p-4 text-white shadow-xl shadow-[#004bba]/25">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <HandCoins className="h-5 w-5 text-white" />
+                <h2 className="text-xl font-bold">Credit Overview</h2>
+              </div>
+              <span className="rounded-full bg-white/20 px-3 py-1 text-xs font-semibold uppercase tracking-wide">
+                {currencyTag}
+              </span>
+            </div>
+
+            <div className="mt-4 rounded-2xl bg-white p-4 text-paypal-dark">
+              <p className="text-sm text-muted-foreground">Credit score</p>
+              <p className="mt-1 text-5xl font-bold">{creditScoreDisplay}</p>
+              <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-secondary">
+                <div
+                  className="h-full rounded-full bg-emerald-500"
+                  style={{ width: `${creditProgressPercent}%` }}
+                />
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Credit starts at 0 for new accounts and grows from OpenPay activity.
+              </p>
+            </div>
+
+            <div className="mt-3 grid gap-2 sm:grid-cols-3">
+              <div className="rounded-xl bg-white/15 p-3">
+                <p className="text-xs text-white/75">Status</p>
+                <p className="mt-1 text-sm font-semibold text-white">{creditScoreDisplay >= 120 ? "Loan-ready profile" : "Building profile"}</p>
+              </div>
+              <div className="rounded-xl bg-white/15 p-3">
+                <p className="text-xs text-white/75">Range</p>
+                <p className="mt-1 text-sm font-semibold text-white">0 - 900</p>
+              </div>
+              <div className="rounded-xl bg-white/15 p-3">
+                <p className="text-xs text-white/75">Loan unlock</p>
+                <p className="mt-1 text-sm font-semibold text-white">{creditScoreDisplay} / 120</p>
+              </div>
+            </div>
+
+            <div className="mt-3 rounded-2xl bg-white/15 p-4 text-sm text-white/90">
+              Credit uses send, receive, top up, checkout, invoice, and request activity.
+            </div>
+
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => navigate("/send")}
+                className="h-11 rounded-full bg-white text-paypal-blue text-sm font-semibold"
+              >
+                Pay
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate("/receive")}
+                className="h-11 rounded-full bg-white/10 text-sm font-semibold text-white"
+              >
+                Receive
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate("/topup")}
+                className="h-11 rounded-full bg-white/10 text-sm font-semibold text-white"
+              >
+                Top Up
+              </button>
+            </div>
+            </div>
           </div>
-          <div className="rounded-2xl border border-border/70 p-4">
-            <p className="text-sm text-muted-foreground">Credit score</p>
-            <p className="text-2xl font-bold text-foreground">{loan?.credit_score ?? creditScore}</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Higher score can reduce monthly fee rate on OpenPay loans. Values shown in {currencyTag}.
-            </p>
-          </div>
-          <div className="mt-3 rounded-2xl border border-border/70 p-4 text-sm text-muted-foreground">
-            Credit uses your OpenPay account history, repayment behavior, and account security status.
+
+          <div className="paypal-surface rounded-3xl p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-base font-bold text-foreground">Credit score activity</h3>
+              <span className="text-xs font-semibold text-muted-foreground">From recent activity</span>
+            </div>
+            <div className="divide-y divide-border/70 rounded-2xl border border-border/70">
+              {creditActivityRows.map((row) => (
+                <div key={row.key} className="flex items-center justify-between px-3 py-2.5">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">{row.label}</p>
+                    <p className="text-xs text-muted-foreground">{row.count} actions</p>
+                  </div>
+                  <p className="text-sm font-semibold text-paypal-blue">+{row.count * row.points} pts</p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
@@ -917,88 +1034,113 @@ const Dashboard = () => {
             <HandCoins className="h-5 w-5 text-paypal-blue" />
             <h2 className="text-lg font-bold text-paypal-dark">Loans</h2>
           </div>
-          <div className="grid gap-2 sm:grid-cols-2">
-            <div className="rounded-2xl border border-border/70 p-3">
-              <p className="text-xs text-muted-foreground">Outstanding</p>
-              <p className="text-lg font-bold">{balanceHidden ? "****" : formatCurrency(loan?.outstanding_amount ?? 0)}</p>
-            </div>
-            <div className="rounded-2xl border border-border/70 p-3">
-              <p className="text-xs text-muted-foreground">Monthly payment</p>
-              <p className="text-lg font-bold">{balanceHidden ? "****" : formatCurrency(loan?.monthly_payment_amount ?? 0)}</p>
-              {loan?.next_due_date && <p className="mt-1 text-xs text-muted-foreground">Next due: {format(new Date(loan.next_due_date), "MMM d, yyyy")}</p>}
-            </div>
-          </div>
-
-          <div className="mt-3 rounded-2xl border border-border/70 p-3">
-            <p className="mb-2 text-sm font-semibold">Loan application status</p>
-            {!loanApplication ? (
-              <p className="text-sm text-muted-foreground">No loan application yet.</p>
-            ) : (
-              <div className="space-y-1 text-sm">
-                <p>
-                  Status: <span className="font-semibold uppercase">{loanApplication.status}</span>
-                </p>
-                <p>Requested: {formatCurrency(loanApplication.requested_amount)} / {loanApplication.requested_term_months} months</p>
-                <p>Submitted: {loanApplication.created_at ? format(new Date(loanApplication.created_at), "MMM d, yyyy h:mm a") : "-"}</p>
-                {!!loanApplication.admin_note && <p className="text-muted-foreground">Admin note: {loanApplication.admin_note}</p>}
+          {loanView === "overview" ? (
+            <div className="rounded-2xl border border-border/70 p-4">
+              <div className="rounded-2xl bg-gradient-to-br from-paypal-blue to-[#3b79ef] p-5 text-white">
+                <p className="text-sm text-white/85">Available to borrow</p>
+                <p className="mt-1 text-3xl font-bold">{balanceHidden ? "****" : formatCurrency(availableToBorrow)}</p>
+                <p className="mt-1 text-sm text-white/85">Based on your wallet & savings balance</p>
               </div>
-            )}
-          </div>
 
-          <div className="mt-3 rounded-2xl border border-border/70 p-3">
-            <div className="mb-3">
-              <p className="text-sm font-semibold text-foreground">Loan onboarding form</p>
+              <div className="mt-4 space-y-3">
+                <div className="flex items-center justify-between rounded-xl bg-secondary/40 px-4 py-3">
+                  <span className="text-base text-muted-foreground">Loan amount</span>
+                  <span className="text-xl font-semibold text-foreground">{formatCurrency(previewLoanAmount)}</span>
+                </div>
+                <div className="flex items-center justify-between rounded-xl bg-secondary/40 px-4 py-3">
+                  <span className="text-base text-muted-foreground">Interest rate</span>
+                  <span className="text-xl font-semibold text-emerald-600">{previewApr.toFixed(1)}% APR</span>
+                </div>
+                <div className="flex items-center justify-between rounded-xl bg-secondary/40 px-4 py-3">
+                  <span className="text-base text-muted-foreground">Term</span>
+                  <span className="text-xl font-semibold text-foreground">{previewTermDays} days</span>
+                </div>
+                <div className="flex items-center justify-between rounded-xl border border-paypal-blue/35 bg-paypal-blue/5 px-4 py-3">
+                  <span className="text-lg font-semibold text-foreground">Total repayment</span>
+                  <span className="text-xl font-semibold text-paypal-blue">{formatCurrency(previewRepayment)}</span>
+                </div>
+              </div>
+
+              <input
+                value={loanAmount}
+                onChange={(e) => setLoanAmount(e.target.value)}
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder={`Enter loan amount (${currency.code})`}
+                className="mt-4 h-12 w-full rounded-xl border border-border px-3 text-sm text-foreground"
+              />
+              <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1.5 text-sm font-semibold text-paypal-blue">
+                <span className="h-2 w-2 rounded-full bg-paypal-blue" />
+                Coming Soon
+              </div>
+              <button
+                type="button"
+                onClick={() => setLoanView("form")}
+                className="mt-4 h-12 w-full rounded-xl bg-[#7a9de8] text-lg font-semibold text-white transition hover:bg-[#6b90e0]"
+              >
+                Apply for Loan
+              </button>
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-border/70 p-3">
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-sm font-semibold text-foreground">Loan onboarding form</p>
+                <button type="button" onClick={() => setLoanView("overview")} className="text-xs font-semibold text-paypal-blue">
+                  Back to preview
+                </button>
+              </div>
               <p className="text-xs text-muted-foreground">Provide accurate details. This application is reviewed by OpenPay admin before approval.</p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <label className="space-y-1 text-xs text-muted-foreground">
+                  <span>Loan amount ({currency.code})</span>
+                  <input value={loanAmount} onChange={(e) => setLoanAmount(e.target.value)} type="number" min="0" step="0.01" placeholder="e.g. 500" className="h-10 w-full rounded-xl border border-border px-3 text-sm text-foreground" />
+                </label>
+                <label className="space-y-1 text-xs text-muted-foreground">
+                  <span>Term months (1 - 60)</span>
+                  <input value={loanTermMonths} onChange={(e) => setLoanTermMonths(e.target.value)} type="number" min="1" max="60" placeholder="e.g. 6" className="h-10 w-full rounded-xl border border-border px-3 text-sm text-foreground" />
+                </label>
+              </div>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <label className="space-y-1 text-xs text-muted-foreground">
+                  <span>Full legal name</span>
+                  <input value={loanApplicantName} onChange={(e) => setLoanApplicantName(e.target.value)} placeholder="Enter full name" className="h-10 w-full rounded-xl border border-border px-3 text-sm text-foreground" />
+                </label>
+                <label className="space-y-1 text-xs text-muted-foreground">
+                  <span>Contact number</span>
+                  <input value={loanContactNumber} onChange={(e) => setLoanContactNumber(e.target.value)} placeholder="Phone or active contact number" className="h-10 w-full rounded-xl border border-border px-3 text-sm text-foreground" />
+                </label>
+                <label className="space-y-1 text-xs text-muted-foreground sm:col-span-2">
+                  <span>Address line</span>
+                  <input value={loanAddressLine} onChange={(e) => setLoanAddressLine(e.target.value)} placeholder="Street / building / district" className="h-10 w-full rounded-xl border border-border px-3 text-sm text-foreground" />
+                </label>
+                <label className="space-y-1 text-xs text-muted-foreground">
+                  <span>City</span>
+                  <input value={loanCity} onChange={(e) => setLoanCity(e.target.value)} placeholder="Enter city" className="h-10 w-full rounded-xl border border-border px-3 text-sm text-foreground" />
+                </label>
+                <label className="space-y-1 text-xs text-muted-foreground">
+                  <span>Country</span>
+                  <input value={loanCountry} onChange={(e) => setLoanCountry(e.target.value)} placeholder="Enter country" className="h-10 w-full rounded-xl border border-border px-3 text-sm text-foreground" />
+                </label>
+              </div>
+              <div className="mt-3 rounded-xl border border-border/70 bg-secondary/30 p-3 text-xs text-muted-foreground">
+                <p className="font-semibold text-foreground">Bound OpenPay account</p>
+                <p className="mt-1">Account number: {userAccount?.account_number || "-"}</p>
+                <p>Username: {userAccount?.account_username ? `@${userAccount.account_username}` : "-"}</p>
+              </div>
+              <label className="mt-3 flex items-start gap-2 text-xs text-foreground">
+                <input type="checkbox" className="mt-0.5" checked={loanAgreementAccepted} onChange={(e) => setLoanAgreementAccepted(e.target.checked)} />
+                <span>I agree to OpenPay loan terms and confirm my application details are real and accurate.</span>
+              </label>
+              <button
+                disabled={requestingLoan || loanApplication?.status === "pending"}
+                onClick={handleRequestLoan}
+                className="mt-3 h-10 w-full rounded-xl bg-paypal-blue text-sm font-semibold text-white disabled:opacity-60"
+              >
+                {requestingLoan ? "Submitting..." : "Submit Loan Application"}
+              </button>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="space-y-1 text-xs text-muted-foreground">
-                <span>Loan amount ({currency.code})</span>
-                <input value={loanAmount} onChange={(e) => setLoanAmount(e.target.value)} type="number" min="0" step="0.01" placeholder="e.g. 500" className="h-10 w-full rounded-xl border border-border px-3 text-sm text-foreground" />
-              </label>
-              <label className="space-y-1 text-xs text-muted-foreground">
-                <span>Term months (1 - 60)</span>
-                <input value={loanTermMonths} onChange={(e) => setLoanTermMonths(e.target.value)} type="number" min="1" max="60" placeholder="e.g. 6" className="h-10 w-full rounded-xl border border-border px-3 text-sm text-foreground" />
-              </label>
-            </div>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              <label className="space-y-1 text-xs text-muted-foreground">
-                <span>Full legal name</span>
-                <input value={loanApplicantName} onChange={(e) => setLoanApplicantName(e.target.value)} placeholder="Enter full name" className="h-10 w-full rounded-xl border border-border px-3 text-sm text-foreground" />
-              </label>
-              <label className="space-y-1 text-xs text-muted-foreground">
-                <span>Contact number</span>
-                <input value={loanContactNumber} onChange={(e) => setLoanContactNumber(e.target.value)} placeholder="Phone or active contact number" className="h-10 w-full rounded-xl border border-border px-3 text-sm text-foreground" />
-              </label>
-              <label className="space-y-1 text-xs text-muted-foreground sm:col-span-2">
-                <span>Address line</span>
-                <input value={loanAddressLine} onChange={(e) => setLoanAddressLine(e.target.value)} placeholder="Street / building / district" className="h-10 w-full rounded-xl border border-border px-3 text-sm text-foreground" />
-              </label>
-              <label className="space-y-1 text-xs text-muted-foreground">
-                <span>City</span>
-                <input value={loanCity} onChange={(e) => setLoanCity(e.target.value)} placeholder="Enter city" className="h-10 w-full rounded-xl border border-border px-3 text-sm text-foreground" />
-              </label>
-              <label className="space-y-1 text-xs text-muted-foreground">
-                <span>Country</span>
-                <input value={loanCountry} onChange={(e) => setLoanCountry(e.target.value)} placeholder="Enter country" className="h-10 w-full rounded-xl border border-border px-3 text-sm text-foreground" />
-              </label>
-            </div>
-            <div className="mt-3 rounded-xl border border-border/70 bg-secondary/30 p-3 text-xs text-muted-foreground">
-              <p className="font-semibold text-foreground">Bound OpenPay account</p>
-              <p className="mt-1">Account number: {userAccount?.account_number || "-"}</p>
-              <p>Username: {userAccount?.account_username ? `@${userAccount.account_username}` : "-"}</p>
-            </div>
-            <label className="mt-3 flex items-start gap-2 text-xs text-foreground">
-              <input type="checkbox" className="mt-0.5" checked={loanAgreementAccepted} onChange={(e) => setLoanAgreementAccepted(e.target.checked)} />
-              <span>I agree to OpenPay loan terms and confirm my application details are real and accurate.</span>
-            </label>
-            <button
-              disabled={requestingLoan || loanApplication?.status === "pending"}
-              onClick={handleRequestLoan}
-              className="mt-3 h-10 w-full rounded-xl bg-paypal-blue text-sm font-semibold text-white disabled:opacity-60"
-            >
-              {requestingLoan ? "Submitting..." : "Submit Loan Application"}
-            </button>
-          </div>
+          )}
           <div className="mt-3 rounded-2xl border border-border/70 p-3">
             <p className="mb-2 text-sm font-semibold">Pay monthly installment</p>
             <input value={loanPaymentAmount} onChange={(e) => setLoanPaymentAmount(e.target.value)} type="number" min="0" step="0.01" placeholder={`Default: ${loan ? formatCurrency(loan.monthly_payment_amount) : `monthly due (${currency.code})`}`} className="h-10 w-full rounded-xl border border-border px-3" />
@@ -1059,20 +1201,104 @@ const Dashboard = () => {
       )}
 
       {activeSection === "cards" && (
-        <div className="mx-4 mt-4 paypal-surface rounded-3xl p-4">
-          <div className="mb-3 flex items-center gap-2">
-            <CreditCard className="h-5 w-5 text-paypal-blue" />
-            <h2 className="text-lg font-bold text-paypal-dark">Cards</h2>
+        <div className="mx-4 mt-4 space-y-4">
+        <div className="paypal-surface rounded-3xl p-4">
+          <div className="rounded-2xl bg-gradient-to-br from-paypal-blue to-[#2f67dc] p-4 text-white shadow-xl shadow-[#004bba]/25">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <p className="text-xl font-semibold">OpenPay Cards</p>
+            </div>
+            <span className="rounded-full bg-white/20 px-3 py-1 text-sm font-semibold">
+              {currency.code === "PI" ? "PI" : `π ${currency.code}`}
+            </span>
           </div>
-          <div className="rounded-2xl border border-border/70 p-4">
-            <p className="text-sm font-semibold text-foreground">OpenPay Virtual Card</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Manage card controls, card signature, checkout permissions, and merchant payments.
+
+          <div className="mt-4 rounded-2xl bg-white/10 p-4">
+            <p className="text-sm text-white/80">Virtual Card</p>
+            <p className="mt-2 text-2xl font-semibold tracking-[0.12em]">
+              {hideCardPreviewDetails ? "**** **** **** ****" : virtualCardNumber}
             </p>
-            <button onClick={() => navigate("/virtual-card")} className="mt-3 h-10 rounded-xl bg-paypal-blue px-4 text-sm font-semibold text-white">
+            <p className="mt-2 text-sm text-white/80">
+              {hideCardPreviewDetails ? "Card details hidden" : `Linked to wallet · ${virtualCardActive ? "Active" : "Inactive"}`}
+            </p>
+          </div>
+
+          <div className="mt-4 grid grid-cols-3 gap-2">
+            <button
+              type="button"
+              onClick={() => navigate("/send")}
+              className="h-11 rounded-full bg-white text-paypal-blue text-sm font-semibold"
+            >
+              Pay
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate("/receive")}
+              className="h-11 rounded-full bg-white/10 text-sm font-semibold text-white"
+            >
+              Receive
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate("/topup")}
+              className="h-11 rounded-full bg-white/10 text-sm font-semibold text-white"
+            >
+              Top Up
+            </button>
+          </div>
+
+          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => setHideCardPreviewDetails((prev) => !prev)}
+              className="h-10 w-full rounded-xl border border-white/40 px-4 text-sm font-semibold text-white transition hover:bg-white/10"
+            >
+              {hideCardPreviewDetails ? "View Details" : "Hide Details"}
+            </button>
+            <button
+              onClick={() => navigate("/virtual-card")}
+              className="h-10 w-full rounded-xl bg-white text-sm font-semibold text-paypal-blue transition hover:bg-white/90"
+            >
               Open Virtual Card
             </button>
           </div>
+          </div>
+        </div>
+        <div className="paypal-surface rounded-3xl p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-base font-bold text-foreground">Card activity history</h3>
+            <button
+              type="button"
+              onClick={() => navigate("/activity")}
+              className="text-xs font-semibold text-paypal-blue"
+            >
+              See all
+            </button>
+          </div>
+          <div className="divide-y divide-border/70 rounded-2xl border border-border/70">
+            {transactions
+              .filter((tx) => {
+                const note = String(tx.note || "").toLowerCase();
+                return note.includes("merchant checkout") || note.includes("virtual card") || note.includes("card ****");
+              })
+              .slice(0, 6)
+              .map((tx) => (
+                <div key={tx.id} className="flex items-center justify-between px-3 py-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-foreground">{toPreviewText(tx.note || "Card payment", 44)}</p>
+                    <p className="text-xs text-muted-foreground">{format(new Date(tx.created_at), "MMM d, yyyy h:mm a")}</p>
+                  </div>
+                  <p className={`ml-3 text-sm font-semibold ${tx.is_sent && !tx.is_topup ? "text-red-500" : "text-paypal-success"}`}>
+                    {balanceHidden ? "****" : `${tx.is_sent && !tx.is_topup ? "-" : "+"}${formatCurrency(tx.amount)}`}
+                  </p>
+                </div>
+              ))}
+            {transactions.filter((tx) => {
+              const note = String(tx.note || "").toLowerCase();
+              return note.includes("merchant checkout") || note.includes("virtual card") || note.includes("card ****");
+            }).length === 0 && <p className="px-3 py-8 text-center text-sm text-muted-foreground">No card activity yet.</p>}
+          </div>
+        </div>
         </div>
       )}
 

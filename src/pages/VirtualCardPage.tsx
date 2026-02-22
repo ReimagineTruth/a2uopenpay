@@ -251,8 +251,56 @@ const VirtualCardPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background pb-28">
-      <div className="px-4 pt-4">
+    <div className="virtual-card-page min-h-screen bg-background pb-28">
+      <style>{`
+        @media print {
+          @page {
+            size: 85.60mm 53.98mm;
+            margin: 0;
+          }
+          html,
+          body {
+            width: 85.60mm !important;
+            height: 53.98mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: hidden !important;
+            background: #ffffff !important;
+          }
+          .virtual-card-page .no-print {
+            display: none !important;
+          }
+          #virtual-card-print-sheet {
+            position: fixed !important;
+            inset: 0 !important;
+            margin: auto !important;
+            display: block !important;
+            width: 85.60mm !important;
+            height: 53.98mm !important;
+            padding: 0 !important;
+            background: #ffffff !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          #virtual-card-print-sheet .print-page {
+            width: 100% !important;
+            height: 100% !important;
+            margin: 0 !important;
+            display: flex !important;
+            align-items: stretch !important;
+            justify-content: stretch !important;
+          }
+          #virtual-card-print-sheet .print-card {
+            width: 100% !important;
+            height: 100% !important;
+            border-radius: 3.2mm !important;
+            overflow: hidden !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+        }
+      `}</style>
+      <div className="no-print px-4 pt-4">
         <div className="mb-5 flex items-center gap-3">
           <button onClick={() => navigate(-1)} className="paypal-surface flex h-10 w-10 items-center justify-center rounded-full" aria-label="Back">
             <ArrowLeft className="h-5 w-5 text-foreground" />
@@ -274,7 +322,7 @@ const VirtualCardPage = () => {
           Your virtual card is linked to your OpenPay balance: <span className="font-semibold text-foreground">{formatCurrency(balance)}</span>
         </div>
 
-        <div className="mx-auto mt-4 w-full max-w-[420px] [perspective:1200px]">
+        <div id="virtual-card-print-area" className="mx-auto mt-4 w-full max-w-[420px] [perspective:1200px]">
           <button
             type="button"
             onClick={handleFlip}
@@ -361,7 +409,7 @@ const VirtualCardPage = () => {
           </Button>
           <Button type="button" variant="outline" className="h-11 rounded-2xl" onClick={() => setShowSafetyAgreement(true)}>
             <ShieldCheck className="mr-2 h-4 w-4" />
-            Safety Agreement
+            Safety
           </Button>
           <Button type="button" variant="outline" className="h-11 rounded-2xl" onClick={() => navigate("/openpay-api-docs")}>
             <FileText className="mr-2 h-4 w-4" />
@@ -540,6 +588,71 @@ const VirtualCardPage = () => {
           )}
         </div>
       </div>
+      <div id="virtual-card-print-sheet" className="hidden">
+        <div className="print-page">
+          {isBackVisible ? (
+            <div className="print-card rounded-2xl bg-gradient-to-br from-[#1d2340] to-[#2f3558] p-[5.5%] text-white">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <BrandLogo className="h-5 w-5" />
+                  <p className="text-[16px] font-semibold tracking-tight text-white/90">OpenPay</p>
+                </div>
+                <p className="rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-[9px] font-semibold uppercase tracking-wide text-white/85">
+                  Powered by Pi Network
+                </p>
+              </div>
+              <div className="relative mt-[10%] h-[15%] rounded-[10px] bg-black/80">
+                <p
+                  className="absolute inset-0 flex items-center justify-center px-3 text-base text-white/90"
+                  style={{ fontFamily: '"Brush Script MT","Segoe Script","Lucida Handwriting",cursive' }}
+                >
+                  {signatureDisplay}
+                </p>
+              </div>
+              <div className="mt-[13%] flex items-center justify-between">
+                <p className="text-[14px] uppercase tracking-wide text-white/75">Security Code</p>
+                <p className="rounded-full bg-white/20 px-3 py-1 text-[24px] font-semibold leading-none">{hideDetails ? "***" : (card?.cvc || "***")}</p>
+              </div>
+              <p className="mt-[11%] text-[27px] tracking-[0.02em] text-white/90">
+                {hideDetails ? "**** **** **** ****" : maskedCardNumber}
+              </p>
+              <p className="mt-[9%] text-sm text-white/75">
+                Tap card to flip to front
+              </p>
+            </div>
+          ) : (
+            <div className="print-card rounded-2xl bg-gradient-to-br from-paypal-blue to-[#0a67db] p-[5.5%] text-white">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2">
+                  <BrandLogo className="h-7 w-7" />
+                  <div>
+                    <p className="text-[13px] uppercase tracking-[0.24em] text-white/80">OpenPay</p>
+                    <p className="text-[32px] font-semibold leading-none">Virtual Credit Card</p>
+                  </div>
+                </div>
+                <CreditCard className="h-9 w-9 text-white/90" />
+              </div>
+              <div className="mt-[10%] h-[14%] w-[24%] rounded-[12px] bg-white/20" />
+              <p className="mt-[11%] text-[45px] font-semibold tracking-[0.10em] leading-none">
+                {hideDetails ? "**** **** **** ****" : (formatCardNumber(card?.card_number || "") || "0000 0000 0000 0000")}
+              </p>
+              <div className="mt-[11%] flex items-end justify-between gap-4">
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide text-white/80">Cardholder</p>
+                  <p className="text-[28px] font-semibold leading-none">{hideDetails ? "OPENPAY USER" : (card?.cardholder_name || "OPENPAY USER")}</p>
+                  <p className="text-[23px] leading-none text-white/90">@{hideDetails ? "hidden" : (card?.card_username || "openpay")}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] uppercase tracking-wide text-white/80">Valid Thru</p>
+                  <p className="text-[35px] font-semibold leading-none">
+                    {String(card?.expiry_month || 1).padStart(2, "0")}/{String((card?.expiry_year || 2026) % 100).padStart(2, "0")}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
 
       <Dialog open={showGuide} onOpenChange={setShowGuide}>
         <DialogContent className="rounded-3xl sm:max-w-md">
@@ -597,7 +710,9 @@ const VirtualCardPage = () => {
         </DialogContent>
       </Dialog>
 
-      <BottomNav active="menu" />
+      <div className="no-print">
+        <BottomNav active="menu" />
+      </div>
     </div>
   );
 };

@@ -10,6 +10,7 @@ import BrandLogo from "@/components/BrandLogo";
 import SplashScreen from "@/components/SplashScreen";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { playUiSound } from "@/lib/appSounds";
 
 type PosView = "home" | "receive" | "history" | "refund" | "settings";
 type PaymentStatus = "idle" | "waiting" | "success" | "failed";
@@ -152,13 +153,8 @@ const MerchantPosPage = () => {
     if (notificationVibration && typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
       navigator.vibrate(100);
     }
-    if (notificationSound && typeof window !== "undefined") {
-      const audio = new Audio(
-        status === "success"
-          ? "data:audio/wav;base64,UklGRlQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YTAAAAAA"
-          : "data:audio/wav;base64,UklGRlQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YTAAAAAA"
-      );
-      void audio.play().catch(() => undefined);
+    if (notificationSound) {
+      playUiSound(status === "success" ? "scan" : "receive");
     }
   };
 

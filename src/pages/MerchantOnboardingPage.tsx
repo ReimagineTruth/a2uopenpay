@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import BrandLogo from "@/components/BrandLogo";
 import SplashScreen from "@/components/SplashScreen";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { playUiSound } from "@/lib/appSounds";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -511,6 +512,7 @@ const MerchantOnboardingPage = () => {
     setTransferAmount("");
     await loadPortal(userId, mode);
     toast.success(`Moved to ${transferDestination}`);
+    playUiSound("receive");
   };
 
   const deleteCheckoutLink = async (sessionId: string) => {
