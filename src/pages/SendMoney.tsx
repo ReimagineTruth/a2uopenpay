@@ -24,19 +24,12 @@ interface RecentRecipient extends UserProfile {
 
 const sendSuccessSoundUrl = "https://www.myinstants.com/media/sounds/applepay.mp3";
 let sendSuccessAudio: HTMLAudioElement | null = null;
+let sendSoundUnlocked = false;
 
 const playSendSuccessSound = () => {
   if (typeof window === "undefined") return;
 
-  try {
-    if (!sendSuccessAudio) {
-      sendSuccessAudio = new Audio(sendSuccessSoundUrl);
-      sendSuccessAudio.preload = "auto";
-      sendSuccessAudio.volume = 0.95;
-    }
-    sendSuccessAudio.currentTime = 0;
-    void sendSuccessAudio.play();
-  } catch {
+  const playFallbackTone = () => {
     const AudioCtx = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!AudioCtx) return;
     try {
@@ -67,6 +60,23 @@ const playSendSuccessSound = () => {
     } catch {
       // no-op
     }
+  };
+
+  try {
+    if (!sendSuccessAudio) {
+      sendSuccessAudio = new Audio(sendSuccessSoundUrl);
+      sendSuccessAudio.preload = "auto";
+      sendSuccessAudio.volume = 0.95;
+    }
+    sendSuccessAudio.currentTime = 0;
+    const playPromise = sendSuccessAudio.play();
+    if (playPromise && typeof playPromise.catch === "function") {
+      void playPromise.catch(() => {
+        playFallbackTone();
+      });
+    }
+  } catch {
+    playFallbackTone();
   }
 };
 
@@ -103,6 +113,43 @@ const SendMoney = () => {
     if (cleaned.length <= head + tail + 3) return cleaned;
     return `${cleaned.slice(0, head)}...${cleaned.slice(-tail)}`;
   };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const unlockAudio = () => {
+      if (sendSoundUnlocked) return;
+      sendSoundUnlocked = true;
+      if (!sendSuccessAudio) {
+        sendSuccessAudio = new Audio(sendSuccessSoundUrl);
+        sendSuccessAudio.preload = "auto";
+        sendSuccessAudio.volume = 0.95;
+      }
+      sendSuccessAudio.load();
+      const AudioCtx = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioCtx) return;
+      try {
+        const ctx = new AudioCtx();
+        if (ctx.state === "suspended") {
+          void ctx.resume().finally(() => {
+            void ctx.close();
+          });
+        } else {
+          void ctx.close();
+        }
+      } catch {
+        // no-op
+      }
+    };
+    const events: Array<keyof WindowEventMap> = ["pointerdown", "touchend", "keydown"];
+    for (const eventName of events) {
+      window.addEventListener(eventName, unlockAudio, { passive: true });
+    }
+    return () => {
+      for (const eventName of events) {
+        window.removeEventListener(eventName, unlockAudio);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const load = async () => {

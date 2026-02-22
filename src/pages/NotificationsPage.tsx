@@ -25,6 +25,11 @@ const NotificationsPage = () => {
         navigate("/signin");
         return;
       }
+      await supabase
+        .from("app_notifications")
+        .update({ read_at: new Date().toISOString() })
+        .eq("user_id", user.id)
+        .is("read_at", null);
 
       const [transactionsRes, requestsRes, invoicesRes, ticketsRes, merchantNotifRes] = await Promise.all([
         supabase

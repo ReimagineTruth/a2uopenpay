@@ -183,6 +183,7 @@ const Dashboard = () => {
     live: null,
   });
   const [showMerchantFeatures, setShowMerchantFeatures] = useState(false);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
   const navigate = useNavigate();
   const { format: formatCurrency, currency } = useCurrency();
   const currencyTag = currency.code === "PI" ? "PI" : `${currency.code} (Pi rate)`;
@@ -306,6 +307,12 @@ const Dashboard = () => {
         return; 
       }
       setUserId(user.id);
+      const { count: unreadCount } = await supabase
+        .from("app_notifications")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .is("read_at", null);
+      setUnreadNotifications(Number(unreadCount || 0));
 
       const { data: claimResult } = await supabase.rpc("claim_welcome_bonus");
       if ((claimResult as { claimed?: boolean } | null)?.claimed) {
@@ -480,6 +487,39 @@ const Dashboard = () => {
   useEffect(() => {
     loadDashboard();
   }, [navigate]);
+
+  useEffect(() => {
+    if (!userId) return;
+
+    const refreshUnread = async () => {
+      const { count } = await supabase
+        .from("app_notifications")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .is("read_at", null);
+      setUnreadNotifications(Number(count || 0));
+    };
+
+    const channel = supabase
+      .channel(`dashboard-unread-${userId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "app_notifications",
+          filter: `user_id=eq.${userId}`,
+        },
+        () => {
+          void refreshUnread();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [userId]);
 
   useEffect(() => {
     const sandbox = String(import.meta.env.VITE_PI_SANDBOX || "false").toLowerCase() === "true";
@@ -721,8 +761,9 @@ const Dashboard = () => {
           >
             <RefreshCw className={`h-5 w-5 text-foreground ${refreshing ? "animate-spin" : ""}`} />
           </button>
-          <button onClick={() => navigate("/notifications")} aria-label="Open notifications" className="paypal-surface flex h-10 w-10 items-center justify-center rounded-full">
+          <button onClick={() => navigate("/notifications")} aria-label="Open notifications" className="paypal-surface relative flex h-10 w-10 items-center justify-center rounded-full">
             <Bell className="h-5 w-5 text-foreground" />
+            {unreadNotifications > 0 && <span className="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-red-500" aria-hidden="true" />}
           </button>
           <button onClick={() => navigate("/settings")} aria-label="Open settings" className="paypal-surface flex h-10 w-10 items-center justify-center rounded-full">
             <Settings className="h-5 w-5 text-foreground" />

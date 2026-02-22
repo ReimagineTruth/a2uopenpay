@@ -2,19 +2,23 @@ import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-const fundReceivedSoundUrl = "https://www.myinstants.com/media/sounds/notification_o14egLP.mp3";
-let fundReceivedAudio: HTMLAudioElement | null = null;
+const notificationBellSoundUrl = "https://www.myinstants.com/media/sounds/notification-bell_VW6Rkj4.mp3";
+let notificationBellAudio: HTMLAudioElement | null = null;
+let receiveSoundUnlocked = false;
 
-const playFundReceivedSound = () => {
+const playNotificationBellSound = () => {
   if (typeof window === "undefined") return;
   try {
-    if (!fundReceivedAudio) {
-      fundReceivedAudio = new Audio(fundReceivedSoundUrl);
-      fundReceivedAudio.preload = "auto";
-      fundReceivedAudio.volume = 0.95;
+    if (!notificationBellAudio) {
+      notificationBellAudio = new Audio(notificationBellSoundUrl);
+      notificationBellAudio.preload = "auto";
+      notificationBellAudio.volume = 0.95;
     }
-    fundReceivedAudio.currentTime = 0;
-    void fundReceivedAudio.play();
+    notificationBellAudio.currentTime = 0;
+    const playPromise = notificationBellAudio.play();
+    if (playPromise && typeof playPromise.catch === "function") {
+      void playPromise.catch(() => undefined);
+    }
   } catch {
     // no-op
   }
@@ -48,6 +52,36 @@ const showSystemNotification = async (title: string, body: string) => {
 export const useRealtimePushNotifications = () => {
   useEffect(() => {
     let isMounted = true;
+    const unlockAudio = () => {
+      if (receiveSoundUnlocked || typeof window === "undefined") return;
+      receiveSoundUnlocked = true;
+      if (!notificationBellAudio) {
+        notificationBellAudio = new Audio(notificationBellSoundUrl);
+        notificationBellAudio.preload = "auto";
+        notificationBellAudio.volume = 0.95;
+      }
+      notificationBellAudio.load();
+      const AudioCtx = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioCtx) return;
+      try {
+        const ctx = new AudioCtx();
+        if (ctx.state === "suspended") {
+          void ctx.resume().finally(() => {
+            void ctx.close();
+          });
+        } else {
+          void ctx.close();
+        }
+      } catch {
+        // no-op
+      }
+    };
+    if (typeof window !== "undefined") {
+      const events: Array<keyof WindowEventMap> = ["pointerdown", "touchend", "keydown"];
+      for (const eventName of events) {
+        window.addEventListener(eventName, unlockAudio, { passive: true });
+      }
+    }
 
     const bootstrap = async () => {
       if (typeof navigator !== "undefined" && !navigator.onLine) return;
@@ -58,6 +92,7 @@ export const useRealtimePushNotifications = () => {
       if (!user || !isMounted) return;
 
       const maybeNotify = async (title: string, body: string) => {
+        playNotificationBellSound();
         if (document.visibilityState === "visible") {
           toast.info(`${title}: ${body}`);
         }
@@ -78,7 +113,6 @@ export const useRealtimePushNotifications = () => {
             const tx = payload.new as { amount?: number; sender_id?: string; receiver_id?: string };
             const amount = Number(tx.amount || 0).toFixed(2);
             const isTopUp = tx.sender_id === tx.receiver_id && tx.receiver_id === user.id;
-            playFundReceivedSound();
             if (isTopUp) {
               await maybeNotify("Top up successful", `$${amount} was added to your balance.`);
             } else {
@@ -155,6 +189,12 @@ export const useRealtimePushNotifications = () => {
     return () => {
       isMounted = false;
       if (cleanup) cleanup();
+      if (typeof window !== "undefined") {
+        const events: Array<keyof WindowEventMap> = ["pointerdown", "touchend", "keydown"];
+        for (const eventName of events) {
+          window.removeEventListener(eventName, unlockAudio);
+        }
+      }
     };
   }, []);
 };

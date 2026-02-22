@@ -103,6 +103,7 @@ const QrScannerPage = () => {
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const fileScannerRef = useRef<Html5Qrcode | null>(null);
   const scannerBeepRef = useRef<HTMLAudioElement | null>(null);
+  const audioUnlockReadyRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const handlingDecodeRef = useRef(false);
   const lastInvalidToastAtRef = useRef(0);
@@ -146,11 +147,7 @@ const QrScannerPage = () => {
       scannerBeepRef.current.preload = "auto";
       scannerBeepRef.current.volume = 0.95;
     }
-    try {
-      scannerBeepRef.current.currentTime = 0;
-      void scannerBeepRef.current.play();
-    } catch {
-      // Fall back to tiny generated beep when external audio playback fails.
+    const playFallbackTone = () => {
       const AudioCtx = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
       if (!AudioCtx) return;
       try {
@@ -172,8 +169,58 @@ const QrScannerPage = () => {
       } catch {
         // no-op
       }
+    };
+    try {
+      scannerBeepRef.current.currentTime = 0;
+      const playPromise = scannerBeepRef.current.play();
+      if (playPromise && typeof playPromise.catch === "function") {
+        void playPromise.catch(() => {
+          playFallbackTone();
+        });
+      }
+    } catch {
+      playFallbackTone();
     }
   };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const unlockAudio = () => {
+      if (audioUnlockReadyRef.current) return;
+      audioUnlockReadyRef.current = true;
+      if (!scannerBeepRef.current) {
+        scannerBeepRef.current = new Audio(scannerBeepUrl);
+        scannerBeepRef.current.preload = "auto";
+        scannerBeepRef.current.volume = 0.95;
+      }
+      scannerBeepRef.current.load();
+      const AudioCtx = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioCtx) return;
+      try {
+        const ctx = new AudioCtx();
+        if (ctx.state === "suspended") {
+          void ctx.resume().finally(() => {
+            void ctx.close();
+          });
+        } else {
+          void ctx.close();
+        }
+      } catch {
+        // no-op
+      }
+    };
+
+    const events: Array<keyof WindowEventMap> = ["pointerdown", "touchend", "keydown"];
+    for (const eventName of events) {
+      window.addEventListener(eventName, unlockAudio, { passive: true });
+    }
+    return () => {
+      for (const eventName of events) {
+        window.removeEventListener(eventName, unlockAudio);
+      }
+    };
+  }, [scannerBeepUrl]);
 
   const handleDecoded = async (decodedText: string) => {
     if (handlingDecodeRef.current) return;
