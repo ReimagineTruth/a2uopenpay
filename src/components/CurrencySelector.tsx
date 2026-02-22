@@ -16,22 +16,54 @@ const emojiFlagStyle = {
   fontFamily: "\"Segoe UI Emoji\", \"Apple Color Emoji\", \"Noto Color Emoji\", sans-serif",
 };
 const PURE_PI_ICON_URL = "https://i.ibb.co/BV8PHjB4/Pi-200x200.png";
+const OPENPAY_ICON_URL = "/openpay-o.svg";
+const TOP_PRIORITY_CODES = ["OUSD", "PI", "USD", "EUR"];
 
 const CurrencySelector = () => {
   const { currencies, currency, setCurrency } = useCurrency();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const getPiCodeLabel = (code: string) => (code === "PI" ? "PI" : `PI ${code}`);
-  const getPiNameLabel = (code: string, name: string) => (code === "PI" ? "Pure Pi" : `PI ${name}`);
+  const getPiCodeLabel = (code: string) => {
+    if (code === "PI") return "PI";
+    if (code === "OUSD") return "OPEN USD";
+    return `PI ${code}`;
+  };
+  const getPiNameLabel = (code: string, name: string) => {
+    if (code === "PI") return "Pure Pi";
+    if (code === "OUSD") return "OpenPay USD Stablecoin (1 USD value)";
+    return `PI ${name}`;
+  };
   const getDisplaySymbol = (code: string, symbol: string) => (code === "PI" ? "π" : symbol);
+  const searchTerm = search.trim().toLowerCase();
 
   const filtered = currencies.filter(
     (c) =>
-      c.code.toLowerCase().includes(search.toLowerCase()) ||
-      c.name.toLowerCase().includes(search.toLowerCase()) ||
-      `pi ${c.code}`.toLowerCase().includes(search.toLowerCase()) ||
-      `pi ${c.name}`.toLowerCase().includes(search.toLowerCase())
+      c.code.toLowerCase().includes(searchTerm) ||
+      c.name.toLowerCase().includes(searchTerm) ||
+      `pi ${c.code}`.toLowerCase().includes(searchTerm) ||
+      `pi ${c.name}`.toLowerCase().includes(searchTerm) ||
+      (c.code === "OUSD" && "openusd open usd openpay usd 1 usd".includes(searchTerm))
   );
+  const prioritized = [...filtered].sort((a, b) => {
+    const aPriority = TOP_PRIORITY_CODES.indexOf(a.code);
+    const bPriority = TOP_PRIORITY_CODES.indexOf(b.code);
+    const aRank = aPriority === -1 ? Number.MAX_SAFE_INTEGER : aPriority;
+    const bRank = bPriority === -1 ? Number.MAX_SAFE_INTEGER : bPriority;
+    if (aRank !== bRank) return aRank - bRank;
+    return a.code.localeCompare(b.code);
+  });
+  const openUsdCurrency = currencies.find((c) => c.code === "OUSD");
+  const piCurrency = prioritized.find((c) => c.code === "PI");
+  const piUsdCurrency = prioritized.find((c) => c.code === "USD");
+  const piEurCurrency = prioritized.find((c) => c.code === "EUR");
+  const remainingCurrencies = prioritized.filter((c) => !["OUSD", "PI", "USD", "EUR"].includes(c.code));
+  const showOpenUsd =
+    !!openUsdCurrency &&
+    (!searchTerm ||
+      "openusd open usd openpay usd 1 usd pi usd usd".includes(searchTerm) ||
+      searchTerm.includes("openusd") ||
+      searchTerm.includes("open usd") ||
+      searchTerm.includes("openpay"));
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -41,6 +73,12 @@ const CurrencySelector = () => {
             <img
               src={PURE_PI_ICON_URL}
               alt="Pure Pi"
+              className="h-[18px] w-[18px] rounded-full object-cover"
+            />
+          ) : currency.code === "OUSD" ? (
+            <img
+              src={OPENPAY_ICON_URL}
+              alt="Open USD"
               className="h-[18px] w-[18px] rounded-full object-cover"
             />
           ) : (
@@ -68,7 +106,102 @@ const CurrencySelector = () => {
         </div>
         <ScrollArea className="h-[360px]">
           <div className="px-2 pb-2">
-            {filtered.map((c) => (
+            {showOpenUsd && openUsdCurrency && (
+              <button
+                onClick={() => {
+                  setCurrency(openUsdCurrency);
+                  setOpen(false);
+                  setSearch("");
+                }}
+                className={`mb-1 w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors ${
+                  currency.code === "OUSD"
+                    ? "bg-primary/10 text-primary"
+                    : "hover:bg-muted text-foreground"
+                }`}
+              >
+                <img
+                  src={OPENPAY_ICON_URL}
+                  alt="OpenPay"
+                  className="h-7 w-7 rounded-full object-cover"
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm">OPEN USD</p>
+                  <p className="text-xs text-muted-foreground truncate">OpenPay USD Stablecoin (1 USD value)</p>
+                </div>
+                <span className="text-xs text-muted-foreground font-medium">$</span>
+              </button>
+            )}
+            {piCurrency && (
+              <button
+                key={piCurrency.code}
+                onClick={() => {
+                  setCurrency(piCurrency);
+                  setOpen(false);
+                  setSearch("");
+                }}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors ${
+                  piCurrency.code === currency.code
+                    ? "bg-primary/10 text-primary"
+                    : "hover:bg-muted text-foreground"
+                }`}
+              >
+                <img
+                  src={PURE_PI_ICON_URL}
+                  alt="Pure Pi"
+                  className="h-7 w-7 rounded-full object-cover"
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm">{getPiCodeLabel(piCurrency.code)}</p>
+                  <p className="text-xs text-muted-foreground truncate">{getPiNameLabel(piCurrency.code, piCurrency.name)}</p>
+                </div>
+                <span className="text-xs text-muted-foreground font-medium">{getDisplaySymbol(piCurrency.code, piCurrency.symbol)}</span>
+              </button>
+            )}
+            {piUsdCurrency && (
+              <button
+                key={piUsdCurrency.code}
+                onClick={() => {
+                  setCurrency(piUsdCurrency);
+                  setOpen(false);
+                  setSearch("");
+                }}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors ${
+                  piUsdCurrency.code === currency.code
+                    ? "bg-primary/10 text-primary"
+                    : "hover:bg-muted text-foreground"
+                }`}
+              >
+                <span className="text-2xl leading-none" style={emojiFlagStyle}>{piUsdCurrency.flag}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm">{getPiCodeLabel(piUsdCurrency.code)}</p>
+                  <p className="text-xs text-muted-foreground truncate">{getPiNameLabel(piUsdCurrency.code, piUsdCurrency.name)}</p>
+                </div>
+                <span className="text-xs text-muted-foreground font-medium">{getDisplaySymbol(piUsdCurrency.code, piUsdCurrency.symbol)}</span>
+              </button>
+            )}
+            {piEurCurrency && (
+              <button
+                key={piEurCurrency.code}
+                onClick={() => {
+                  setCurrency(piEurCurrency);
+                  setOpen(false);
+                  setSearch("");
+                }}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors ${
+                  piEurCurrency.code === currency.code
+                    ? "bg-primary/10 text-primary"
+                    : "hover:bg-muted text-foreground"
+                }`}
+              >
+                <span className="text-2xl leading-none" style={emojiFlagStyle}>{piEurCurrency.flag}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm">{getPiCodeLabel(piEurCurrency.code)}</p>
+                  <p className="text-xs text-muted-foreground truncate">{getPiNameLabel(piEurCurrency.code, piEurCurrency.name)}</p>
+                </div>
+                <span className="text-xs text-muted-foreground font-medium">{getDisplaySymbol(piEurCurrency.code, piEurCurrency.symbol)}</span>
+              </button>
+            )}
+            {remainingCurrencies.map((c) => (
               <button
                 key={c.code}
                 onClick={() => {

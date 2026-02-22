@@ -190,7 +190,10 @@ const Dashboard = () => {
   const [hideCardPreviewDetails, setHideCardPreviewDetails] = useState(false);
   const navigate = useNavigate();
   const { format: formatCurrency, currency } = useCurrency();
-  const currencyTag = currency.code === "PI" ? "PI" : `${currency.code} (Pi rate)`;
+  const currencyLabel = currency.code === "OUSD" ? "OPEN USD" : currency.code;
+  const piCurrencyLabel = currency.code === "OUSD" ? "OPEN USD" : `PI ${currency.code}`;
+  const cardCurrencyLabel = currency.code === "PI" ? "PI" : currency.code === "OUSD" ? "OPEN USD" : `π ${currency.code}`;
+  const currencyTag = currency.code === "PI" ? "PI" : `${currencyLabel} (Pi rate)`;
   const onboardingSteps = [
     {
       title: "Welcome to OpenPay",
@@ -890,14 +893,14 @@ const Dashboard = () => {
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-2xl border border-border/70 p-3">
                 <p className="mb-2 text-sm font-semibold">Move wallet to savings</p>
-                <input value={savingsAmount} onChange={(e) => setSavingsAmount(e.target.value)} type="number" min="0" step="0.01" placeholder={`Amount (${currency.code})`} className="mb-2 h-10 w-full rounded-xl border border-border px-3" />
+                <input value={savingsAmount} onChange={(e) => setSavingsAmount(e.target.value)} type="number" min="0" step="0.01" placeholder={`Amount (${currencyLabel})`} className="mb-2 h-10 w-full rounded-xl border border-border px-3" />
                 <button disabled={movingToSavings} onClick={handleMoveWalletToSavings} className="h-10 w-full rounded-xl bg-paypal-blue text-sm font-semibold text-white">
                   {movingToSavings ? "Moving..." : "Move to Savings"}
                 </button>
               </div>
               <div className="rounded-2xl border border-border/70 p-3">
                 <p className="mb-2 text-sm font-semibold">Move savings to wallet</p>
-                <input value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} type="number" min="0" step="0.01" placeholder={`Amount (${currency.code})`} className="mb-2 h-10 w-full rounded-xl border border-border px-3" />
+                <input value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} type="number" min="0" step="0.01" placeholder={`Amount (${currencyLabel})`} className="mb-2 h-10 w-full rounded-xl border border-border px-3" />
                 <button disabled={movingToWallet} onClick={handleMoveSavingsToWallet} className="h-10 w-full rounded-xl border border-paypal-blue/40 bg-white text-sm font-semibold text-paypal-blue">
                   {movingToWallet ? "Moving..." : "Move to Wallet"}
                 </button>
@@ -1067,7 +1070,7 @@ const Dashboard = () => {
                 type="number"
                 min="0"
                 step="0.01"
-                placeholder={`Enter loan amount (${currency.code})`}
+                placeholder={`Enter loan amount (${currencyLabel})`}
                 className="mt-4 h-12 w-full rounded-xl border border-border px-3 text-sm text-foreground"
               />
               <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1.5 text-sm font-semibold text-paypal-blue">
@@ -1093,7 +1096,7 @@ const Dashboard = () => {
               <p className="text-xs text-muted-foreground">Provide accurate details. This application is reviewed by OpenPay admin before approval.</p>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 <label className="space-y-1 text-xs text-muted-foreground">
-                  <span>Loan amount ({currency.code})</span>
+                  <span>Loan amount ({currencyLabel})</span>
                   <input value={loanAmount} onChange={(e) => setLoanAmount(e.target.value)} type="number" min="0" step="0.01" placeholder="e.g. 500" className="h-10 w-full rounded-xl border border-border px-3 text-sm text-foreground" />
                 </label>
                 <label className="space-y-1 text-xs text-muted-foreground">
@@ -1143,7 +1146,7 @@ const Dashboard = () => {
           )}
           <div className="mt-3 rounded-2xl border border-border/70 p-3">
             <p className="mb-2 text-sm font-semibold">Pay monthly installment</p>
-            <input value={loanPaymentAmount} onChange={(e) => setLoanPaymentAmount(e.target.value)} type="number" min="0" step="0.01" placeholder={`Default: ${loan ? formatCurrency(loan.monthly_payment_amount) : `monthly due (${currency.code})`}`} className="h-10 w-full rounded-xl border border-border px-3" />
+            <input value={loanPaymentAmount} onChange={(e) => setLoanPaymentAmount(e.target.value)} type="number" min="0" step="0.01" placeholder={`Default: ${loan ? formatCurrency(loan.monthly_payment_amount) : `monthly due (${currencyLabel})`}`} className="h-10 w-full rounded-xl border border-border px-3" />
             <div className="mt-2 grid grid-cols-2 gap-2">
               <button
                 type="button"
@@ -1209,7 +1212,7 @@ const Dashboard = () => {
               <p className="text-xl font-semibold">OpenPay Cards</p>
             </div>
             <span className="rounded-full bg-white/20 px-3 py-1 text-sm font-semibold">
-              {currency.code === "PI" ? "PI" : `π ${currency.code}`}
+              {cardCurrencyLabel}
             </span>
           </div>
 
@@ -1365,7 +1368,7 @@ const Dashboard = () => {
             <p className="text-3xl font-bold">{balanceHidden ? "****" : formatCurrency(walletCardAmount)}</p>
             <p className="text-sm text-white/85">
               {walletView === "personal"
-                ? `Balance - ${currency.code === "PI" ? "PI" : `PI ${currency.code}`}`
+                ? `Balance - ${currency.code === "PI" ? "PI" : piCurrencyLabel}`
                 : `Merchant available (${merchantMode})`}
             </p>
           </div>

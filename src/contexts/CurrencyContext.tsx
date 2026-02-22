@@ -10,6 +10,7 @@ export interface Currency {
 }
 
 const baseCurrencies: Currency[] = [
+  { code: "OUSD", symbol: "$", name: "Open USD", flag: "OP", rate: 1 },
   { code: "PI", symbol: "\u03C0", name: "Pi", flag: "PI", rate: 1 },
   { code: "USD", symbol: "$", name: "US Dollar", flag: "\u{1F1FA}\u{1F1F8}", rate: 1 },
   { code: "EUR", symbol: "\u20AC", name: "Euro", flag: "\u{1F1EA}\u{1F1FA}", rate: 0.92 },

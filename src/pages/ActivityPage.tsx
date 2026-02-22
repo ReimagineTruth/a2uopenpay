@@ -30,6 +30,16 @@ interface MerchantActivityEntry {
   created_at: string;
   source: string;
 }
+interface MerchantActivityRpcRow {
+  activity_id?: string | null;
+  activity_type?: string | null;
+  amount?: number | string | null;
+  currency?: string | null;
+  status?: string | null;
+  note?: string | null;
+  created_at?: string | null;
+  source?: string | null;
+}
 
 const toPreviewText = (value: string, max = 68) => {
   const raw = String(value || "").trim();
@@ -61,6 +71,9 @@ const ActivityPage = () => {
   useEffect(() => {
     const load = async () => {
       setLoading(true);
+      const db = supabase as unknown as {
+        rpc: (fn: string, args?: Record<string, unknown>) => Promise<{ data: MerchantActivityRpcRow[] | null }>;
+      };
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         navigate("/signin");
@@ -70,25 +83,48 @@ const ActivityPage = () => {
       const [{ data: txs }, { data: wallet }, { data: merchantRows }] = await Promise.all([
         supabase
           .from("transactions")
-          .select("*")
+          .select("id, sender_id, receiver_id, amount, note, status, created_at")
           .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
-          .order("created_at", { ascending: false }),
+          .order("created_at", { ascending: false })
+          .limit(120),
         supabase
           .from("wallets")
           .select("welcome_bonus_claimed_at")
           .eq("user_id", user.id)
           .single(),
-        (supabase as any).rpc("get_my_merchant_activity", { p_mode: null, p_limit: 20, p_offset: 0 }),
+        db.rpc("get_my_merchant_activity", { p_mode: null, p_limit: 20, p_offset: 0 }),
       ]);
 
       if (txs) {
-        const enriched = await Promise.all(txs.map(async (tx) => {
+        const otherIds = Array.from(
+          new Set(
+            txs
+              .map((tx) => (tx.sender_id === user.id ? tx.receiver_id : tx.sender_id))
+              .filter((id): id is string => Boolean(id)),
+          ),
+        );
+
+        const { data: profileRows } = otherIds.length
+          ? await supabase
+              .from("profiles")
+              .select("id, full_name, username, avatar_url")
+              .in("id", otherIds)
+          : { data: [] as Array<{ id: string; full_name: string | null; username: string | null; avatar_url: string | null }> };
+
+        const profileById = new Map(
+          (profileRows || []).map((p) => [
+            p.id,
+            {
+              full_name: p.full_name || "Unknown",
+              username: p.username || null,
+              avatar_url: p.avatar_url || null,
+            },
+          ]),
+        );
+
+        const enriched = txs.map((tx) => {
           const otherId = tx.sender_id === user.id ? tx.receiver_id : tx.sender_id;
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("full_name, username, avatar_url")
-            .eq("id", otherId)
-            .single();
+          const profile = profileById.get(otherId);
           return {
             ...tx,
             other_name: profile?.full_name || "Unknown",
@@ -97,7 +133,8 @@ const ActivityPage = () => {
             is_sent: tx.sender_id === user.id,
             is_topup: tx.sender_id === user.id && tx.receiver_id === user.id,
           };
-        }));
+        });
+
         const bonusTx = wallet?.welcome_bonus_claimed_at
           ? [{
               id: `welcome-${user.id}`,
@@ -117,7 +154,7 @@ const ActivityPage = () => {
         setTransactions([...bonusTx, ...enriched]);
       }
       setMerchantActivities(
-        (Array.isArray(merchantRows) ? merchantRows : []).map((row: any) => ({
+        (Array.isArray(merchantRows) ? merchantRows : []).map((row) => ({
           activity_id: String(row.activity_id || ""),
           activity_type: String(row.activity_type || "payment"),
           amount: Number(row.amount || 0),
