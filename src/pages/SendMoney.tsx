@@ -91,6 +91,7 @@ const SendMoney = () => {
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
+  const [isPosCheckoutSession, setIsPosCheckoutSession] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [showSendConfirm, setShowSendConfirm] = useState(false);
@@ -241,6 +242,11 @@ const SendMoney = () => {
           const checkoutAmount = Number(checkoutRow.total_amount || 0);
           const checkoutCurrency = String(checkoutRow.currency || "").toUpperCase();
           const checkoutMerchantId = String(checkoutRow.merchant_user_id || "");
+          const checkoutItems = Array.isArray(checkoutRow.items) ? checkoutRow.items : [];
+          const firstItemName = String(checkoutItems[0]?.item_name || "").toLowerCase();
+          const qrNoteHint = String(searchParams.get("note") || "").toLowerCase();
+          const isPosHint = firstItemName.includes("pos payment") || qrNoteHint.includes("pos");
+          setIsPosCheckoutSession(isPosHint);
 
           if (checkoutAmount > 0) {
             setAmount(checkoutAmount.toFixed(2));
@@ -370,7 +376,9 @@ const SendMoney = () => {
       }
 
       const txId = String(checkoutTxId || "");
-      navigate(`/merchant-checkout?session=${encodeURIComponent(checkoutSessionToken)}&status=paid&tx=${encodeURIComponent(txId)}`, { replace: true });
+      const isPosRedirect = isPosCheckoutSession || note.toLowerCase().includes("pos");
+      const nextPath = isPosRedirect ? "/pos-thank-you" : "/merchant-checkout/thank-you";
+      navigate(`${nextPath}?session=${encodeURIComponent(checkoutSessionToken)}&tx=${encodeURIComponent(txId)}`, { replace: true });
       setLoading(false);
       return;
     }

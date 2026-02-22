@@ -69,6 +69,15 @@ type PosApiKeySettings = {
 const OFFLINE_POS_KEY = "openpay_pos_offline_queue_v1";
 const SETTINGS_KEY = "openpay_pos_settings_v1";
 const MERCHANT_MODE_KEY = "openpay_merchant_mode_v1";
+const POS_CURRENCY_PATTERN = /^(PI|[A-Z]{3})$/;
+
+const normalizePosCurrencyCode = (rawCode: string) => {
+  const normalized = String(rawCode || "").trim().toUpperCase();
+  if (POS_CURRENCY_PATTERN.test(normalized)) return normalized;
+  if (normalized.includes("PI")) return "PI";
+  const isoCode = normalized.match(/\b[A-Z]{3}\b/)?.[0];
+  return isoCode && POS_CURRENCY_PATTERN.test(isoCode) ? isoCode : "USD";
+};
 
 const MerchantPosPage = () => {
   const navigate = useNavigate();
@@ -82,7 +91,7 @@ const MerchantPosPage = () => {
   const [dashboard, setDashboard] = useState<PosDashboard | null>(null);
   const [transactions, setTransactions] = useState<PosTx[]>([]);
   const [amountInput, setAmountInput] = useState("0");
-  const [currency, setCurrency] = useState(activeCurrency.code);
+  const [currency, setCurrency] = useState(() => normalizePosCurrencyCode(activeCurrency.code));
   const [merchantUserId, setMerchantUserId] = useState("");
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>("idle");
   const [currentSession, setCurrentSession] = useState<PosSession | null>(null);
@@ -116,6 +125,16 @@ const MerchantPosPage = () => {
   const normalizedAmount = useMemo(() => {
     return amountValue > 0 ? amountValue.toFixed(2) : "";
   }, [amountValue]);
+
+  const posCurrencies = useMemo(() => {
+    const byCode = new Map<string, (typeof currencies)[number]>();
+    currencies.forEach((entry) => {
+      const code = normalizePosCurrencyCode(entry.code);
+      if (!POS_CURRENCY_PATTERN.test(code)) return;
+      if (!byCode.has(code)) byCode.set(code, { ...entry, code });
+    });
+    return Array.from(byCode.values());
+  }, [currencies]);
 
   const getPiCodeLabel = (code: string) => (code === "PI" ? "PI" : `PI ${code}`);
 
@@ -295,6 +314,7 @@ const MerchantPosPage = () => {
         setPaymentStatus("success");
         pushNotification("Payment successful", "success");
         void loadData();
+        navigate(`/pos-thank-you?session=${encodeURIComponent(currentSession.session_token)}`, { replace: true });
       } else if (data.status === "expired" || data.status === "canceled") {
         setPaymentStatus("failed");
         pushNotification("Payment failed or expired", "error");
@@ -302,7 +322,7 @@ const MerchantPosPage = () => {
     }, 4000);
 
     return () => window.clearInterval(timer);
-  }, [currentSession, paymentStatus]);
+  }, [currentSession, navigate, paymentStatus]);
 
   useEffect(() => {
     if (loading) return;
@@ -315,10 +335,11 @@ const MerchantPosPage = () => {
   }, [mode]);
 
   useEffect(() => {
-    if (!currencies.find((c) => c.code === currency)) {
-      setCurrency(activeCurrency.code);
+    if (!posCurrencies.find((c) => c.code === currency)) {
+      const fallback = posCurrencies[0]?.code ?? normalizePosCurrencyCode(activeCurrency.code);
+      setCurrency(fallback);
     }
-  }, [activeCurrency.code, currencies, currency]);
+  }, [activeCurrency.code, currency, posCurrencies]);
 
   const pressKey = (key: string) => {
     if (currentSession) {
@@ -340,11 +361,12 @@ const MerchantPosPage = () => {
       toast.error("Enter a valid amount");
       return;
     }
+    const selectedCurrency = normalizePosCurrencyCode(currency);
 
     if (offlineMode && typeof navigator !== "undefined" && !navigator.onLine) {
       setOfflineQueue((prev) => [
         ...prev,
-        { amount: amountValue, currency, qrStyle, createdAt: new Date().toISOString() },
+        { amount: amountValue, currency: selectedCurrency, qrStyle, createdAt: new Date().toISOString() },
       ]);
       setPaymentStatus("waiting");
       toast.message("Offline mode enabled. Payment request queued for sync.");
@@ -355,7 +377,7 @@ const MerchantPosPage = () => {
     try {
       const { data, error } = await (supabase as any).rpc("create_my_pos_checkout_session", {
         p_amount: amountValue,
-        p_currency: currency,
+        p_currency: selectedCurrency,
         p_mode: mode,
         p_customer_name: null,
         p_customer_email: null,
@@ -420,7 +442,7 @@ const MerchantPosPage = () => {
       for (const row of offlineQueue) {
         const { error } = await (supabase as any).rpc("create_my_pos_checkout_session", {
           p_amount: row.amount,
-          p_currency: row.currency,
+          p_currency: normalizePosCurrencyCode(row.currency),
           p_mode: mode,
           p_customer_name: null,
           p_customer_email: null,
@@ -605,12 +627,12 @@ const MerchantPosPage = () => {
                       setPaymentStatus("idle");
                       setReceiptIssuedAt(null);
                     }
-                    setCurrency(e.target.value);
+                    setCurrency(normalizePosCurrencyCode(e.target.value));
                   }}
                   disabled={isSessionLocked}
                   className="rounded-lg border border-border px-3 py-1.5 text-sm"
                 >
-                  {currencies.map((c) => (
+                  {posCurrencies.map((c) => (
                     <option key={c.code} value={c.code}>
                       {c.flag} {getPiCodeLabel(c.code)} - {c.name}
                     </option>

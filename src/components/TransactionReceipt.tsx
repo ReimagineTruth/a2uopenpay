@@ -1,6 +1,6 @@
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, Download, X } from "lucide-react";
+import { CheckCircle, Download, ExternalLink, X } from "lucide-react";
 import { format } from "date-fns";
 import { useCurrency } from "@/contexts/CurrencyContext";
 
@@ -51,32 +51,97 @@ const TransactionReceipt = ({ open, onOpenChange, receipt }: TransactionReceiptP
       : receipt.transactionId;
 
   const handleSave = () => {
-    const text = [
-      "═══════════════════════════",
-      "       OpenPay Receipt      ",
-      "═══════════════════════════",
-      "",
-      `Type: ${typeLabel}`,
-      `Amount: ${formatCurrency(receipt.amount)}`,
-      `Date: ${format(receipt.date, "MMM d, yyyy 'at' h:mm a")}`,
-      `Transaction ID: ${receipt.transactionId}`,
-      ...(receipt.otherPartyName ? [`To/From: ${receipt.otherPartyName}`] : []),
-      ...(receipt.otherPartyUsername ? [`Username: @${receipt.otherPartyUsername}`] : []),
-      ...(receipt.note ? [`Note: ${receipt.note}`] : []),
-      "",
-      "═══════════════════════════",
-      "     Thank you for using    ",
-      "          OpenPay           ",
-      "═══════════════════════════",
-    ].join("\n");
+    const canvas = document.createElement("canvas");
+    canvas.width = 1080;
+    canvas.height = 1480;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
 
-    const blob = new Blob([text], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
+    const wrapText = (text: string, maxWidth: number) => {
+      const words = String(text || "").split(/\s+/).filter(Boolean);
+      const lines: string[] = [];
+      let line = "";
+      for (const word of words) {
+        const test = line ? `${line} ${word}` : word;
+        if (ctx.measureText(test).width <= maxWidth) {
+          line = test;
+        } else {
+          if (line) lines.push(line);
+          line = word;
+        }
+      }
+      if (line) lines.push(line);
+      return lines.length ? lines : [""];
+    };
+
+    ctx.fillStyle = "#f3f4f7";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.fillStyle = "#ffffff";
+    ctx.strokeStyle = "#d4d8e2";
+    ctx.lineWidth = 2;
+    const cardX = 90;
+    const cardY = 80;
+    const cardW = 900;
+    const cardH = 1320;
+    ctx.beginPath();
+    ctx.roundRect(cardX, cardY, cardW, cardH, 34);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = "#0057d8";
+    ctx.beginPath();
+    ctx.roundRect(cardX, cardY, cardW, 330, [34, 34, 0, 0]);
+    ctx.fill();
+
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "700 56px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText(typeLabel, canvas.width / 2, 250);
+    ctx.font = "700 66px Arial";
+    ctx.fillText(formatCurrency(receipt.amount), canvas.width / 2, 340);
+
+    const rows: Array<[string, string]> = [
+      ["Date", format(receipt.date, "MMM d, yyyy h:mm a")],
+      ["Transaction ID", receipt.transactionId],
+      [receipt.type === "send" ? "To" : "From", receipt.otherPartyName || "N/A"],
+      ["Username", receipt.otherPartyUsername ? `@${receipt.otherPartyUsername}` : "N/A"],
+      ["Note", receipt.note || "N/A"],
+    ];
+
+    ctx.textAlign = "left";
+    let y = 500;
+    for (const [label, value] of rows) {
+      ctx.fillStyle = "#66758f";
+      ctx.font = "500 34px Arial";
+      ctx.fillText(label, 140, y);
+
+      ctx.fillStyle = "#1a2740";
+      ctx.font = "600 34px Arial";
+      const lines = wrapText(value, 480);
+      lines.forEach((line, idx) => {
+        const lineY = y + idx * 46;
+        ctx.textAlign = "right";
+        ctx.fillText(line, 940, lineY);
+      });
+      ctx.textAlign = "left";
+      y += Math.max(74, lines.length * 46 + 24);
+    }
+
+    ctx.fillStyle = "#9aa4b5";
+    ctx.font = "500 30px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText("Powered by OpenPay", canvas.width / 2, cardY + cardH - 60);
+
     const a = document.createElement("a");
-    a.href = url;
-    a.download = `openpay-receipt-${receipt.transactionId.slice(0, 8)}.txt`;
+    a.href = canvas.toDataURL("image/png");
+    a.download = `openpay-receipt-${receipt.transactionId.slice(0, 8)}.png`;
     a.click();
-    URL.revokeObjectURL(url);
+  };
+
+  const openLedgerTransaction = () => {
+    const txId = encodeURIComponent(receipt.transactionId);
+    window.location.assign(`/ledger?tx=${txId}`);
   };
 
   return (
@@ -98,6 +163,12 @@ const TransactionReceipt = ({ open, onOpenChange, receipt }: TransactionReceiptP
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Transaction ID</span>
             <span className="text-foreground font-mono text-xs">{transactionIdPreview}</span>
+          </div>
+          <div className="flex justify-end">
+            <Button variant="link" className="h-auto p-0 text-xs" onClick={openLedgerTransaction}>
+              <ExternalLink className="mr-1 h-3.5 w-3.5" />
+              View on Public Ledger
+            </Button>
           </div>
           {receipt.otherPartyName && (
             <div className="flex justify-between text-sm">

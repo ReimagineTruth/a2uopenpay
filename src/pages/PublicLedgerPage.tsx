@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -18,6 +18,8 @@ const PAGE_SIZE = 30;
 
 const PublicLedgerPage = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const transactionId = (searchParams.get("tx") || "").trim();
   const { format: formatCurrency } = useCurrency();
   const [entries, setEntries] = useState<PublicLedgerEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,9 +47,34 @@ const PublicLedgerPage = () => {
     }
   };
 
+  const loadTransaction = async (txId: string) => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.rpc("get_public_ledger_transaction", {
+        p_transaction_id: txId,
+      });
+      if (error) throw new Error(error.message || "Failed to load ledger transaction.");
+      const row = Array.isArray(data) ? data[0] : data;
+      setEntries(row ? [row as PublicLedgerEntry] : []);
+      setOffset(0);
+      setHasMore(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to load ledger transaction.");
+      setEntries([]);
+      setOffset(0);
+      setHasMore(false);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    loadPage(0);
-  }, []);
+    if (transactionId) {
+      void loadTransaction(transactionId);
+      return;
+    }
+    void loadPage(0);
+  }, [transactionId]);
 
   return (
     <div className="min-h-screen bg-background px-4 pt-4 pb-10">
@@ -58,11 +85,15 @@ const PublicLedgerPage = () => {
           </button>
           <div>
             <h1 className="text-xl font-bold text-paypal-dark">Public Ledger</h1>
-            <p className="text-xs text-muted-foreground">Public transaction history. User IDs are not shown.</p>
+            <p className="text-xs text-muted-foreground">
+              {transactionId
+                ? `Public record for transaction ${transactionId.slice(0, 8)}...`
+                : "Public transaction history. User IDs are not shown."}
+            </p>
           </div>
         </div>
         <button
-          onClick={() => loadPage(offset)}
+          onClick={() => (transactionId ? loadTransaction(transactionId) : loadPage(offset))}
           className="paypal-surface flex h-9 items-center gap-2 rounded-full px-3 text-sm font-semibold text-foreground"
           disabled={loading}
         >
@@ -98,14 +129,14 @@ const PublicLedgerPage = () => {
         <button
           className="paypal-surface h-9 rounded-full px-4 text-sm font-semibold text-foreground disabled:opacity-50"
           onClick={() => loadPage(Math.max(0, offset - PAGE_SIZE))}
-          disabled={loading || offset === 0}
+          disabled={loading || offset === 0 || !!transactionId}
         >
           Previous
         </button>
         <button
           className="paypal-surface h-9 rounded-full px-4 text-sm font-semibold text-foreground disabled:opacity-50"
           onClick={() => loadPage(offset + PAGE_SIZE)}
-          disabled={loading || !hasMore}
+          disabled={loading || !hasMore || !!transactionId}
         >
           Next
         </button>

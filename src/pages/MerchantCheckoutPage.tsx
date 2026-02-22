@@ -12,7 +12,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { getFunctionErrorMessage } from "@/lib/supabaseFunctionError";
 import SplashScreen from "@/components/SplashScreen";
 import BrandLogo from "@/components/BrandLogo";
-import TransactionReceipt, { type ReceiptData } from "@/components/TransactionReceipt";
 
 type CheckoutSessionPublic = {
   session_id: string;
@@ -89,10 +88,6 @@ const MerchantCheckoutPage = () => {
   const [customerAddress, setCustomerAddress] = useState("");
 
   const [paying, setPaying] = useState(false);
-  const [paid, setPaid] = useState(false);
-  const [transactionId, setTransactionId] = useState("");
-  const [receiptOpen, setReceiptOpen] = useState(false);
-  const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
 
   const [cardNumber, setCardNumber] = useState("");
   const [cardExpiryMonth, setCardExpiryMonth] = useState("");
@@ -128,10 +123,12 @@ const MerchantCheckoutPage = () => {
     if (checkoutCustomerPhone) setCustomerPhone(checkoutCustomerPhone);
     if (checkoutCustomerAddress) setCustomerAddress(checkoutCustomerAddress);
     if (checkoutStatus === "paid") {
-      setPaid(true);
-      if (returnedTxId) setTransactionId(returnedTxId);
+      const paidSessionToken = rawSessionToken || resolvedSessionToken;
+      if (paidSessionToken) {
+        navigate(`/merchant-checkout/thank-you?session=${encodeURIComponent(paidSessionToken)}&tx=${encodeURIComponent(returnedTxId)}`, { replace: true });
+      }
     }
-  }, [checkoutCustomerAddress, checkoutCustomerEmail, checkoutCustomerName, checkoutCustomerPhone, checkoutStatus, returnedTxId]);
+  }, [checkoutCustomerAddress, checkoutCustomerEmail, checkoutCustomerName, checkoutCustomerPhone, checkoutStatus, navigate, rawSessionToken, resolvedSessionToken, returnedTxId]);
 
   useEffect(() => {
     const boot = async () => {
@@ -189,22 +186,10 @@ const MerchantCheckoutPage = () => {
 
       const nextSession = row as CheckoutSessionPublic;
       setSessionData(nextSession);
-      if (checkoutStatus === "paid" && returnedTxId) {
-        const sourceRate = currencies.find((c) => c.code === nextSession.currency)?.rate ?? 1;
-        setReceiptData({
-          transactionId: returnedTxId,
-          type: "send",
-          amount: Number(nextSession.amount || 0) / (sourceRate || 1),
-          otherPartyName: nextSession.merchant_name || "OpenPay Merchant",
-          otherPartyUsername: nextSession.merchant_username || undefined,
-          note: `Merchant checkout session: ${nextSession.session_id}`,
-          date: new Date(),
-        });
-      }
     };
 
     boot();
-  }, [checkoutStatus, currencies, db, paymentLinkToken, rawSessionToken, returnedTxId]);
+  }, [db, paymentLinkToken, rawSessionToken]);
 
   const handlePaySession = async () => {
     if (!sessionData) {
@@ -277,27 +262,8 @@ const MerchantCheckoutPage = () => {
 
       if (rpcError) throw rpcError;
 
-      const txid = rpcTxId || "";
-      setTransactionId(txid);
-      setPaid(true);
-      setReceiptData({
-        transactionId: txid,
-        type: "send",
-        amount: amountInUsd,
-        otherPartyName: merchantName,
-        otherPartyUsername: merchantUsername || undefined,
-        note,
-        date: new Date(),
-      });
-      setReceiptOpen(true);
+      const txid = String(rpcTxId || "");
       toast.success("Payment successful");
-      if (resolvedSessionToken && typeof window !== "undefined") {
-        const nextUrl = new URL(window.location.href);
-        nextUrl.searchParams.set("session", resolvedSessionToken);
-        nextUrl.searchParams.set("status", "paid");
-        if (txid) nextUrl.searchParams.set("tx", txid);
-        window.history.replaceState({}, "", `${nextUrl.pathname}?${nextUrl.searchParams.toString()}`);
-      }
 
       if (linkSessionMeta?.after_payment_type === "redirect" && linkSessionMeta.redirect_url) {
         const target = new URL(linkSessionMeta.redirect_url);
@@ -307,9 +273,18 @@ const MerchantCheckoutPage = () => {
         return;
       }
 
-      const { data: refreshed } = await db.rpc("get_public_merchant_checkout_session", { p_session_token: resolvedSessionToken });
-      const next = Array.isArray(refreshed) ? refreshed[0] : refreshed;
-      if (next) setSessionData(next as CheckoutSessionPublic);
+      const thankYouParams = new URLSearchParams({
+        session: resolvedSessionToken,
+        tx: txid,
+      });
+      if (linkSessionMeta?.confirmation_message) {
+        thankYouParams.set("message", linkSessionMeta.confirmation_message);
+      }
+      const thankYouPath = String(sessionData?.items?.[0]?.item_name || "").toLowerCase().includes("pos payment")
+        ? "/pos-thank-you"
+        : "/merchant-checkout/thank-you";
+      navigate(`${thankYouPath}?${thankYouParams.toString()}`, { replace: true });
+      return;
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Payment failed");
     } finally {
@@ -354,20 +329,17 @@ const MerchantCheckoutPage = () => {
 
       if (error) throw new Error(await getFunctionErrorMessage(error, "Payment failed"));
 
-      const txid = (data as { transaction_id?: string } | null)?.transaction_id || "";
-      setTransactionId(txid);
-      setPaid(true);
-      setReceiptData({
-        transactionId: txid,
-        type: "send",
-        amount: safeLegacyAmount,
-        otherPartyName: merchantName,
-        otherPartyUsername: merchantUsername || undefined,
-        note,
-        date: new Date(),
-      });
-      setReceiptOpen(true);
+      const txid = String((data as { transaction_id?: string } | null)?.transaction_id || "");
       toast.success("Payment successful");
+      const thankYouParams = new URLSearchParams({
+        tx: txid,
+        merchant_name: merchantName,
+        merchant_username: merchantUsername || "",
+        currency,
+        amount: String(amount),
+      });
+      navigate(`/merchant-checkout/thank-you?${thankYouParams.toString()}`, { replace: true });
+      return;
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Payment failed");
     } finally {
@@ -697,28 +669,6 @@ const MerchantCheckoutPage = () => {
               </div>
             </div>
 
-            {paid && (
-              <div className="mt-4 rounded-2xl border border-paypal-blue/35 bg-paypal-blue/5 p-4 text-paypal-dark">
-                <p className="text-lg font-semibold">Thank you. Payment completed.</p>
-                <p className="mt-1 text-sm">
-                  {linkSessionMeta?.confirmation_message || "Your payment was processed successfully."}
-                </p>
-                {!!transactionId && (
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    Transaction ID: <span className="font-mono text-foreground">{transactionId}</span>
-                  </p>
-                )}
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <Button variant="outline" className="h-9 rounded-lg" onClick={() => setReceiptOpen(true)}>
-                    View receipt
-                  </Button>
-                  <Button className="h-9 rounded-lg bg-paypal-blue text-white hover:bg-[#004dc5]" onClick={() => navigate("/merchant-onboarding")}>
-                    Merchant dashboard
-                  </Button>
-                </div>
-              </div>
-            )}
-
             {!viewerId && <p className="mt-3 text-sm text-muted-foreground">You need to sign in to pay this checkout link.</p>}
             {!!viewerEmail && <p className="mt-2 text-sm text-muted-foreground">Signed in as {viewerEmail}</p>}
             <p className="mt-8 text-center text-sm text-muted-foreground">Powered by OpenPay</p>
@@ -779,11 +729,6 @@ const MerchantCheckoutPage = () => {
           </Button>
         </DialogContent>
       </Dialog>
-      <TransactionReceipt
-        open={receiptOpen}
-        onOpenChange={setReceiptOpen}
-        receipt={receiptData}
-      />
     </div>
   );
 };

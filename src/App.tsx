@@ -46,6 +46,8 @@ import OpenPayOfficialPage from "./pages/OpenPayOfficialPage";
 import RemittanceMerchantPage from "./pages/RemittanceMerchantPage";
 import MerchantPosPage from "./pages/MerchantPosPage";
 import MerchantCheckoutPage from "./pages/MerchantCheckoutPage";
+import MerchantCheckoutThankYouPage from "./pages/MerchantCheckoutThankYouPage";
+import PosThankYouPage from "./pages/PosThankYouPage";
 import OpenAppPage from "./pages/OpenAppPage";
 import OpenPayDesktopPage from "./pages/OpenPayDesktopPage";
 import VirtualCardPage from "./pages/VirtualCardPage";
@@ -134,6 +136,8 @@ const AppRoutes = () => {
         <Route path="/payment-links/create" element={<PaymentLinksCreatePage />} />
         <Route path="/payment-link/:token" element={<MerchantCheckoutPage />} />
         <Route path="/merchant-checkout" element={<MerchantCheckoutPage />} />
+        <Route path="/merchant-checkout/thank-you" element={<MerchantCheckoutThankYouPage />} />
+        <Route path="/pos-thank-you" element={<PosThankYouPage />} />
         <Route path="/virtual-card" element={<VirtualCardPage />} />
         <Route path="/remittance-merchant" element={<RemittanceMerchantPage />} />
         <Route path="/openpay-official" element={<OpenPayOfficialPage />} />
