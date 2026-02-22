@@ -2,35 +2,19 @@ import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-const playIncomingNotificationSound = () => {
+const fundReceivedSoundUrl = "https://www.myinstants.com/media/sounds/notification_o14egLP.mp3";
+let fundReceivedAudio: HTMLAudioElement | null = null;
+
+const playFundReceivedSound = () => {
   if (typeof window === "undefined") return;
-  const AudioCtx = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-  if (!AudioCtx) return;
   try {
-    const context = new AudioCtx();
-    const gain = context.createGain();
-    gain.connect(context.destination);
-    gain.gain.setValueAtTime(0.0001, context.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.07, context.currentTime + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.26);
-
-    const oscA = context.createOscillator();
-    oscA.type = "sine";
-    oscA.frequency.setValueAtTime(660, context.currentTime);
-    oscA.connect(gain);
-    oscA.start(context.currentTime);
-    oscA.stop(context.currentTime + 0.12);
-
-    const oscB = context.createOscillator();
-    oscB.type = "sine";
-    oscB.frequency.setValueAtTime(880, context.currentTime + 0.13);
-    oscB.connect(gain);
-    oscB.start(context.currentTime + 0.13);
-    oscB.stop(context.currentTime + 0.25);
-
-    oscB.onended = () => {
-      void context.close();
-    };
+    if (!fundReceivedAudio) {
+      fundReceivedAudio = new Audio(fundReceivedSoundUrl);
+      fundReceivedAudio.preload = "auto";
+      fundReceivedAudio.volume = 0.95;
+    }
+    fundReceivedAudio.currentTime = 0;
+    void fundReceivedAudio.play();
   } catch {
     // no-op
   }
@@ -74,7 +58,6 @@ export const useRealtimePushNotifications = () => {
       if (!user || !isMounted) return;
 
       const maybeNotify = async (title: string, body: string) => {
-        playIncomingNotificationSound();
         if (document.visibilityState === "visible") {
           toast.info(`${title}: ${body}`);
         }
@@ -95,6 +78,7 @@ export const useRealtimePushNotifications = () => {
             const tx = payload.new as { amount?: number; sender_id?: string; receiver_id?: string };
             const amount = Number(tx.amount || 0).toFixed(2);
             const isTopUp = tx.sender_id === tx.receiver_id && tx.receiver_id === user.id;
+            playFundReceivedSound();
             if (isTopUp) {
               await maybeNotify("Top up successful", `$${amount} was added to your balance.`);
             } else {
