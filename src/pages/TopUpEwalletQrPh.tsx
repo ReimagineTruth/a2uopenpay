@@ -18,10 +18,15 @@ const TopUpEwalletQrPh = () => {
   const [showSafetyAgreement, setShowSafetyAgreement] = useState(false);
   const [safetyAgreementChecked, setSafetyAgreementChecked] = useState(false);
 
-  const parsedAmount = Number(searchParams.get("amount") || "0");
-  const safeOpenUsdAmount = Number.isFinite(parsedAmount) && parsedAmount > 0 ? parsedAmount : 0;
-  const roundedOpenUsdAmount = Math.round(safeOpenUsdAmount * 100) / 100;
-  const payPhpAmount = safeOpenUsdAmount * E_WALLET_PHP_PER_OUSD;
+  const parsedPhpAmount = Number(searchParams.get("phpAmount") || "0");
+  const safePhpAmount = Number.isFinite(parsedPhpAmount) && parsedPhpAmount > 0 ? parsedPhpAmount : 0;
+  const parsedOpenUsdAmount = Number(searchParams.get("openUsdAmount") || searchParams.get("amount") || "0");
+  const safeOpenUsdAmount = Number.isFinite(parsedOpenUsdAmount) && parsedOpenUsdAmount > 0 ? parsedOpenUsdAmount : 0;
+
+  // Keep PHP exact when provided from Buy flow, and only round OPEN USD display.
+  const payPhpAmount = safePhpAmount > 0 ? safePhpAmount : safeOpenUsdAmount * E_WALLET_PHP_PER_OUSD;
+  const openUsdAmount = safeOpenUsdAmount > 0 ? safeOpenUsdAmount : payPhpAmount / E_WALLET_PHP_PER_OUSD;
+  const roundedOpenUsdAmount = Math.round(openUsdAmount * 100) / 100;
   const phpDisplay = payPhpAmount > 0 ? payPhpAmount.toFixed(2) : "0.00";
   const openUsdDisplay = roundedOpenUsdAmount > 0 ? roundedOpenUsdAmount.toFixed(2) : "0.00";
   const payQrPhUrl = "https://paymongo.page/l/openpay";

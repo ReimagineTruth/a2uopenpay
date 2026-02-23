@@ -849,8 +849,9 @@ const Dashboard = () => {
       return;
     }
     if (buyPaymentMethod === "Ewallet") {
-      const amountForTopUp = Math.max(0.01, Number(buyOpenUsdAmount.toFixed(2)));
-      navigate(`/topup-ewallet-qrph?amount=${amountForTopUp.toFixed(2)}`);
+      const phpAmountForTopUp = Math.max(0.01, Number(safeBuySpend.toFixed(2)));
+      const openUsdAmountForTopUp = Math.max(0.01, Number((phpAmountForTopUp / E_WALLET_PHP_PER_OUSD).toFixed(6)));
+      navigate(`/topup-ewallet-qrph?phpAmount=${phpAmountForTopUp.toFixed(2)}&openUsdAmount=${openUsdAmountForTopUp.toFixed(6)}`);
       return;
     }
     const amountForTopUp = Math.max(0.01, Number(buyOpenUsdAmount.toFixed(2)));
