@@ -60,12 +60,21 @@ const TransactionReceipt = ({ open, onOpenChange, receipt }: TransactionReceiptP
       ? receipt.transactionId
       : "";
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const canvas = document.createElement("canvas");
     canvas.width = 1080;
     canvas.height = 1480;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+
+    const loadImage = (src: string) =>
+      new Promise<HTMLImageElement | null>((resolve) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => resolve(null);
+        img.crossOrigin = "anonymous";
+        img.src = src;
+      });
 
     const wrapText = (text: string, maxWidth: number) => {
       const words = String(text || "").split(/\s+/).filter(Boolean);
@@ -134,12 +143,23 @@ const TransactionReceipt = ({ open, onOpenChange, receipt }: TransactionReceiptP
     ctx.roundRect(cardX, cardY, cardW, 330, [34, 34, 0, 0]);
     ctx.fill();
 
+    const logo = await loadImage(`${window.location.origin}/openpay-o.svg`);
+    if (logo) {
+      const logoSize = 84;
+      ctx.drawImage(logo, canvas.width / 2 - logoSize / 2, 120, logoSize, logoSize);
+    }
+
     ctx.fillStyle = "#ffffff";
-    ctx.font = "700 56px Arial";
+    ctx.font = "600 30px Arial";
     ctx.textAlign = "center";
-    ctx.fillText(typeLabel, canvas.width / 2, 250);
+    ctx.fillText("OpenPay", canvas.width / 2, 230);
+
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "700 52px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText(typeLabel, canvas.width / 2, 285);
     ctx.font = "700 66px Arial";
-    ctx.fillText(formatCurrency(receipt.amount), canvas.width / 2, 340);
+    ctx.fillText(formatCurrency(receipt.amount), canvas.width / 2, 365);
 
     const rows: Array<[string, string]> = [
       ["Date", format(receipt.date, "MMM d, yyyy h:mm a")],

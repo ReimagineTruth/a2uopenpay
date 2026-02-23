@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Bell, Copy, ExternalLink, FileText, Link2, Menu, MessageCircle, Plus, ShoppingCart, Store, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { QRCodeCanvas, QRCodeSVG } from "qrcode.react";
@@ -52,6 +52,7 @@ const PaymentLinksCreatePage = () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any;
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { currencies } = useCurrency();
 
   const [loading, setLoading] = useState(true);
@@ -144,6 +145,23 @@ const PaymentLinksCreatePage = () => {
 
     void boot();
   }, [navigate]);
+
+  useEffect(() => {
+    if (!products.length) return;
+    const productId = searchParams.get("product_id") || "";
+    if (!productId) return;
+    const match = products.find((p) => p.id === productId);
+    if (!match) return;
+    setType("products");
+    setShowCreateForm(true);
+    setSelectedQty({ [match.id]: 1 });
+    if (match.currency) setCurrency(match.currency.toUpperCase());
+    if (match.product_name) setTitle(match.product_name);
+    const requestedTab = searchParams.get("share_tab") || "";
+    if (["button", "widget", "iframe", "direct", "qr"].includes(requestedTab)) {
+      setShareTab(requestedTab as ShareTab);
+    }
+  }, [products, searchParams]);
 
   const filteredProducts = useMemo(
     () => products.filter((p) => p.currency.toUpperCase() === currency.toUpperCase() && p.is_active),

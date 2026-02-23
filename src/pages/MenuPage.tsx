@@ -176,6 +176,7 @@ const MenuPage = () => {
       title: "Merchant",
       items: [
         { icon: Store, label: "Merchant Portal", action: () => navigate("/merchant-onboarding") },
+        { icon: Store, label: "Product Catalog", action: () => navigate("/merchant-products") },
         { icon: Store, label: "Merchant POS", action: () => navigate("/merchant-pos") },
         { icon: FileText, label: "Payment Link Creator", action: () => navigate("/payment-links/create") },
         ...(remittanceUiEnabled

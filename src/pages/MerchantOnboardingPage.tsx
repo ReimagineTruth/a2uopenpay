@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, BarChart3, Bell, Boxes, Copy, CreditCard, FileText, KeyRound, LayoutDashboard, Link as LinkIcon, Menu, MessageCircle, Plus, Store, Trash2, Users, Wallet, X } from "lucide-react";
+import { ArrowLeft, BarChart3, Bell, Boxes, Copy, CreditCard, FileText, KeyRound, LayoutDashboard, Link as LinkIcon, Menu, MessageCircle, Plus, Store, Ticket, Trash2, Users, Wallet, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import BrandLogo from "@/components/BrandLogo";
 import SplashScreen from "@/components/SplashScreen";
@@ -21,7 +22,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-type PortalView = "home" | "balances" | "transactions" | "customers" | "products" | "api_keys" | "checkout" | "analytics";
+type PortalView = "home" | "balances" | "transactions" | "customers" | "products" | "api_keys" | "checkout" | "analytics" | "coupons" | "payment_channels";
 type Mode = "sandbox" | "live";
 
 type MerchantProfile = { user_id: string; merchant_name: string; merchant_username: string; merchant_logo_url: string | null; default_currency: string };
@@ -53,6 +54,20 @@ type MerchantSession = {
   metadata: Record<string, unknown> | null;
   created_at: string;
 };
+type PaymentChannelLink = {
+  id: string;
+  link_token: string;
+  key_mode: Mode;
+  title: string;
+  description: string;
+  currency: string;
+  custom_amount: number | null;
+  is_active: boolean;
+  created_at: string;
+  reference_number: string | null;
+  remarks: string | null;
+  archived_at: string | null;
+};
 type MerchantBalanceOverview = {
   gross_volume: number;
   refunded_total: number;
@@ -80,14 +95,22 @@ const PURE_PI_ICON_URL = "https://i.ibb.co/BV8PHjB4/Pi-200x200.png";
 const OPENPAY_ICON_URL = "/openpay-o.svg";
 const MERCHANT_MODE_KEY = "openpay_merchant_mode_v1";
 
-const navItems: { key: PortalView; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+const navItems: {
+  key: PortalView;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  badge?: string;
+  disabled?: boolean;
+}[] = [
   { key: "home", label: "Home", icon: LayoutDashboard },
   { key: "balances", label: "Balances", icon: Wallet },
   { key: "transactions", label: "Transactions", icon: CreditCard },
-  { key: "customers", label: "Customers", icon: Users },
-  { key: "products", label: "Product catalog", icon: Boxes },
+  { key: "products", label: "Product Catalog", icon: Boxes, badge: "New" },
+  { key: "customers", label: "Customers", icon: Users, badge: "Coming soon", disabled: true },
+  { key: "coupons", label: "Coupons", icon: Ticket, badge: "Coming soon", disabled: true },
   { key: "api_keys", label: "API keys", icon: KeyRound },
   { key: "checkout", label: "Checkout links", icon: LinkIcon },
+  { key: "payment_channels", label: "Payment channels", icon: LinkIcon },
   { key: "analytics", label: "Analytics", icon: BarChart3 },
 ];
 
@@ -130,6 +153,17 @@ const MerchantOnboardingPage = () => {
   const [sessions, setSessions] = useState<MerchantSession[]>([]);
   const [customersById, setCustomersById] = useState<Record<string, CustomerProfile>>({});
   const [walletBalance, setWalletBalance] = useState(0);
+  const [paymentChannelLinks, setPaymentChannelLinks] = useState<PaymentChannelLink[]>([]);
+  const [showArchivedLinks, setShowArchivedLinks] = useState(false);
+  const [channelSearch, setChannelSearch] = useState("");
+  const [channelModalOpen, setChannelModalOpen] = useState(false);
+  const [channelReference, setChannelReference] = useState("");
+  const [channelAmount, setChannelAmount] = useState("");
+  const [channelDescription, setChannelDescription] = useState("");
+  const [channelRemarks, setChannelRemarks] = useState("");
+  const [channelCurrency, setChannelCurrency] = useState("USD");
+  const [channelSecretKey, setChannelSecretKey] = useState("");
+  const [creatingChannel, setCreatingChannel] = useState(false);
 
   const [selectedQty, setSelectedQty] = useState<Record<string, number>>({});
   const [checkoutCurrency, setCheckoutCurrency] = useState("USD");
@@ -210,80 +244,92 @@ const MerchantOnboardingPage = () => {
     return { items, total: items.reduce((sum, i) => sum + i.line_total, 0) };
   }, [modeProducts, selectedQty]);
 
-  const loadPortal = async (uid: string, selectedMode: Mode = mode) => {
-    const [
-      { data: profile },
-      { data: keyRows },
-      { data: productRows },
-      { data: paymentRows },
-      { data: sessionRows },
-      { data: walletRow },
-      { count: unreadCount },
-      { data: analyticsPayload },
-      { data: balancePayload, error: balanceError },
-      { data: activityPayload },
-    ] = await Promise.all([
-      db.from("merchant_profiles").select("user_id, merchant_name, merchant_username, merchant_logo_url, default_currency").eq("user_id", uid).maybeSingle(),
-      db.from("merchant_api_keys").select("id, key_mode, key_name, publishable_key, secret_key_last4, is_active, created_at").eq("merchant_user_id", uid).order("created_at", { ascending: false }),
-      db.from("merchant_products").select("id, product_code, product_name, product_description, unit_amount, currency, is_active").eq("merchant_user_id", uid).order("created_at", { ascending: false }),
-      db.from("merchant_payments").select("id, session_id, buyer_user_id, transaction_id, amount, currency, api_key_id, key_mode, payment_link_id, payment_link_token, status, created_at").eq("merchant_user_id", uid),
-      db.from("merchant_checkout_sessions").select("id, session_token, status, key_mode, currency, total_amount, customer_name, customer_email, metadata, created_at").eq("merchant_user_id", uid),
-      db.from("wallets").select("balance").eq("user_id", uid).maybeSingle(),
-      db.from("app_notifications").select("id", { count: "exact", head: true }).eq("user_id", uid).is("read_at", null),
-      db.rpc("get_my_merchant_analytics", { p_mode: selectedMode, p_days: 30 }),
-      db.rpc("get_my_merchant_balance_overview", { p_mode: selectedMode }),
-      db.rpc("get_my_merchant_activity", { p_mode: selectedMode, p_limit: 20, p_offset: 0 }),
-    ]);
+  const loadPortal = useCallback(
+    async (uid: string, selectedMode: Mode = mode) => {
+      try {
+        const [
+          { data: profile },
+          { data: keyRows },
+          { data: productRows },
+          { data: paymentRows },
+          { data: sessionRows },
+          { data: linkRows },
+          { data: walletRow },
+          { count: unreadCount },
+          { data: analyticsPayload },
+          { data: balancePayload, error: balanceError },
+          { data: activityPayload },
+        ] = await Promise.all([
+          db.from("merchant_profiles").select("user_id, merchant_name, merchant_username, merchant_logo_url, default_currency").eq("user_id", uid).maybeSingle(),
+          db.from("merchant_api_keys").select("id, key_mode, key_name, publishable_key, secret_key_last4, is_active, created_at").eq("merchant_user_id", uid).order("created_at", { ascending: false }),
+          db.from("merchant_products").select("id, product_code, product_name, product_description, unit_amount, currency, is_active").eq("merchant_user_id", uid).order("created_at", { ascending: false }),
+          db.from("merchant_payments").select("id, session_id, buyer_user_id, transaction_id, amount, currency, api_key_id, key_mode, payment_link_id, payment_link_token, status, created_at").eq("merchant_user_id", uid),
+          db.from("merchant_checkout_sessions").select("id, session_token, status, key_mode, currency, total_amount, customer_name, customer_email, metadata, created_at").eq("merchant_user_id", uid),
+          db.from("merchant_payment_links").select("id, link_token, key_mode, title, description, currency, custom_amount, is_active, created_at, reference_number, remarks, archived_at").eq("merchant_user_id", uid).order("created_at", { ascending: false }),
+          db.from("wallets").select("balance").eq("user_id", uid).maybeSingle(),
+          db.from("app_notifications").select("id", { count: "exact", head: true }).eq("user_id", uid).is("read_at", null),
+          db.rpc("get_my_merchant_analytics", { p_mode: selectedMode, p_days: 30 }),
+          db.rpc("get_my_merchant_balance_overview", { p_mode: selectedMode }),
+          db.rpc("get_my_merchant_activity", { p_mode: selectedMode, p_limit: 20, p_offset: 0 }),
+        ]);
 
-    if (profile) {
-      const p = profile as MerchantProfile;
-      setMerchantName(p.merchant_name || "OpenPay Merchant");
-      setMerchantUsername(p.merchant_username || "");
-      setMerchantLogoUrl(p.merchant_logo_url || "");
-      setDefaultCurrency((p.default_currency || "USD").toUpperCase());
-      setProductCurrency((p.default_currency || "USD").toUpperCase());
-      setCheckoutCurrency((p.default_currency || "USD").toUpperCase());
-    }
+        if (profile) {
+          const p = profile as MerchantProfile;
+          const currency = (p.default_currency || "USD").toUpperCase();
+          setMerchantName(p.merchant_name || "OpenPay Merchant");
+          setMerchantUsername(p.merchant_username || "");
+          setMerchantLogoUrl(p.merchant_logo_url || "");
+          setDefaultCurrency(currency);
+          setProductCurrency(currency);
+          setCheckoutCurrency(currency);
+        }
 
-    setApiKeys((keyRows || []) as MerchantApiKey[]);
-    setProducts((productRows || []) as MerchantProduct[]);
-    setPayments((paymentRows || []) as MerchantPayment[]);
-    setSessions((sessionRows || []) as MerchantSession[]);
-    setWalletBalance(Number(walletRow?.balance || 0));
-    setUnreadNotifications(Number(unreadCount || 0));
-    setAnalyticsData(Array.isArray(analyticsPayload) ? analyticsPayload[0] : analyticsPayload);
-    if (!balanceError) {
-      const balanceRow = Array.isArray(balancePayload) ? balancePayload[0] : balancePayload;
-      if (balanceRow) {
-        setMerchantBalanceOverview({
-          gross_volume: Number(balanceRow.gross_volume || 0),
-          refunded_total: Number(balanceRow.refunded_total || 0),
-          transferred_total: Number(balanceRow.transferred_total || 0),
-          available_balance: Number(balanceRow.available_balance || 0),
-          wallet_balance: Number(balanceRow.wallet_balance || 0),
-          savings_balance: Number(balanceRow.savings_balance || 0),
-        });
+        setApiKeys((keyRows || []) as MerchantApiKey[]);
+        setProducts((productRows || []) as MerchantProduct[]);
+        setPayments((paymentRows || []) as MerchantPayment[]);
+        setSessions((sessionRows || []) as MerchantSession[]);
+        setPaymentChannelLinks((linkRows || []) as PaymentChannelLink[]);
+        setWalletBalance(Number(walletRow?.balance || 0));
+        setUnreadNotifications(Number(unreadCount || 0));
+        setAnalyticsData(Array.isArray(analyticsPayload) ? analyticsPayload[0] : analyticsPayload);
+        if (!balanceError) {
+          const balanceRow = Array.isArray(balancePayload) ? balancePayload[0] : balancePayload;
+          if (balanceRow) {
+            setMerchantBalanceOverview({
+              gross_volume: Number(balanceRow.gross_volume || 0),
+              refunded_total: Number(balanceRow.refunded_total || 0),
+              transferred_total: Number(balanceRow.transferred_total || 0),
+              available_balance: Number(balanceRow.available_balance || 0),
+              wallet_balance: Number(balanceRow.wallet_balance || 0),
+              savings_balance: Number(balanceRow.savings_balance || 0),
+            });
+          }
+        }
+        setMerchantActivity(
+          (Array.isArray(activityPayload) ? activityPayload : []).map((row: any) => ({
+            activity_id: String(row.activity_id || ""),
+            activity_type: String(row.activity_type || "payment"),
+            amount: Number(row.amount || 0),
+            currency: String(row.currency || defaultCurrency || "USD"),
+            status: String(row.status || "completed"),
+            note: String(row.note || ""),
+            created_at: String(row.created_at || ""),
+            counterparty_name: row.counterparty_name ? String(row.counterparty_name) : null,
+            counterparty_username: row.counterparty_username ? String(row.counterparty_username) : null,
+            counterparty_email: row.counterparty_email ? String(row.counterparty_email) : null,
+            source: String(row.source || "merchant_portal"),
+          })),
+        );
+      } catch (error) {
+        toast.error("Unable to load merchant portal data");
+        console.warn("Failed to load merchant portal data", error);
       }
-    }
-    setMerchantActivity(
-      (Array.isArray(activityPayload) ? activityPayload : []).map((row: any) => ({
-        activity_id: String(row.activity_id || ""),
-        activity_type: String(row.activity_type || "payment"),
-        amount: Number(row.amount || 0),
-        currency: String(row.currency || defaultCurrency || "USD"),
-        status: String(row.status || "completed"),
-        note: String(row.note || ""),
-        created_at: String(row.created_at || ""),
-        counterparty_name: row.counterparty_name ? String(row.counterparty_name) : null,
-        counterparty_username: row.counterparty_username ? String(row.counterparty_username) : null,
-        counterparty_email: row.counterparty_email ? String(row.counterparty_email) : null,
-        source: String(row.source || "merchant_portal"),
-      })),
-    );
-  };
+    },
+    [db, mode, defaultCurrency],
+  );
 
-  useEffect(() => {
-    const boot = async () => {
+  const boot = useCallback(async () => {
+    try {
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -304,29 +350,35 @@ const MerchantOnboardingPage = () => {
       });
 
       await loadPortal(user.id);
+    } catch (error) {
+      toast.error("Unable to load merchant portal");
+      console.warn("Failed to boot merchant portal", error);
+    } finally {
       setLoading(false);
-    };
+    }
+  }, [navigate, db, loadPortal]);
 
-    boot();
-  }, [navigate]);
+  const loadCustomers = useCallback(async () => {
+    if (!uniqueCustomers.length) {
+      setCustomersById({});
+      return;
+    }
+
+    const { data } = await supabase.from("profiles").select("id, full_name, username").in("id", uniqueCustomers);
+    const map: Record<string, CustomerProfile> = {};
+    (data || []).forEach((row) => {
+      map[row.id] = row as CustomerProfile;
+    });
+    setCustomersById(map);
+  }, [uniqueCustomers]);
 
   useEffect(() => {
-    const loadCustomers = async () => {
-      if (!uniqueCustomers.length) {
-        setCustomersById({});
-        return;
-      }
+    void boot();
+  }, [boot]);
 
-      const { data } = await supabase.from("profiles").select("id, full_name, username").in("id", uniqueCustomers);
-      const map: Record<string, CustomerProfile> = {};
-      (data || []).forEach((row) => {
-        map[row.id] = row as CustomerProfile;
-      });
-      setCustomersById(map);
-    };
-
-    loadCustomers();
-  }, [uniqueCustomers.join("|")]);
+  useEffect(() => {
+    void loadCustomers();
+  }, [loadCustomers]);
 
   useEffect(() => {
     setMobileNavOpen(false);
@@ -334,8 +386,13 @@ const MerchantOnboardingPage = () => {
 
   useEffect(() => {
     if (!userId) return;
-    loadPortal(userId, mode);
-  }, [mode, userId]);
+    void loadPortal(userId, mode);
+  }, [mode, userId, loadPortal]);
+
+  useEffect(() => {
+    if (channelCurrency) return;
+    setChannelCurrency(defaultCurrency || "USD");
+  }, [defaultCurrency, channelCurrency]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -530,6 +587,78 @@ const MerchantOnboardingPage = () => {
     toast.success("Checkout link deleted");
   };
 
+  const createPaymentChannelLink = async () => {
+    if (!userId) return;
+    const amount = Number(channelAmount);
+    if (!channelSecretKey.trim()) {
+      toast.error("Secret key is required");
+      return;
+    }
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast.error("Enter a valid amount");
+      return;
+    }
+    if (!channelReference.trim()) {
+      toast.error("Enter reference number");
+      return;
+    }
+
+    setCreatingChannel(true);
+    const { data, error } = await db.rpc("create_merchant_payment_link", {
+      p_secret_key: channelSecretKey.trim(),
+      p_mode: mode,
+      p_link_type: "custom_amount",
+      p_title: channelReference.trim(),
+      p_description: channelDescription.trim(),
+      p_currency: channelCurrency.toUpperCase(),
+      p_custom_amount: amount,
+      p_items: [],
+      p_collect_customer_name: true,
+      p_collect_customer_email: true,
+      p_collect_phone: false,
+      p_collect_address: false,
+      p_after_payment_type: "confirmation",
+      p_confirmation_message: "Thanks for your payment.",
+      p_redirect_url: null,
+      p_call_to_action: "Pay",
+      p_expires_in_minutes: null,
+    });
+    setCreatingChannel(false);
+
+    if (error) {
+      toast.error(error.message || "Failed to create payment link");
+      return;
+    }
+    const row = Array.isArray(data) ? data[0] : data;
+    const linkId = row?.link_id;
+    if (linkId) {
+      await db.from("merchant_payment_links").update({
+        reference_number: channelReference.trim(),
+        remarks: channelRemarks.trim(),
+      }).eq("id", linkId);
+    }
+    setChannelReference("");
+    setChannelAmount("");
+    setChannelDescription("");
+    setChannelRemarks("");
+    setChannelSecretKey("");
+    setChannelModalOpen(false);
+    toast.success("Payment channel link created");
+    if (userId) await loadPortal(userId, mode);
+  };
+
+  const archivePaymentChannelLink = async (linkId: string) => {
+    const { error } = await db.from("merchant_payment_links").update({
+      archived_at: new Date().toISOString(),
+      is_active: false,
+    }).eq("id", linkId);
+    if (error) {
+      toast.error(error.message || "Failed to archive");
+      return;
+    }
+    if (userId) await loadPortal(userId, mode);
+  };
+
   const confirmDeleteTarget = async () => {
     if (!deleteTarget) return;
     if (deleteTarget.type === "api_key") {
@@ -687,6 +816,172 @@ const MerchantOnboardingPage = () => {
       );
     }
 
+    if (activeView === "payment_channels") {
+      const normalizedSearch = channelSearch.trim().toLowerCase();
+      const filteredLinks = paymentChannelLinks.filter((link) => {
+        if (!showArchivedLinks && link.archived_at) return false;
+        if (!normalizedSearch) return true;
+        const ref = String(link.reference_number || link.title || "").toLowerCase();
+        return ref.includes(normalizedSearch);
+      });
+      const linkUrl = (token: string) => (typeof window === "undefined" ? "" : `${window.location.origin}/payment-link/${encodeURIComponent(token)}`);
+
+      return (
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-border bg-card p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <BrandLogo className="h-8 w-8" />
+                <div>
+                  <h3 className="text-2xl font-bold text-foreground">Payment channel links</h3>
+                  <p className="text-sm text-muted-foreground">Create payment links with OpenPay branding and currency selection.</p>
+                </div>
+              </div>
+              <Button className="h-10 rounded-full bg-paypal-blue text-white hover:bg-[#004dc5]" onClick={() => setChannelModalOpen(true)}>
+                Create link
+              </Button>
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <div className="flex-1 min-w-[220px]">
+                <Input
+                  value={channelSearch}
+                  onChange={(e) => setChannelSearch(e.target.value)}
+                  placeholder="Reference number"
+                  className="h-10 rounded-full"
+                />
+              </div>
+              <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span>Show archived links</span>
+                <button
+                  type="button"
+                  onClick={() => setShowArchivedLinks((prev) => !prev)}
+                  className={`h-6 w-11 rounded-full border border-border p-0.5 transition ${showArchivedLinks ? "bg-paypal-blue" : "bg-muted"}`}
+                  aria-pressed={showArchivedLinks}
+                >
+                  <span className={`block h-4 w-4 rounded-full bg-white transition ${showArchivedLinks ? "translate-x-5" : "translate-x-0"}`} />
+                </button>
+              </label>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-border bg-card p-5">
+            <div className="mb-3 text-sm text-muted-foreground">{filteredLinks.length} link{filteredLinks.length === 1 ? "" : "s"}</div>
+            <div className="hidden md:block">
+              <div className="grid grid-cols-[140px_120px_180px_1fr_140px_120px] gap-2 border-b border-border px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <span>Reference</span>
+                <span>Amount</span>
+                <span>Created date</span>
+                <span>Description</span>
+                <span>Remarks</span>
+                <span>Status</span>
+              </div>
+              {filteredLinks.length === 0 ? (
+                <p className="py-6 text-sm text-muted-foreground">No payment channel links yet.</p>
+              ) : (
+                filteredLinks.map((link) => {
+                  const linkStatus = payments.some((p) => p.payment_link_id === link.id || p.payment_link_token === link.link_token) ? "PAID" : "UNPAID";
+                  return (
+                    <div key={link.id} className="grid grid-cols-[140px_120px_180px_1fr_140px_120px] items-center gap-2 border-b border-border px-3 py-3 text-sm last:border-b-0">
+                      <span className="font-semibold text-foreground">{link.reference_number || link.title}</span>
+                      <span className="text-foreground">{getPiCodeLabel(link.currency.toUpperCase())} {Number(link.custom_amount || 0).toFixed(2)}</span>
+                      <span className="text-muted-foreground">{new Date(link.created_at).toLocaleString()}</span>
+                      <span className="text-foreground">{link.description || "-"}</span>
+                      <span className="text-foreground">{link.remarks || "-"}</span>
+                      <div className="flex items-center gap-2">
+                        <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase ${linkStatus === "PAID" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>{linkStatus}</span>
+                        <Button variant="outline" className="h-7 rounded-md px-2 text-xs" onClick={() => handleCopy(linkUrl(link.link_token), "Payment link")}>Copy</Button>
+                        {!link.archived_at && (
+                          <Button variant="outline" className="h-7 rounded-md px-2 text-xs" onClick={() => archivePaymentChannelLink(link.id)}>Archive</Button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="md:hidden space-y-2">
+              {filteredLinks.length === 0 ? (
+                <p className="py-6 text-sm text-muted-foreground">No payment channel links yet.</p>
+              ) : (
+                filteredLinks.map((link) => {
+                  const linkStatus = payments.some((p) => p.payment_link_id === link.id || p.payment_link_token === link.link_token) ? "PAID" : "UNPAID";
+                  return (
+                    <div key={link.id} className="rounded-xl border border-border p-3">
+                      <p className="text-sm font-semibold text-foreground">{link.reference_number || link.title}</p>
+                      <p className="text-xs text-muted-foreground">{new Date(link.created_at).toLocaleString()}</p>
+                      <p className="mt-2 text-sm text-foreground">{getPiCodeLabel(link.currency.toUpperCase())} {Number(link.custom_amount || 0).toFixed(2)}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{link.description || "-"}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{link.remarks || "-"}</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase ${linkStatus === "PAID" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>{linkStatus}</span>
+                        <Button variant="outline" className="h-7 rounded-md px-2 text-xs" onClick={() => handleCopy(linkUrl(link.link_token), "Payment link")}>Copy</Button>
+                        {!link.archived_at && (
+                          <Button variant="outline" className="h-7 rounded-md px-2 text-xs" onClick={() => archivePaymentChannelLink(link.id)}>Archive</Button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          <Dialog open={channelModalOpen} onOpenChange={setChannelModalOpen}>
+            <DialogContent className="max-w-xl rounded-2xl">
+              <DialogTitle className="text-xl font-bold text-foreground">Create a payment channel link</DialogTitle>
+              <DialogDescription className="text-sm text-muted-foreground">
+                Generate an OpenPay payment link customers can use to pay once.
+              </DialogDescription>
+              <div className="mt-4 grid gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">How much will you charge?</p>
+                  <Input value={channelAmount} onChange={(e) => setChannelAmount(e.target.value)} placeholder="0.00" className="mt-2 h-11 rounded-lg" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Reference number</p>
+                  <Input value={channelReference} onChange={(e) => setChannelReference(e.target.value)} placeholder="Reference number" className="mt-2 h-11 rounded-lg" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Description</p>
+                  <Input value={channelDescription} onChange={(e) => setChannelDescription(e.target.value)} placeholder="For what is the payment?" className="mt-2 h-11 rounded-lg" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Remarks</p>
+                  <Input value={channelRemarks} onChange={(e) => setChannelRemarks(e.target.value)} placeholder="Any other information you want to keep track of?" className="mt-2 h-11 rounded-lg" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Currency</p>
+                  <select
+                    value={channelCurrency}
+                    onChange={(e) => setChannelCurrency(e.target.value)}
+                    className="mt-2 h-11 w-full rounded-lg border border-border bg-white px-3 text-sm"
+                  >
+                    {currencyChoices.map((item) => (
+                      <option key={item.code} value={item.code}>
+                        {getPiCodeLabel(item.code)} - {item.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Secret key</p>
+                  <Input value={channelSecretKey} onChange={(e) => setChannelSecretKey(e.target.value)} placeholder={`osk_${mode}_...`} className="mt-2 h-11 rounded-lg" />
+                </div>
+                <div className="mt-2 flex justify-end gap-2">
+                  <Button variant="outline" className="h-9 rounded-lg" onClick={() => setChannelModalOpen(false)}>Cancel</Button>
+                  <Button className="h-9 rounded-lg bg-paypal-blue text-white hover:bg-[#004dc5]" disabled={creatingChannel} onClick={createPaymentChannelLink}>
+                    {creatingChannel ? "Creating..." : "Create"}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+      );
+    }
+
     if (activeView === "transactions") {
       return (
         <div className="min-w-0 rounded-2xl border border-border bg-card p-5">
@@ -806,6 +1101,15 @@ const MerchantOnboardingPage = () => {
             })}
             {!uniqueCustomers.length && <p className="py-6 text-sm text-muted-foreground">No customers yet.</p>}
           </div>
+        </div>
+      );
+    }
+
+    if (activeView === "coupons") {
+      return (
+        <div className="rounded-2xl border border-border bg-card p-5">
+          <h3 className="text-2xl font-bold text-foreground">Coupons</h3>
+          <p className="mt-2 text-sm text-muted-foreground">Coming soon.</p>
         </div>
       );
     }
@@ -1000,7 +1304,7 @@ const MerchantOnboardingPage = () => {
       <div className="flex min-h-[calc(100vh-32px)]">
         <aside className="hidden w-64 border-r border-border bg-card p-4 md:block">
           <div className="mb-6 flex items-center gap-2"><BrandLogo className="h-8 w-8" /><div><p className="text-xs uppercase tracking-wide text-muted-foreground">OpenPay</p><p className="text-lg font-bold text-foreground">Merchant Portal</p></div></div>
-          <nav className="space-y-1">{navItems.map((item) => { const Icon = item.icon; const active = activeView === item.key; return <button key={item.key} onClick={() => setActiveView(item.key)} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm ${active ? "bg-blue-50 text-blue-700" : "text-foreground hover:bg-muted"}`}><Icon className="h-4 w-4" />{item.label}</button>; })}
+          <nav className="space-y-1">{navItems.map((item) => { const Icon = item.icon; const active = activeView === item.key; return <button key={item.key} onClick={() => { if (item.disabled) return; if (item.key === "products") { navigate("/merchant-products"); return; } setActiveView(item.key); }} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm ${active ? "bg-blue-50 text-blue-700" : "text-foreground hover:bg-muted"} ${item.disabled ? "cursor-not-allowed opacity-60 hover:bg-transparent" : ""}`}><Icon className="h-4 w-4" />{item.label}{item.badge && <span className={`ml-auto rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${item.badge.toLowerCase() === "new" ? "bg-blue-100 text-blue-700" : "bg-muted text-muted-foreground"}`}>{item.badge}</span>}</button>; })}
             <button onClick={() => navigate("/merchant-pos")} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-foreground hover:bg-muted">
               <Store className="h-4 w-4" />
               POS
@@ -1065,9 +1369,10 @@ const MerchantOnboardingPage = () => {
               const Icon = item.icon;
               const active = activeView === item.key;
               return (
-                <button key={item.key} onClick={() => setActiveView(item.key)} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm ${active ? "bg-blue-50 text-blue-700" : "text-foreground hover:bg-muted"}`}>
+                <button key={item.key} onClick={() => { if (item.disabled) return; if (item.key === "products") { navigate("/merchant-products"); return; } setActiveView(item.key); }} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm ${active ? "bg-blue-50 text-blue-700" : "text-foreground hover:bg-muted"} ${item.disabled ? "cursor-not-allowed opacity-60 hover:bg-transparent" : ""}`}>
                   <Icon className="h-4 w-4" />
                   {item.label}
+                  {item.badge && <span className={`ml-auto rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${item.badge.toLowerCase() === "new" ? "bg-blue-100 text-blue-700" : "bg-muted text-muted-foreground"}`}>{item.badge}</span>}
                 </button>
               );
             })}

@@ -40,6 +40,8 @@ import PiWhitepaperPage from "./pages/PiWhitepaperPage";
 import PiMicaWhitepaperPage from "./pages/PiMicaWhitepaperPage";
 import GdprPage from "./pages/GdprPage";
 import PaymentLinksCreatePage from "./pages/PaymentLinksCreatePage";
+import MerchantProductCatalogPage from "./pages/MerchantProductCatalogPage";
+import MerchantProductCreatePage from "./pages/MerchantProductCreatePage";
 import PiAuthPage from "./pages/PiAuthPage";
 import SetupProfilePage from "./pages/SetupProfilePage";
 import PiAdsPage from "./pages/PiAdsPage";
@@ -62,6 +64,7 @@ import AppSecurityGate from "./components/AppSecurityGate";
 import AppFooter from "./components/AppFooter";
 import BrandLogo from "./components/BrandLogo";
 import AppLanguageTranslate from "./components/AppLanguageTranslate";
+import SupportWidget from "./components/SupportWidget";
 
 const queryClient = new QueryClient();
 
@@ -139,6 +142,8 @@ const AppRoutes = () => {
         <Route path="/gdpr" element={<GdprPage />} />
         <Route path="/legal" element={<LegalPage />} />
         <Route path="/merchant-onboarding" element={<MerchantOnboardingPage />} />
+        <Route path="/merchant-products" element={<MerchantProductCatalogPage />} />
+        <Route path="/merchant-products/create" element={<MerchantProductCreatePage />} />
         <Route path="/merchant-pos" element={<MerchantPosPage />} />
         <Route path="/payment-links/create" element={<PaymentLinksCreatePage />} />
         <Route path="/payment-link/:token" element={<MerchantCheckoutPage />} />
@@ -155,6 +160,7 @@ const AppRoutes = () => {
       </Routes>
       <AppSecurityGate />
       <AppFooter />
+      <SupportWidget />
 
       {showRouteSplash && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-gradient-to-b from-paypal-blue to-[#072a7a]">

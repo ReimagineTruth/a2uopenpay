@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Link, useNavigate } from "react-router-dom";
 import BottomNav from "@/components/BottomNav";
@@ -103,6 +103,28 @@ interface LoanPaymentHistoryRow {
   created_at: string;
 }
 
+interface MerchantActivityEntry {
+  activity_id: string;
+  activity_type: string;
+  amount: number;
+  currency: string;
+  status: string;
+  note: string;
+  created_at: string;
+  source: string;
+}
+
+interface MerchantActivityRpcRow {
+  activity_id?: string | null;
+  activity_type?: string | null;
+  amount?: number | string | null;
+  currency?: string | null;
+  status?: string | null;
+  note?: string | null;
+  created_at?: string | null;
+  source?: string | null;
+}
+
 interface MerchantBalanceSnapshot {
   gross_volume: number;
   refunded_total: number;
@@ -188,6 +210,11 @@ const Dashboard = () => {
     sandbox: null,
     live: null,
   });
+  const [merchantActivity, setMerchantActivity] = useState<MerchantActivityEntry[]>([]);
+  const [merchantSavingsAmount, setMerchantSavingsAmount] = useState("");
+  const [merchantWithdrawAmount, setMerchantWithdrawAmount] = useState("");
+  const [movingMerchantToSavings, setMovingMerchantToSavings] = useState(false);
+  const [movingMerchantToWallet, setMovingMerchantToWallet] = useState(false);
   const [showMerchantFeatures, setShowMerchantFeatures] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [virtualCardNumber, setVirtualCardNumber] = useState("**** **** **** 4242");
@@ -228,101 +255,130 @@ const Dashboard = () => {
     },
   ];
 
-  const loadSavingsAndLoan = async () => {
-    const [{ data: savingsData }, { data: loanData }, { data: creditScoreData }, { data: applicationData }, { data: paymentHistoryData }] = await Promise.all([
-      supabase.rpc("get_my_savings_dashboard"),
-      supabase.rpc("get_my_latest_loan"),
-      (supabase as any).rpc("get_my_credit_score"),
-      (supabase as any).rpc("get_my_latest_loan_application"),
-      (supabase as any).rpc("get_my_loan_payment_history", { p_loan_id: null, p_limit: 24 }),
-    ]);
+  const loadSavingsAndLoan = useCallback(async () => {
+    try {
+      const [{ data: savingsData }, { data: loanData }, { data: creditScoreData }, { data: applicationData }, { data: paymentHistoryData }] = await Promise.all([
+        supabase.rpc("get_my_savings_dashboard"),
+        supabase.rpc("get_my_latest_loan"),
+        (supabase as any).rpc("get_my_credit_score"),
+        (supabase as any).rpc("get_my_latest_loan_application"),
+        (supabase as any).rpc("get_my_loan_payment_history", { p_loan_id: null, p_limit: 24 }),
+      ]);
 
-    const savingsRow = Array.isArray(savingsData) ? savingsData[0] : null;
-    const loanRow = Array.isArray(loanData) ? loanData[0] : null;
+      const savingsRow = Array.isArray(savingsData) ? savingsData[0] : null;
+      const loanRow = Array.isArray(loanData) ? loanData[0] : null;
 
-    setSavings(
-      savingsRow
-        ? {
-            wallet_balance: Number(savingsRow.wallet_balance || 0),
-            savings_balance: Number(savingsRow.savings_balance || 0),
-            apy: Number(savingsRow.apy || 0),
-          }
-        : null,
-    );
+      setSavings(
+        savingsRow
+          ? {
+              wallet_balance: Number(savingsRow.wallet_balance || 0),
+              savings_balance: Number(savingsRow.savings_balance || 0),
+              apy: Number(savingsRow.apy || 0),
+            }
+          : null,
+      );
 
-    setLoan(
-      loanRow
-        ? {
-            id: String(loanRow.id),
-            principal_amount: Number(loanRow.principal_amount || 0),
-            outstanding_amount: Number(loanRow.outstanding_amount || 0),
-            monthly_payment_amount: Number(loanRow.monthly_payment_amount || 0),
-            monthly_fee_rate: Number(loanRow.monthly_fee_rate || 0),
-            term_months: Number(loanRow.term_months || 0),
-            paid_months: Number(loanRow.paid_months || 0),
-            credit_score: Number(loanRow.credit_score || 0),
-            status: String(loanRow.status || "none"),
-            next_due_date: String(loanRow.next_due_date || ""),
-            created_at: String(loanRow.created_at || ""),
-          }
-        : null,
-    );
+      setLoan(
+        loanRow
+          ? {
+              id: String(loanRow.id),
+              principal_amount: Number(loanRow.principal_amount || 0),
+              outstanding_amount: Number(loanRow.outstanding_amount || 0),
+              monthly_payment_amount: Number(loanRow.monthly_payment_amount || 0),
+              monthly_fee_rate: Number(loanRow.monthly_fee_rate || 0),
+              term_months: Number(loanRow.term_months || 0),
+              paid_months: Number(loanRow.paid_months || 0),
+              credit_score: Number(loanRow.credit_score || 0),
+              status: String(loanRow.status || "none"),
+              next_due_date: String(loanRow.next_due_date || ""),
+              created_at: String(loanRow.created_at || ""),
+            }
+          : null,
+      );
 
-    const applicationRow = Array.isArray(applicationData) ? applicationData[0] : applicationData;
-    setLoanApplication(
-      applicationRow
-        ? {
-            id: String(applicationRow.id),
-            requested_amount: Number(applicationRow.requested_amount || 0),
-            requested_term_months: Number(applicationRow.requested_term_months || 0),
-            credit_score_snapshot: Number(applicationRow.credit_score_snapshot || 0),
-            full_name: String(applicationRow.full_name || ""),
-            contact_number: String(applicationRow.contact_number || ""),
-            address_line: String(applicationRow.address_line || ""),
-            city: String(applicationRow.city || ""),
-            country: String(applicationRow.country || ""),
-            openpay_account_number: String(applicationRow.openpay_account_number || ""),
-            openpay_account_username: String(applicationRow.openpay_account_username || ""),
-            agreement_accepted: Boolean(applicationRow.agreement_accepted),
-            status: (String(applicationRow.status || "pending") as LoanApplication["status"]),
-            admin_note: String(applicationRow.admin_note || ""),
-            created_at: String(applicationRow.created_at || ""),
-            reviewed_at: applicationRow.reviewed_at ? String(applicationRow.reviewed_at) : null,
-          }
-        : null,
-    );
+      const applicationRow = Array.isArray(applicationData) ? applicationData[0] : applicationData;
+      setLoanApplication(
+        applicationRow
+          ? {
+              id: String(applicationRow.id),
+              requested_amount: Number(applicationRow.requested_amount || 0),
+              requested_term_months: Number(applicationRow.requested_term_months || 0),
+              credit_score_snapshot: Number(applicationRow.credit_score_snapshot || 0),
+              full_name: String(applicationRow.full_name || ""),
+              contact_number: String(applicationRow.contact_number || ""),
+              address_line: String(applicationRow.address_line || ""),
+              city: String(applicationRow.city || ""),
+              country: String(applicationRow.country || ""),
+              openpay_account_number: String(applicationRow.openpay_account_number || ""),
+              openpay_account_username: String(applicationRow.openpay_account_username || ""),
+              agreement_accepted: Boolean(applicationRow.agreement_accepted),
+              status: (String(applicationRow.status || "pending") as LoanApplication["status"]),
+              admin_note: String(applicationRow.admin_note || ""),
+              created_at: String(applicationRow.created_at || ""),
+              reviewed_at: applicationRow.reviewed_at ? String(applicationRow.reviewed_at) : null,
+            }
+          : null,
+      );
 
-    const historyRows = Array.isArray(paymentHistoryData) ? paymentHistoryData : [];
-    setLoanPaymentHistory(
-      historyRows.map((row: any) => ({
-        id: String(row.id),
-        loan_id: String(row.loan_id),
+      const historyRows = Array.isArray(paymentHistoryData) ? paymentHistoryData : [];
+      setLoanPaymentHistory(
+        historyRows.map((row: any) => ({
+          id: String(row.id),
+          loan_id: String(row.loan_id),
+          amount: Number(row.amount || 0),
+          principal_component: Number(row.principal_component || 0),
+          fee_component: Number(row.fee_component || 0),
+          payment_method: (String(row.payment_method || "wallet") as "wallet" | "pi"),
+          payment_reference: row.payment_reference ? String(row.payment_reference) : null,
+          note: String(row.note || ""),
+          created_at: String(row.created_at || ""),
+        })),
+      );
+
+      const parsedCreditScore = Number(
+        Array.isArray(creditScoreData)
+          ? creditScoreData[0]
+          : creditScoreData,
+      );
+      setCreditScore(Number.isFinite(parsedCreditScore) ? parsedCreditScore : 0);
+    } catch (error) {
+      console.warn("Failed to load savings and loan data", error);
+      toast.error("Unable to load savings and loan data");
+      setSavings(null);
+      setLoan(null);
+      setLoanApplication(null);
+      setLoanPaymentHistory([]);
+      setCreditScore(0);
+    }
+  }, []);
+
+  const loadMerchantActivity = useCallback(async (mode: MerchantMode) => {
+    const db = supabase as unknown as {
+      rpc: (fn: string, args?: Record<string, unknown>) => Promise<{ data: MerchantActivityRpcRow[] | null }>;
+    };
+    const { data } = await db.rpc("get_my_merchant_activity", { p_mode: mode, p_limit: 10, p_offset: 0 });
+    setMerchantActivity(
+      (Array.isArray(data) ? data : []).map((row) => ({
+        activity_id: String(row.activity_id || ""),
+        activity_type: String(row.activity_type || "payment"),
         amount: Number(row.amount || 0),
-        principal_component: Number(row.principal_component || 0),
-        fee_component: Number(row.fee_component || 0),
-        payment_method: (String(row.payment_method || "wallet") as "wallet" | "pi"),
-        payment_reference: row.payment_reference ? String(row.payment_reference) : null,
+        currency: String(row.currency || "USD"),
+        status: String(row.status || "completed"),
         note: String(row.note || ""),
         created_at: String(row.created_at || ""),
+        source: String(row.source || "merchant_portal"),
       })),
     );
+  }, []);
 
-    const parsedCreditScore = Number(
-      Array.isArray(creditScoreData)
-        ? creditScoreData[0]
-        : creditScoreData,
-    );
-    setCreditScore(Number.isFinite(parsedCreditScore) ? parsedCreditScore : 0);
-  };
-
-  const loadDashboard = async () => {
+  const loadDashboard = useCallback(async () => {
     setRefreshing(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { 
+      if (!user) {
         setRefreshing(false);
-        navigate("/signin"); 
-        return; 
+        navigate("/signin");
+        return;
       }
       setUserId(user.id);
       const { count: unreadCount } = await supabase
@@ -344,8 +400,12 @@ const Dashboard = () => {
         .single();
       setUserName(profile?.full_name || "");
       setUsername(profile?.username || null);
-      if (!loanApplicantName && profile?.full_name) setLoanApplicantName(profile.full_name);
-      if (!loanContactNumber && profile?.username) setLoanContactNumber(profile.username);
+      if (profile?.full_name) {
+        setLoanApplicantName((current) => current || profile.full_name);
+      }
+      if (profile?.username) {
+        setLoanContactNumber((current) => current || profile.username);
+      }
       if (profile?.referral_code) {
         setAppCookie(`openpay_ref_code_${user.id}`, profile.referral_code);
       }
@@ -374,9 +434,11 @@ const Dashboard = () => {
       const { data: accountData } = await supabase.rpc("upsert_my_user_account");
       setUserAccount(accountData as unknown as UserAccount);
       const normalizedAccount = accountData as unknown as UserAccount | null;
-      if (normalizedAccount) {
-        if (!loanApplicantName && normalizedAccount.account_name) setLoanApplicantName(normalizedAccount.account_name);
-        if (!loanContactNumber && normalizedAccount.account_username) setLoanContactNumber(normalizedAccount.account_username);
+      if (normalizedAccount?.account_name) {
+        setLoanApplicantName((current) => current || normalizedAccount.account_name);
+      }
+      if (normalizedAccount?.account_username) {
+        setLoanContactNumber((current) => current || normalizedAccount.account_username);
       }
 
       const { data: savingsTransferRows } = await (supabase as any)
@@ -461,7 +523,6 @@ const Dashboard = () => {
         setRemittanceMonthIncome(typeof remittance.thisMonthFeeIncome === "number" ? remittance.thisMonthFeeIncome : 0);
         setRemittanceTxCount(typeof remittance.totalRemittanceTxCount === "number" ? remittance.totalRemittanceTxCount : 0);
       } catch {
-        // Fallback to local state if SQL preferences are not available yet.
         setRemittanceFeeIncome(0);
         setRemittanceMonthIncome(0);
         setRemittanceTxCount(0);
@@ -514,11 +575,16 @@ const Dashboard = () => {
     } finally {
       setRefreshing(false);
     }
-  };
+  }, [navigate, loadSavingsAndLoan]);
 
   useEffect(() => {
-    loadDashboard();
-  }, [navigate]);
+    void loadDashboard();
+  }, [loadDashboard]);
+
+  useEffect(() => {
+    if (!userId || walletView !== "merchant") return;
+    void loadMerchantActivity(merchantMode);
+  }, [userId, walletView, merchantMode, loadMerchantActivity]);
 
   useEffect(() => {
     if (!userId) return;
@@ -694,6 +760,54 @@ const Dashboard = () => {
       return;
     }
     setWithdrawAmount("");
+    toast.success("Moved to wallet");
+    playUiSound("receive");
+    await loadDashboard();
+  };
+
+  const handleMoveMerchantToSavings = async () => {
+    const amount = Number(merchantSavingsAmount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast.error("Enter a valid amount");
+      return;
+    }
+    setMovingMerchantToSavings(true);
+    const { error } = await (supabase as any).rpc("transfer_my_merchant_balance", {
+      p_amount: amount,
+      p_mode: merchantMode,
+      p_destination: "savings",
+      p_note: "Dashboard merchant transfer",
+    });
+    setMovingMerchantToSavings(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setMerchantSavingsAmount("");
+    toast.success("Moved to savings");
+    playUiSound("send");
+    await loadDashboard();
+  };
+
+  const handleMoveMerchantToWallet = async () => {
+    const amount = Number(merchantWithdrawAmount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast.error("Enter a valid amount");
+      return;
+    }
+    setMovingMerchantToWallet(true);
+    const { error } = await (supabase as any).rpc("transfer_my_merchant_balance", {
+      p_amount: amount,
+      p_mode: merchantMode,
+      p_destination: "wallet",
+      p_note: "Dashboard merchant transfer",
+    });
+    setMovingMerchantToWallet(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setMerchantWithdrawAmount("");
     toast.success("Moved to wallet");
     playUiSound("receive");
     await loadDashboard();
@@ -1554,6 +1668,95 @@ const Dashboard = () => {
           </button>
         </div>
       </div>
+      {walletView === "merchant" && (
+        <div className="mx-4 mt-4 paypal-surface rounded-3xl p-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-2xl border border-border/70 p-3">
+              <p className="mb-2 text-sm font-semibold">Move merchant balance to savings</p>
+              <input
+                value={merchantSavingsAmount}
+                onChange={(e) => setMerchantSavingsAmount(e.target.value)}
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder={`Amount (${currencyLabel})`}
+                className="mb-2 h-10 w-full rounded-xl border border-border px-3"
+              />
+              <button
+                disabled={movingMerchantToSavings}
+                onClick={handleMoveMerchantToSavings}
+                className="h-10 w-full rounded-xl bg-paypal-blue text-sm font-semibold text-white"
+              >
+                {movingMerchantToSavings ? "Moving..." : "Move to Savings"}
+              </button>
+            </div>
+            <div className="rounded-2xl border border-border/70 p-3">
+              <p className="mb-2 text-sm font-semibold">Move merchant balance to wallet</p>
+              <input
+                value={merchantWithdrawAmount}
+                onChange={(e) => setMerchantWithdrawAmount(e.target.value)}
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder={`Amount (${currencyLabel})`}
+                className="mb-2 h-10 w-full rounded-xl border border-border px-3"
+              />
+              <button
+                disabled={movingMerchantToWallet}
+                onClick={handleMoveMerchantToWallet}
+                className="h-10 w-full rounded-xl border border-paypal-blue/40 bg-white text-sm font-semibold text-paypal-blue"
+              >
+                {movingMerchantToWallet ? "Moving..." : "Move to Wallet"}
+              </button>
+            </div>
+          </div>
+          <div className="mt-4 rounded-2xl border border-border/70 p-3">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-sm font-semibold">Recent merchant activity</p>
+              {merchantActivity.length > 0 && <p className="text-xs text-muted-foreground">{merchantActivity.length} latest</p>}
+            </div>
+            {merchantActivity.length === 0 ? (
+              <p className="py-3 text-sm text-muted-foreground">No merchant activity yet.</p>
+            ) : (
+              <div className="divide-y divide-border/70 rounded-xl border border-border/70">
+                {merchantActivity.map((entry) => {
+                  const isOutflow = ["refund", "transfer_to_wallet", "transfer_to_savings"].includes(entry.activity_type);
+                  const label =
+                    entry.activity_type === "payment"
+                      ? "Merchant payment"
+                      : entry.activity_type === "refund"
+                        ? "Merchant refund"
+                        : entry.activity_type === "transfer_to_wallet"
+                          ? "Move merchant balance to wallet"
+                          : entry.activity_type === "transfer_to_savings"
+                            ? "Move merchant balance to savings"
+                            : entry.activity_type.replaceAll("_", " ");
+                  const detailLine = entry.note || `${entry.status} · ${entry.source}`;
+                  const previewDetail = detailLine ? toPreviewText(detailLine, 64) : "";
+                  return (
+                    <div key={entry.activity_id} className="flex flex-col gap-2 px-3 py-2.5 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-3 sm:justify-start">
+                          <p className="text-sm font-medium text-foreground">{label}</p>
+                          <p className={`text-sm font-semibold ${isOutflow ? "text-paypal-blue" : "text-paypal-success"} sm:hidden`}>
+                            {balanceHidden ? "****" : `${isOutflow ? "-" : "+"}${formatCurrency(entry.amount)}`}
+                          </p>
+                        </div>
+                        <p className="text-xs text-muted-foreground">{entry.created_at ? format(new Date(entry.created_at), "MMM d, yyyy h:mm a") : "-"}</p>
+                        {previewDetail && <p className="text-xs text-muted-foreground break-words">{previewDetail}</p>}
+                      </div>
+                      <p className={`hidden text-sm font-semibold sm:block ${isOutflow ? "text-paypal-blue" : "text-paypal-success"}`}>
+                        {balanceHidden ? "****" : `${isOutflow ? "-" : "+"}${formatCurrency(entry.amount)}`}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {userAccount && (
         <div className="mx-4 mt-4 paypal-surface rounded-3xl p-4">
           <div className="flex min-w-0 flex-col items-start gap-3 sm:flex-row sm:justify-between">

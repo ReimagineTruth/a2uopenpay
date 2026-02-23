@@ -248,18 +248,28 @@ const MerchantCheckoutPage = () => {
         .filter(Boolean)
         .join(" | ");
 
-      const { data: rpcTxId, error: rpcError } = await db.rpc("pay_merchant_checkout_with_virtual_card", {
+      const basePayload = {
         p_session_token: resolvedSessionToken,
         p_card_number: cardNumber,
         p_expiry_month: parsedMonth,
         p_expiry_year: parsedYear,
         p_cvc: cardCvc,
         p_note: note,
-        p_customer_name: customerName.trim() || null,
-        p_customer_email: customerEmail.trim() || null,
-        p_customer_phone: customerPhone.trim() || null,
-        p_customer_address: customerAddress.trim() || null,
-      });
+      };
+      let { data: rpcTxId, error: rpcError } = await db.rpc("pay_merchant_checkout_with_virtual_card", basePayload);
+
+      if (rpcError) {
+        const fallbackPayload = {
+          ...basePayload,
+          p_customer_name: customerName.trim() || null,
+          p_customer_email: customerEmail.trim() || null,
+          p_customer_phone: customerPhone.trim() || null,
+          p_customer_address: customerAddress.trim() || null,
+        };
+        const retry = await db.rpc("pay_merchant_checkout_with_virtual_card", fallbackPayload);
+        rpcTxId = retry.data;
+        rpcError = retry.error;
+      }
 
       if (rpcError) throw rpcError;
 
@@ -370,25 +380,38 @@ const MerchantCheckoutPage = () => {
   const checkoutMemo = isSessionCheckout
     ? `${sessionData?.items?.[0]?.item_name || "OpenPay Payment"} | Session ${resolvedSessionToken}`
     : `${legacyProductName}${legacyProductDescription ? ` | ${legacyProductDescription}` : ""}`;
+  const isCardReady = Boolean(cardNumber.trim() && cardExpiryMonth.trim() && cardCvc.trim());
+  const canPay =
+    !paying &&
+    Boolean(amount) &&
+    (paymentMethod === "openpay_wallet" || isCardReady);
   const walletPayUrl = `/send?to=${encodeURIComponent(sessionData?.merchant_user_id || legacyMerchantId)}&amount=${encodeURIComponent(amountInSelectedCurrency.toFixed(2))}&currency=${encodeURIComponent(selectedPayCurrency?.code || "PI")}&note=${encodeURIComponent(checkoutMemo)}&checkout_session=${encodeURIComponent(resolvedSessionToken)}&checkout_customer_name=${encodeURIComponent(customerName)}&checkout_customer_email=${encodeURIComponent(customerEmail)}&checkout_customer_phone=${encodeURIComponent(customerPhone)}&checkout_customer_address=${encodeURIComponent(customerAddress)}`;
-  const walletPayQrValue =
-    typeof window !== "undefined"
-      ? `${window.location.origin}${walletPayUrl}`
-      : `openpay://send?to=${sessionData?.merchant_user_id || legacyMerchantId}&amount=${amountInSelectedCurrency.toFixed(2)}&currency=${selectedPayCurrency?.code || "PI"}&note=${checkoutMemo}`;
+  const walletPayDeepLink = `openpay://send?to=${encodeURIComponent(sessionData?.merchant_user_id || legacyMerchantId)}&amount=${encodeURIComponent(amountInSelectedCurrency.toFixed(2))}&currency=${encodeURIComponent(selectedPayCurrency?.code || "PI")}&note=${encodeURIComponent(checkoutMemo)}&checkout_session=${encodeURIComponent(resolvedSessionToken)}&checkout_customer_name=${encodeURIComponent(customerName)}&checkout_customer_email=${encodeURIComponent(customerEmail)}&checkout_customer_phone=${encodeURIComponent(customerPhone)}&checkout_customer_address=${encodeURIComponent(customerAddress)}`;
+  const walletPayWebUrl = typeof window !== "undefined" ? `${window.location.origin}${walletPayUrl}` : walletPayUrl;
+  const walletPayQrValue = walletPayDeepLink;
   const formatShortText = (value: string, head = 28, tail = 16) => {
     const cleaned = value.trim();
     if (cleaned.length <= head + tail + 3) return cleaned;
     return `${cleaned.slice(0, head)}...${cleaned.slice(-tail)}`;
   };
-  const walletPayQrDisplay = formatShortText(walletPayQrValue, 36, 20);
+  const walletPayQrDisplay = formatShortText(walletPayWebUrl, 36, 20);
   const checkoutMemoDisplay = formatShortText(checkoutMemo, 24, 14);
   const handleCopyWalletLink = async () => {
     try {
-      await navigator.clipboard.writeText(walletPayQrValue);
+      await navigator.clipboard.writeText(walletPayWebUrl);
       toast.success("OpenPay payment link copied");
     } catch {
       toast.error("Copy failed");
     }
+  };
+  const handleOpenWallet = () => {
+    if (typeof window === "undefined") return;
+    const isMobile = /android|iphone|ipad|ipod/i.test(navigator.userAgent || "");
+    if (isMobile) {
+      window.location.href = walletPayDeepLink;
+      return;
+    }
+    navigate(walletPayUrl);
   };
 
   return (
@@ -521,7 +544,7 @@ const MerchantCheckoutPage = () => {
                   <p className="mt-1 text-center text-xs text-muted-foreground">Memo: {checkoutMemoDisplay}</p>
                   <Button
                     type="button"
-                    onClick={() => navigate(walletPayUrl)}
+                    onClick={handleOpenWallet}
                     className="mt-3 h-10 w-full rounded-full bg-paypal-blue text-white hover:bg-[#004dc5]"
                   >
                     <BrandLogo className="mr-2 h-4 w-4" />
@@ -646,14 +669,19 @@ const MerchantCheckoutPage = () => {
                       ? handlePaySession
                       : handlePayLegacy
                 }
-                disabled={
-                  paying ||
-                  !amount ||
-                  (paymentMethod === "card" && isSessionCheckout && (!cardNumber.trim() || !cardExpiryMonth.trim() || !cardCvc.trim()))
-                }
-                className="mt-4 h-12 w-full rounded-full bg-[#ebedf3] text-base text-muted-foreground hover:bg-[#e2e6ef]"
+                disabled={!canPay}
+                className={`mt-4 h-12 w-full rounded-full text-base ${
+                  canPay
+                    ? "bg-paypal-blue text-white hover:bg-[#004dc5]"
+                    : "bg-[#ebedf3] text-muted-foreground hover:bg-[#e2e6ef]"
+                }`}
               >
-                {paying ? "Processing payment..." : paymentMethod === "card" ? "Pay" : (
+                {paying ? "Processing payment..." : paymentMethod === "card" ? (
+                  <span className="inline-flex items-center">
+                    {canPay && <BrandLogo className="mr-2 h-4 w-4" />}
+                    Pay with OpenPay
+                  </span>
+                ) : (
                   <span className="inline-flex items-center">
                     <BrandLogo className="mr-2 h-4 w-4" />
                     Pay with OpenPay Wallet
