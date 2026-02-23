@@ -38,8 +38,11 @@ interface UserAccount {
 
 type DashboardSection = "wallet" | "savings" | "credit" | "loans" | "cards" | "buy";
 type MerchantMode = "sandbox" | "live";
-type BuyOnrampProvider = "Pi Payment" | "TransFi" | "Onramp Money" | "Banxa";
+type BuyOnrampProvider = "Pi Payment" | "Ewallet QR PH" | "TransFi" | "Onramp Money" | "Banxa";
 type BuyPaymentMethod = "Pi Payment" | "Ewallet" | "Debit Card" | "Credit Card" | "Apple Pay";
+const JQRPH_ICON_URL = "https://upload.wikimedia.org/wikipedia/commons/thumb/3/35/QR_Ph_Logo.svg/960px-QR_Ph_Logo.svg.png?20250310160234";
+const PI_PAYMENT_ICON_URL = "https://i.ibb.co/BV8PHjB4/Pi-200x200.png";
+const E_WALLET_PHP_PER_OUSD = 57;
 
 interface SavingsDashboard {
   wallet_balance: number;
@@ -802,19 +805,22 @@ const Dashboard = () => {
   ];
   const parsedBuySpend = Number(buySpendAmount);
   const safeBuySpend = Number.isFinite(parsedBuySpend) && parsedBuySpend > 0 ? parsedBuySpend : 0;
+  const isEwalletBuyFlow = buyPaymentMethod === "Ewallet";
   const onrampRates: Record<BuyOnrampProvider, number> = {
     "Pi Payment": 9.39,
+    "Ewallet QR PH": 9.39,
     TransFi: 9.39,
     "Onramp Money": 10.13,
     Banxa: 9.8,
   };
   const selectedRate = 1;
-  const buyOpenUsdAmount = safeBuySpend > 0 ? safeBuySpend : 0;
+  const buyOpenUsdAmount = safeBuySpend > 0 ? (isEwalletBuyFlow ? safeBuySpend / E_WALLET_PHP_PER_OUSD : safeBuySpend) : 0;
   const buyOpenUsdDisplay = buyOpenUsdAmount > 0 ? buyOpenUsdAmount.toFixed(6) : "0.000000";
   const buyOpenUsdMinimum = 1;
   const buyOpenUsdMeetsMinimum = buyOpenUsdAmount >= buyOpenUsdMinimum;
   const onrampRows: Array<{ key: BuyOnrampProvider; disabled?: boolean; subtitle: string; delta?: string; recommended?: boolean }> = [
     { key: "Pi Payment", subtitle: "Active", recommended: true },
+    { key: "Ewallet QR PH", subtitle: "Active" },
     { key: "TransFi", subtitle: "Coming Soon", disabled: true },
     { key: "Onramp Money", subtitle: "Coming Soon", disabled: true },
     { key: "Banxa", subtitle: "Coming Soon", disabled: true },
@@ -826,6 +832,8 @@ const Dashboard = () => {
     { key: "Credit Card" },
     { key: "Apple Pay" },
   ];
+  const supportedBuyPaymentMethods: BuyPaymentMethod[] = ["Pi Payment", "Ewallet"];
+  const getBuyPaymentMethodLabel = (method: BuyPaymentMethod) => (method === "Ewallet" ? "Ewallet QR PH" : method);
 
   const handleBuyOpenUsd = () => {
     if (safeBuySpend <= 0) {
@@ -836,8 +844,13 @@ const Dashboard = () => {
       toast.error("Minimum buy is 1 OPEN USD");
       return;
     }
-    if (buyPaymentMethod !== "Pi Payment") {
-      toast.error("OpenUSD buy currently supports Pi Payment only");
+    if (!supportedBuyPaymentMethods.includes(buyPaymentMethod)) {
+      toast.error("OpenUSD buy currently supports Pi Payment and Ewallet");
+      return;
+    }
+    if (buyPaymentMethod === "Ewallet") {
+      const amountForTopUp = Math.max(0.01, Number(buyOpenUsdAmount.toFixed(2)));
+      navigate(`/topup-ewallet-qrph?amount=${amountForTopUp.toFixed(2)}`);
       return;
     }
     const amountForTopUp = Math.max(0.01, Number(buyOpenUsdAmount.toFixed(2)));
@@ -1368,7 +1381,7 @@ const Dashboard = () => {
 
             <div className="space-y-3">
               <div className="rounded-2xl bg-secondary/50 p-4">
-                <p className="text-sm text-muted-foreground">You spend (PI amount)</p>
+                <p className="text-sm text-muted-foreground">You spend ({isEwalletBuyFlow ? "PHP" : "PI"} amount)</p>
                 <div className="mt-2 flex items-center justify-between gap-3">
                   <input
                     value={buySpendAmount}
@@ -1376,14 +1389,14 @@ const Dashboard = () => {
                     type="number"
                     min="1"
                     step="0.01"
-                    placeholder="Custom amount (min 1)"
+                    placeholder={isEwalletBuyFlow ? "Custom amount in PHP (min 57)" : "Custom amount (min 1)"}
                     className="h-10 w-full bg-transparent text-4xl font-semibold text-foreground outline-none"
                   />
                   <span className="inline-flex h-11 items-center rounded-xl bg-white px-3 text-sm font-semibold text-foreground">
-                    {buyFiatCurrency}
+                    {isEwalletBuyFlow ? "PHP" : buyFiatCurrency}
                   </span>
                 </div>
-                <p className="mt-2 text-xs font-medium text-foreground">1 PI = 1 OPEN USD</p>
+                <p className="mt-2 text-xs font-medium text-foreground">{isEwalletBuyFlow ? `${E_WALLET_PHP_PER_OUSD.toFixed(2)} PHP = 1 OPEN USD` : "1 PI = 1 OPEN USD"}</p>
               </div>
 
               <div className="rounded-2xl bg-secondary/50 p-4">
@@ -1394,7 +1407,7 @@ const Dashboard = () => {
                 </div>
                 <p className="mt-2 text-xs font-medium text-foreground">1 OPEN USD = 1 USD stable coin</p>
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-border/50 pt-3 text-sm text-muted-foreground">
-                  <p>1 OUSD ~ {selectedRate.toFixed(4)} PI</p>
+                  <p>1 OUSD ~ {isEwalletBuyFlow ? `${E_WALLET_PHP_PER_OUSD.toFixed(4)} PHP` : `${selectedRate.toFixed(4)} PI`}</p>
                   <button
                     type="button"
                     onClick={() => setShowOnrampPicker(true)}
@@ -1413,7 +1426,15 @@ const Dashboard = () => {
               onClick={() => setShowPaymentMethodPicker(true)}
               className="mt-2 flex h-14 w-full items-center justify-between rounded-2xl border border-border/70 bg-white px-4"
             >
-              <span className="text-base font-semibold text-foreground">{buyPaymentMethod}</span>
+              <span className="inline-flex items-center gap-2 text-base font-semibold text-foreground">
+                {buyPaymentMethod === "Pi Payment" && (
+                  <img src={PI_PAYMENT_ICON_URL} alt="Pi Payment" className="h-5 w-5 rounded-full object-cover" />
+                )}
+                {buyPaymentMethod === "Ewallet" && (
+                  <img src={JQRPH_ICON_URL} alt="JQRPh" className="h-5 w-auto object-contain" />
+                )}
+                {getBuyPaymentMethodLabel(buyPaymentMethod)}
+              </span>
               <ChevronDown className="h-5 w-5 text-muted-foreground" />
             </button>
             <button
@@ -1422,10 +1443,10 @@ const Dashboard = () => {
               disabled={!buyOpenUsdMeetsMinimum}
               className="mt-3 h-11 w-full rounded-xl bg-paypal-blue text-sm font-semibold text-white hover:bg-[#004dc5] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Buy OpenUSD with Pi Payment
+              {buyPaymentMethod === "Ewallet" ? "Buy OpenUSD with Ewallet QR PH" : "Buy OpenUSD with Pi Payment"}
             </button>
             <p className="mt-2 text-xs text-muted-foreground">
-              Minimum buy: 1 OPEN USD. Purchase flow uses OpenPay Pi buy and credits OPEN USD balance.
+              Minimum buy: 1 OPEN USD. {isEwalletBuyFlow ? `Ewallet QR PH uses PH price: 1 OPEN USD = ${E_WALLET_PHP_PER_OUSD.toFixed(2)} PHP.` : "Purchase flow uses OpenPay Pi buy and credits OPEN USD balance."}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
               Stable mode enabled: 1 PI = 1 OPEN USD.
@@ -1746,13 +1767,15 @@ const Dashboard = () => {
             Select the provider for your OpenUSD buy quote.
           </DialogDescription>
           <p className="mt-1 text-center text-xs font-medium text-foreground">
-            Stable mode: 1 PI = 1 OPEN USD
+            Conversion: 1 PI = 1 OPEN USD | 57 PHP = 1 OPEN USD
           </p>
           <div className="mt-3 space-y-3">
             {onrampRows.map((row) => {
-              const getAmount = safeBuySpend > 0
-                ? safeBuySpend.toFixed(5)
-                : "0.00000";
+              const targetOpenUsdAmount = buyOpenUsdAmount > 0 ? buyOpenUsdAmount : 0;
+              const quoteLabel =
+                row.key === "Ewallet QR PH"
+                  ? `${(targetOpenUsdAmount * E_WALLET_PHP_PER_OUSD).toFixed(2)} PHP`
+                  : `${targetOpenUsdAmount.toFixed(5)} PI`;
               const selected = buyOnrampProvider === row.key;
               return (
                 <button
@@ -1762,6 +1785,11 @@ const Dashboard = () => {
                   onClick={() => {
                     if (row.disabled) return;
                     setBuyOnrampProvider(row.key);
+                    if (row.key === "Ewallet QR PH") {
+                      setBuyPaymentMethod("Ewallet");
+                    } else if (row.key === "Pi Payment") {
+                      setBuyPaymentMethod("Pi Payment");
+                    }
                     setShowOnrampPicker(false);
                   }}
                   className={`w-full rounded-2xl border px-4 py-3 text-left transition ${
@@ -1774,7 +1802,15 @@ const Dashboard = () => {
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="text-2xl font-semibold text-foreground">{row.key}</p>
+                      <p className="inline-flex items-center gap-2 text-2xl font-semibold text-foreground">
+                        {row.key === "Pi Payment" && (
+                          <img src={PI_PAYMENT_ICON_URL} alt="Pi Payment" className="h-6 w-6 rounded-full object-cover" />
+                        )}
+                        {row.key === "Ewallet QR PH" && (
+                          <img src={JQRPH_ICON_URL} alt="JQRPh" className="h-6 w-auto object-contain" />
+                        )}
+                        {row.key}
+                      </p>
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="text-sm text-muted-foreground">{row.subtitle}</p>
                         {row.recommended && (
@@ -1785,7 +1821,7 @@ const Dashboard = () => {
                       </div>
                     </div>
                     <div className="text-right">
-                      {!row.disabled && <p className="text-3xl font-semibold text-foreground">{getAmount} PI</p>}
+                      {!row.disabled && <p className="text-3xl font-semibold text-foreground">{quoteLabel}</p>}
                       {row.delta && <p className="text-sm font-semibold text-red-500">{row.delta}</p>}
                       {!row.disabled && selected && <Check className="ml-auto mt-1 h-4 w-4 text-paypal-blue" />}
                     </div>
@@ -1801,12 +1837,12 @@ const Dashboard = () => {
         <DialogContent className="top-auto bottom-0 translate-y-0 rounded-b-none rounded-t-3xl px-5 pb-7 pt-5 sm:max-w-lg">
           <DialogTitle className="text-center text-2xl font-bold text-foreground">Choose payment method</DialogTitle>
           <DialogDescription className="text-center text-sm text-muted-foreground">
-            Pi Payment is currently supported for OpenUSD buy.
+            Pi Payment and Ewallet are currently supported for OpenUSD buy.
           </DialogDescription>
           <div className="mt-3 space-y-2">
             {paymentMethodRows.map((row) => {
               const selected = buyPaymentMethod === row.key;
-              const disabled = row.key !== "Pi Payment";
+              const disabled = row.disabled ?? !supportedBuyPaymentMethods.includes(row.key);
               return (
                 <button
                   key={row.key}
@@ -1815,6 +1851,11 @@ const Dashboard = () => {
                   onClick={() => {
                     if (disabled) return;
                     setBuyPaymentMethod(row.key);
+                    if (row.key === "Ewallet") {
+                      setBuyOnrampProvider("Ewallet QR PH");
+                    } else if (row.key === "Pi Payment") {
+                      setBuyOnrampProvider("Pi Payment");
+                    }
                     setShowPaymentMethodPicker(false);
                   }}
                   className={`flex h-14 w-full items-center justify-between rounded-2xl border px-4 ${
@@ -1823,7 +1864,15 @@ const Dashboard = () => {
                       : "border-border/70 bg-white hover:bg-secondary/20"
                   }`}
                 >
-                  <span className="text-base font-semibold">{row.key}</span>
+                  <span className="inline-flex items-center gap-2 text-base font-semibold">
+                    {row.key === "Pi Payment" && (
+                      <img src={PI_PAYMENT_ICON_URL} alt="Pi Payment" className="h-5 w-5 rounded-full object-cover" />
+                    )}
+                    {row.key === "Ewallet" && (
+                      <img src={JQRPH_ICON_URL} alt="JQRPh" className="h-5 w-auto object-contain" />
+                    )}
+                    {getBuyPaymentMethodLabel(row.key)}
+                  </span>
                   <div className="flex items-center gap-2">
                     {row.recommended && <span className="rounded-md bg-paypal-blue/10 px-2 py-0.5 text-xs font-semibold text-paypal-blue">Recommended</span>}
                     {selected && <Check className="h-5 w-5 text-paypal-blue" />}

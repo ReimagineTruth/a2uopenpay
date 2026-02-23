@@ -70,6 +70,8 @@ const OFFLINE_POS_KEY = "openpay_pos_offline_queue_v1";
 const SETTINGS_KEY = "openpay_pos_settings_v1";
 const MERCHANT_MODE_KEY = "openpay_merchant_mode_v1";
 const POS_CURRENCY_PATTERN = /^(PI|[A-Z]{3})$/;
+const PURE_PI_ICON_URL = "https://i.ibb.co/BV8PHjB4/Pi-200x200.png";
+const OPENPAY_ICON_URL = "/openpay-o.svg";
 
 const normalizePosCurrencyCode = (rawCode: string) => {
   const normalized = String(rawCode || "").trim().toUpperCase();
@@ -136,7 +138,7 @@ const MerchantPosPage = () => {
     return Array.from(byCode.values());
   }, [currencies]);
 
-  const getPiCodeLabel = (code: string) => (code === "PI" ? "PI" : `PI ${code}`);
+  const getPiCodeLabel = (code: string) => (code === "PI" ? "PI" : code === "OUSD" ? "OPEN USD" : `PI ${code}`);
 
   const sessionAmountLabel = useMemo(() => {
     if (!currentSession) return "";
@@ -620,25 +622,34 @@ const MerchantPosPage = () => {
                   <option value="live">Live</option>
                   <option value="sandbox">Sandbox</option>
                 </select>
-                <select
-                  value={currency}
-                  onChange={(e) => {
-                    if (currentSession) {
-                      setCurrentSession(null);
-                      setPaymentStatus("idle");
-                      setReceiptIssuedAt(null);
-                    }
-                    setCurrency(normalizePosCurrencyCode(e.target.value));
-                  }}
-                  disabled={isSessionLocked}
-                  className="rounded-lg border border-border px-3 py-1.5 text-sm"
-                >
-                  {posCurrencies.map((c) => (
-                    <option key={c.code} value={c.code}>
-                      {c.flag} {getPiCodeLabel(c.code)} - {c.name}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative">
+                  {(currency === "PI" || currency === "OUSD") && (
+                    <img
+                      src={currency === "PI" ? PURE_PI_ICON_URL : OPENPAY_ICON_URL}
+                      alt={currency === "PI" ? "Pure Pi" : "Open USD"}
+                      className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 rounded-full object-cover"
+                    />
+                  )}
+                  <select
+                    value={currency}
+                    onChange={(e) => {
+                      if (currentSession) {
+                        setCurrentSession(null);
+                        setPaymentStatus("idle");
+                        setReceiptIssuedAt(null);
+                      }
+                      setCurrency(normalizePosCurrencyCode(e.target.value));
+                    }}
+                    disabled={isSessionLocked}
+                    className={`rounded-lg border border-border py-1.5 text-sm ${currency === "PI" || currency === "OUSD" ? "pl-8 pr-3" : "px-3"}`}
+                  >
+                    {posCurrencies.map((c) => (
+                      <option key={c.code} value={c.code}>
+                        {`${c.code === "PI" ? "PI " : c.code === "OUSD" ? "" : `${c.flag} `}${getPiCodeLabel(c.code)} - ${c.name}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">

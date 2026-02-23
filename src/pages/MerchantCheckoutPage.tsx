@@ -39,6 +39,7 @@ type PaymentLinkSessionCreate = {
   call_to_action: string;
 };
 const PURE_PI_ICON_URL = "https://i.ibb.co/BV8PHjB4/Pi-200x200.png";
+const OPENPAY_ICON_URL = "/openpay-o.svg";
 
 const COUNTRIES: string[] = [
   "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua and Barbuda", "Argentina", "Armenia", "Australia", "Austria",
@@ -351,7 +352,7 @@ const MerchantCheckoutPage = () => {
   const merchantUsername = isSessionCheckout ? (sessionData?.merchant_username || "") : "";
   const currency = isSessionCheckout ? (sessionData?.currency || "USD") : legacyCurrency;
   const amount = isSessionCheckout ? Number(sessionData?.amount || 0) : safeLegacyAmount;
-  const getPiCodeLabel = (code: string) => (code === "PI" ? "PI" : `PI ${code}`);
+  const getPiCodeLabel = (code: string) => (code === "PI" ? "PI" : code === "OUSD" ? "OPEN USD" : `PI ${code}`);
 
   if (isSessionCheckout && loadingSession && !sessionData) {
     return <SplashScreen message="Loading checkout..." />;
@@ -565,21 +566,21 @@ const MerchantCheckoutPage = () => {
               <div className="mt-3">
                 <p className="mb-1 text-xl text-foreground">Pay currency (170+ OpenPay currencies)</p>
                 <div className="relative">
-                  {payCurrencyCode === "PI" && (
+                  {(payCurrencyCode === "PI" || payCurrencyCode === "OUSD") && (
                     <img
-                      src={PURE_PI_ICON_URL}
-                      alt="Pure Pi"
+                      src={payCurrencyCode === "PI" ? PURE_PI_ICON_URL : OPENPAY_ICON_URL}
+                      alt={payCurrencyCode === "PI" ? "Pure Pi" : "Open USD"}
                       className="pointer-events-none absolute left-3 top-3.5 h-5 w-5 rounded-full object-cover"
                     />
                   )}
                   <select
                     value={payCurrencyCode}
                     onChange={(e) => setPayCurrencyCode(e.target.value)}
-                    className={`h-12 w-full appearance-none rounded-md border border-border bg-white text-lg ${payCurrencyCode === "PI" ? "pl-10 pr-3" : "px-3"}`}
+                    className={`h-12 w-full appearance-none rounded-md border border-border bg-white text-lg ${payCurrencyCode === "PI" || payCurrencyCode === "OUSD" ? "pl-10 pr-3" : "px-3"}`}
                   >
                     {currencies.map((currencyOption) => (
                       <option key={currencyOption.code} value={currencyOption.code}>
-                        {`${currencyOption.flag ? `${currencyOption.flag} ` : ""}${getPiCodeLabel(currencyOption.code)} - ${currencyOption.name}`}
+                        {`${currencyOption.code === "PI" ? "PI " : currencyOption.code === "OUSD" ? "" : currencyOption.flag ? `${currencyOption.flag} ` : ""}${getPiCodeLabel(currencyOption.code)} - ${currencyOption.name}`}
                       </option>
                     ))}
                   </select>

@@ -77,6 +77,7 @@ type MerchantActivityRow = {
 
 type CustomerProfile = { id: string; full_name: string; username: string | null };
 const PURE_PI_ICON_URL = "https://i.ibb.co/BV8PHjB4/Pi-200x200.png";
+const OPENPAY_ICON_URL = "/openpay-o.svg";
 const MERCHANT_MODE_KEY = "openpay_merchant_mode_v1";
 
 const navItems: { key: PortalView; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
@@ -347,7 +348,7 @@ const MerchantOnboardingPage = () => {
     if (value.length <= start + end + 3) return value;
     return `${value.slice(0, start)}...${value.slice(-end)}`;
   };
-  const getPiCodeLabel = (code: string) => (code === "PI" ? "PI" : `PI ${code}`);
+  const getPiCodeLabel = (code: string) => (code === "PI" ? "PI" : code === "OUSD" ? "OPEN USD" : `PI ${code}`);
 
   const handleCopy = async (value: string, label: string) => {
     if (!value) return;
@@ -621,21 +622,21 @@ const MerchantOnboardingPage = () => {
               <Input value={productDescription} onChange={(e) => setProductDescription(e.target.value)} placeholder="Description" className="h-11 rounded-lg md:col-span-2" />
               <Input value={productPrice} onChange={(e) => setProductPrice(e.target.value)} placeholder="Amount" className="h-11 rounded-lg" />
               <div className="relative">
-                {productCurrency === "PI" && (
+                {(productCurrency === "PI" || productCurrency === "OUSD") && (
                   <img
-                    src={PURE_PI_ICON_URL}
-                    alt="Pure Pi"
+                    src={productCurrency === "PI" ? PURE_PI_ICON_URL : OPENPAY_ICON_URL}
+                    alt={productCurrency === "PI" ? "Pure Pi" : "Open USD"}
                     className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 rounded-full object-cover"
                   />
                 )}
                 <select
                   value={productCurrency}
                   onChange={(e) => setProductCurrency(e.target.value.toUpperCase())}
-                  className={`h-11 w-full rounded-lg border border-border bg-card text-sm ${productCurrency === "PI" ? "pl-10 pr-3" : "px-3"}`}
+                  className={`h-11 w-full rounded-lg border border-border bg-card text-sm ${productCurrency === "PI" || productCurrency === "OUSD" ? "pl-10 pr-3" : "px-3"}`}
                 >
                   {currencyChoices.map((item) => (
                     <option key={item.code} value={item.code}>
-                      {item.code === "PI" ? "PI" : item.flag} {getPiCodeLabel(item.code)} - {item.name}
+                      {`${item.code === "PI" ? "PI " : item.code === "OUSD" ? "" : `${item.flag} `}${getPiCodeLabel(item.code)} - ${item.name}`}
                     </option>
                   ))}
                 </select>
@@ -656,21 +657,21 @@ const MerchantOnboardingPage = () => {
             <Button variant="outline" className="mt-2 h-9 rounded-lg" onClick={() => navigate("/payment-links/create")}>Open advanced /payment-links/create</Button>
             <div className="mt-4 grid gap-2 md:grid-cols-2">
               <div className="relative">
-                {checkoutCurrency === "PI" && (
+                {(checkoutCurrency === "PI" || checkoutCurrency === "OUSD") && (
                   <img
-                    src={PURE_PI_ICON_URL}
-                    alt="Pure Pi"
+                    src={checkoutCurrency === "PI" ? PURE_PI_ICON_URL : OPENPAY_ICON_URL}
+                    alt={checkoutCurrency === "PI" ? "Pure Pi" : "Open USD"}
                     className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 rounded-full object-cover"
                   />
                 )}
                 <select
                   value={checkoutCurrency}
                   onChange={(e) => setCheckoutCurrency(e.target.value.toUpperCase())}
-                  className={`h-11 w-full rounded-lg border border-border bg-card text-sm ${checkoutCurrency === "PI" ? "pl-10 pr-3" : "px-3"}`}
+                  className={`h-11 w-full rounded-lg border border-border bg-card text-sm ${checkoutCurrency === "PI" || checkoutCurrency === "OUSD" ? "pl-10 pr-3" : "px-3"}`}
                 >
                   {currencyChoices.map((item) => (
                     <option key={item.code} value={item.code}>
-                      {item.code === "PI" ? "PI" : item.flag} {getPiCodeLabel(item.code)} - {item.name}
+                      {`${item.code === "PI" ? "PI " : item.code === "OUSD" ? "" : `${item.flag} `}${getPiCodeLabel(item.code)} - ${item.name}`}
                     </option>
                   ))}
                 </select>

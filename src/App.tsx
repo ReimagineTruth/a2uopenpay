@@ -10,6 +10,7 @@ import Dashboard from "./pages/Dashboard";
 import SendMoney from "./pages/SendMoney";
 import QrScannerPage from "./pages/QrScannerPage";
 import TopUp from "./pages/TopUp";
+import TopUpEwalletQrPh from "./pages/TopUpEwalletQrPh";
 import ReceivePage from "./pages/ReceivePage";
 import Contacts from "./pages/Contacts";
 import MenuPage from "./pages/MenuPage";
@@ -53,6 +54,7 @@ import PosThankYouPage from "./pages/PosThankYouPage";
 import OpenAppPage from "./pages/OpenAppPage";
 import OpenPayDesktopPage from "./pages/OpenPayDesktopPage";
 import VirtualCardPage from "./pages/VirtualCardPage";
+import LiveCustomerServicePage from "./pages/LiveCustomerServicePage";
 import NotFound from "./pages/NotFound";
 import { CurrencyProvider } from "./contexts/CurrencyContext";
 import { useRealtimePushNotifications } from "./hooks/useRealtimePushNotifications";
@@ -107,6 +109,7 @@ const AppRoutes = () => {
         <Route path="/send" element={<SendMoney />} />
         <Route path="/scan-qr" element={<QrScannerPage />} />
         <Route path="/topup" element={<TopUp />} />
+        <Route path="/topup-ewallet-qrph" element={<TopUpEwalletQrPh />} />
         <Route path="/receive" element={<ReceivePage />} />
         <Route path="/contacts" element={<Contacts />} />
         <Route path="/menu" element={<MenuPage />} />
@@ -147,6 +150,7 @@ const AppRoutes = () => {
         <Route path="/openpay-official" element={<OpenPayOfficialPage />} />
         <Route path="/openapp" element={<OpenAppPage />} />
         <Route path="/openpay-desktop" element={<OpenPayDesktopPage />} />
+        <Route path="/live-customer-service" element={<LiveCustomerServicePage />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
       <AppSecurityGate />

@@ -46,6 +46,7 @@ type PaymentLinkRow = {
 };
 
 const PURE_PI_ICON_URL = "https://i.ibb.co/BV8PHjB4/Pi-200x200.png";
+const OPENPAY_ICON_URL = "/openpay-o.svg";
 
 const PaymentLinksCreatePage = () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -166,7 +167,7 @@ const PaymentLinksCreatePage = () => {
     });
     return list;
   }, [currencies]);
-  const getPiCodeLabel = (code: string) => (code === "PI" ? "PI" : `PI ${code}`);
+  const getPiCodeLabel = (code: string) => (code === "PI" ? "PI" : code === "OUSD" ? "OPEN USD" : `PI ${code}`);
 
   const previewTotal = useMemo(() => {
     if (type === "custom_amount") return Number(customAmount || 0);
@@ -519,21 +520,21 @@ const PaymentLinksCreatePage = () => {
                         <option value="live">live</option>
                       </select>
                       <div className="relative">
-                        {currency === "PI" && (
+                        {(currency === "PI" || currency === "OUSD") && (
                           <img
-                            src={PURE_PI_ICON_URL}
-                            alt="Pure Pi"
+                            src={currency === "PI" ? PURE_PI_ICON_URL : OPENPAY_ICON_URL}
+                            alt={currency === "PI" ? "Pure Pi" : "Open USD"}
                             className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 rounded-full object-cover"
                           />
                         )}
                         <select
                           value={currency}
                           onChange={(e) => setCurrency(e.target.value.toUpperCase())}
-                          className={`h-12 w-full rounded-xl border border-border bg-background text-sm ${currency === "PI" ? "pl-10 pr-3" : "px-3"}`}
+                          className={`h-12 w-full rounded-xl border border-border bg-background text-sm ${currency === "PI" || currency === "OUSD" ? "pl-10 pr-3" : "px-3"}`}
                         >
                           {currencyChoices.map((item) => (
                             <option key={item.code} value={item.code}>
-                              {item.flag} {getPiCodeLabel(item.code)} - {item.name}
+                              {`${item.code === "PI" ? "PI " : item.code === "OUSD" ? "" : `${item.flag} `}${getPiCodeLabel(item.code)} - ${item.name}`}
                             </option>
                           ))}
                         </select>

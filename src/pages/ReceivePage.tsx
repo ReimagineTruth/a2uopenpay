@@ -9,6 +9,9 @@ import { useCurrency } from "@/contexts/CurrencyContext";
 import { toast } from "sonner";
 import { loadUserPreferences, upsertUserPreferences } from "@/lib/userPreferences";
 
+const PURE_PI_ICON_URL = "https://i.ibb.co/BV8PHjB4/Pi-200x200.png";
+const OPENPAY_ICON_URL = "/openpay-o.svg";
+
 interface SelfProfile {
   id: string;
   full_name: string;
@@ -156,7 +159,7 @@ const ReceivePage = () => {
         .slice(0, 2)
         .toUpperCase()
     : "OP";
-  const getPiCodeLabel = (code: string) => (code === "PI" ? "PI" : `PI ${code}`);
+  const getPiCodeLabel = (code: string) => (code === "PI" ? "PI" : code === "OUSD" ? "OPEN USD" : `PI ${code}`);
   const normalizedMerchantUsername = storeMerchantUsername.trim().replace(/^@+/, "");
 
   const printSizeConfig = useMemo(() => {
@@ -398,17 +401,26 @@ const ReceivePage = () => {
 
           <div>
             <p className="mb-1 text-sm text-muted-foreground">Currency</p>
-            <select
-              value={currencyCode}
-              onChange={(e) => setCurrencyCode(e.target.value)}
-              className="h-12 w-full rounded-2xl border border-input bg-white px-3 text-sm text-foreground"
-            >
-              {currencies.map((c) => (
-                <option key={c.code} value={c.code}>
-                  {c.flag} {getPiCodeLabel(c.code)} - {c.name}
-                </option>
-              ))}
-            </select>
+            <div className="relative">
+              {(currencyCode === "PI" || currencyCode === "OUSD") && (
+                <img
+                  src={currencyCode === "PI" ? PURE_PI_ICON_URL : OPENPAY_ICON_URL}
+                  alt={currencyCode === "PI" ? "Pure Pi" : "Open USD"}
+                  className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 rounded-full object-cover"
+                />
+              )}
+              <select
+                value={currencyCode}
+                onChange={(e) => setCurrencyCode(e.target.value)}
+                className={`h-12 w-full rounded-2xl border border-input bg-white text-sm text-foreground ${currencyCode === "PI" || currencyCode === "OUSD" ? "pl-10 pr-3" : "px-3"}`}
+              >
+                {currencies.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {`${c.code === "PI" ? "PI " : c.code === "OUSD" ? "" : `${c.flag} `}${getPiCodeLabel(c.code)} - ${c.name}`}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 

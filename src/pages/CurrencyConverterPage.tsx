@@ -6,6 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useCurrency } from "@/contexts/CurrencyContext";
 
+const PURE_PI_ICON_URL = "https://i.ibb.co/BV8PHjB4/Pi-200x200.png";
+const OPENPAY_ICON_URL = "/openpay-o.svg";
+
 const CurrencyConverterPage = () => {
   const navigate = useNavigate();
   const { currencies, ratesUpdatedAt } = useCurrency();
@@ -40,7 +43,7 @@ const CurrencyConverterPage = () => {
     setFromCode(toCode);
     setToCode(fromCode);
   };
-  const getPiCodeLabel = (code: string) => (code === "PI" ? "PI" : `PI ${code}`);
+  const getPiCodeLabel = (code: string) => (code === "PI" ? "PI" : code === "OUSD" ? "OPEN USD" : `PI ${code}`);
 
   return (
     <div className="min-h-screen bg-background pb-24">
@@ -64,17 +67,26 @@ const CurrencyConverterPage = () => {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto_1fr] sm:items-end">
             <div>
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">From</p>
-              <select
-                value={fromCode}
-                onChange={(event) => setFromCode(event.target.value)}
-                className="h-12 w-full rounded-2xl border border-input bg-background px-3 text-sm text-foreground"
-              >
-                {currencies.map((currency) => (
-                  <option key={currency.code} value={currency.code}>
-                    {currency.flag} {getPiCodeLabel(currency.code)} - {currency.name}
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                {(fromCode === "PI" || fromCode === "OUSD") && (
+                  <img
+                    src={fromCode === "PI" ? PURE_PI_ICON_URL : OPENPAY_ICON_URL}
+                    alt={fromCode === "PI" ? "Pure Pi" : "Open USD"}
+                    className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 rounded-full object-cover"
+                  />
+                )}
+                <select
+                  value={fromCode}
+                  onChange={(event) => setFromCode(event.target.value)}
+                  className={`h-12 w-full rounded-2xl border border-input bg-background text-sm text-foreground ${fromCode === "PI" || fromCode === "OUSD" ? "pl-10 pr-3" : "px-3"}`}
+                >
+                  {currencies.map((currency) => (
+                    <option key={currency.code} value={currency.code}>
+                      {`${currency.code === "PI" ? "PI " : currency.code === "OUSD" ? "" : `${currency.flag} `}${getPiCodeLabel(currency.code)} - ${currency.name}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <Button type="button" variant="outline" onClick={swapCurrencies} className="h-12 rounded-2xl px-4">
@@ -83,17 +95,26 @@ const CurrencyConverterPage = () => {
 
             <div>
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">To</p>
-              <select
-                value={toCode}
-                onChange={(event) => setToCode(event.target.value)}
-                className="h-12 w-full rounded-2xl border border-input bg-background px-3 text-sm text-foreground"
-              >
-                {currencies.map((currency) => (
-                  <option key={currency.code} value={currency.code}>
-                    {currency.flag} {getPiCodeLabel(currency.code)} - {currency.name}
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                {(toCode === "PI" || toCode === "OUSD") && (
+                  <img
+                    src={toCode === "PI" ? PURE_PI_ICON_URL : OPENPAY_ICON_URL}
+                    alt={toCode === "PI" ? "Pure Pi" : "Open USD"}
+                    className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 rounded-full object-cover"
+                  />
+                )}
+                <select
+                  value={toCode}
+                  onChange={(event) => setToCode(event.target.value)}
+                  className={`h-12 w-full rounded-2xl border border-input bg-background text-sm text-foreground ${toCode === "PI" || toCode === "OUSD" ? "pl-10 pr-3" : "px-3"}`}
+                >
+                  {currencies.map((currency) => (
+                    <option key={currency.code} value={currency.code}>
+                      {`${currency.code === "PI" ? "PI " : currency.code === "OUSD" ? "" : `${currency.flag} `}${getPiCodeLabel(currency.code)} - ${currency.name}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
 
