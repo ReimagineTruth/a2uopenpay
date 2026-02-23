@@ -32,6 +32,8 @@ import AboutOpenPayPage from "./pages/AboutOpenPayPage";
 import LegalPage from "./pages/LegalPage";
 import OpenPayDocumentationPage from "./pages/OpenPayDocumentationPage";
 import OpenPayApiDocsPage from "./pages/OpenPayApiDocsPage";
+import OpenPayPosDocsPage from "./pages/OpenPayPosDocsPage";
+import OpenPayMerchantPortalDocsPage from "./pages/OpenPayMerchantPortalDocsPage";
 import OpenPartnerPage from "./pages/OpenPartnerPage";
 import PiWhitepaperPage from "./pages/PiWhitepaperPage";
 import PiMicaWhitepaperPage from "./pages/PiMicaWhitepaperPage";
@@ -126,6 +128,8 @@ const AppRoutes = () => {
         <Route path="/about-openpay" element={<AboutOpenPayPage />} />
         <Route path="/openpay-documentation" element={<OpenPayDocumentationPage />} />
         <Route path="/openpay-api-docs" element={<OpenPayApiDocsPage />} />
+        <Route path="/openpay-pos-docs" element={<OpenPayPosDocsPage />} />
+        <Route path="/openpay-merchant-portal-docs" element={<OpenPayMerchantPortalDocsPage />} />
         <Route path="/open-partner" element={<OpenPartnerPage />} />
         <Route path="/pi-whitepaper" element={<PiWhitepaperPage />} />
         <Route path="/pi-mica-whitepaper" element={<PiMicaWhitepaperPage />} />

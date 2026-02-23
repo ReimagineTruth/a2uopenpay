@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, BookOpen, Copy, KeyRound, Link2, Server, ShieldCheck } from "lucide-react";
+import { ArrowLeft, BarChart3, BookOpen, Copy, KeyRound, Link2, Server, ShieldCheck, Store, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { QRCodeSVG } from "qrcode.react";
 import BottomNav from "@/components/BottomNav";
@@ -12,6 +12,8 @@ const OPENPAY_RPC_BASE = "https://YOUR_SUPABASE_PROJECT.supabase.co/rest/v1/rpc"
 const OpenPayApiDocsPage = () => {
   const navigate = useNavigate();
   const [previewTab, setPreviewTab] = useState<"button" | "widget" | "iframe" | "direct" | "qr">("button");
+  const [posPreviewTab, setPosPreviewTab] = useState<"qr" | "deeplink" | "button" | "widget" | "receipt" | "actual" | "thankyou">("qr");
+  const [merchantPreviewTab, setMerchantPreviewTab] = useState<"home" | "api_keys" | "checkout" | "analytics" | "actual">("home");
   const sampleLink = useMemo(
     () =>
       typeof window === "undefined"
@@ -32,6 +34,43 @@ const OpenPayApiDocsPage = () => {
   </body>
 </html>`;
   const sampleIframeCode = `<iframe src="${sampleLink}" width="100%" height="720" frameborder="0" style="border:1px solid #d9e6ff;border-radius:12px;max-width:560px;" allow="payment *"></iframe>`;
+  const samplePosSessionToken = "opsess_pos_demo_001";
+  const samplePosStore = "OpenPay Merchant POS";
+  const samplePosMerchant = "openpaymerchant";
+  const samplePosAmount = "49.99";
+  const samplePosCurrency = "USD";
+  const samplePosIssuedAt = "2026-02-23T09:30:00Z";
+  const samplePosStatus = "succeeded";
+  const samplePosDeepLink = `openpay-pos://checkout/${samplePosSessionToken}`;
+  const samplePosThankYouLink = `/pos-thank-you?session=${samplePosSessionToken}&tx=tx_pos_demo_001`;
+  const samplePosCheckoutLink = useMemo(
+    () =>
+      typeof window === "undefined"
+        ? `https://openpay.example/merchant-checkout?session=${samplePosSessionToken}`
+        : `${window.location.origin}/merchant-checkout?session=${samplePosSessionToken}`,
+    [],
+  );
+  const samplePosButtonCode = `<a href="${samplePosCheckoutLink}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:8px;background:#0057d8;color:#fff;padding:12px 24px;border-radius:10px;text-decoration:none;font-weight:700"><img src="/openpay-o.svg" alt="OpenPay" width="16" height="16" style="display:block;border-radius:999px" />Pay at POS</a>`;
+  const samplePosWidgetCode = `<!doctype html>
+<html>
+  <body style="margin:0;padding:24px;background:#f8fbff;font-family:Arial,sans-serif">
+    <div style="max-width:360px;margin:0 auto;border:1px solid #d9e6ff;border-radius:16px;padding:20px;background:#fff">
+      <p style="margin:0;color:#5c6b82;font-size:12px;letter-spacing:.08em;text-transform:uppercase">OpenPay POS</p>
+      <h3 style="margin:8px 0 0;font-size:24px;color:#10213a">${samplePosStore}</h3>
+      <p style="margin:8px 0 16px;color:#5c6b82;font-size:14px">${samplePosAmount} ${samplePosCurrency} • Scan or tap to pay</p>
+      <a href="${samplePosCheckoutLink}" target="_blank" rel="noopener noreferrer" style="display:block;text-align:center;background:#0057d8;color:#fff;padding:12px 16px;border-radius:10px;text-decoration:none;font-weight:700">Open POS checkout</a>
+    </div>
+  </body>
+</html>`;
+  const sampleMerchantCheckoutToken = "opsess_demo_merchant_001";
+  const sampleMerchantCheckoutLink = useMemo(
+    () =>
+      typeof window === "undefined"
+        ? `https://openpay.example/merchant-checkout?session=${sampleMerchantCheckoutToken}`
+        : `${window.location.origin}/merchant-checkout?session=${sampleMerchantCheckoutToken}`,
+    [],
+  );
+  const sampleMerchantPortalEmbed = `<iframe src="/merchant-onboarding" width="100%" height="780" style="border:1px solid #d9e6ff;border-radius:12px;" loading="lazy"></iframe>`;
 
   const snippets = useMemo(
     () => ({
@@ -96,6 +135,61 @@ const OpenPayApiDocsPage = () => {
     "p_status": "succeeded",
     "p_limit": 100,
     "p_offset": 0
+  }'`,
+      createPosCheckoutSession: `curl -X POST "${OPENPAY_RPC_BASE}/create_my_pos_checkout_session" \\
+  -H "apikey: YOUR_SERVICE_OR_ANON_KEY" \\
+  -H "Authorization: Bearer MERCHANT_AUTH_ACCESS_TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "p_mode": "live",
+    "p_amount": 25.00,
+    "p_currency": "USD",
+    "p_note": "POS payment",
+    "p_customer_name": "Walk-in customer"
+  }'`,
+      posTransactions: `curl -X POST "${OPENPAY_RPC_BASE}/get_my_pos_transactions" \\
+  -H "apikey: YOUR_SERVICE_OR_ANON_KEY" \\
+  -H "Authorization: Bearer MERCHANT_AUTH_ACCESS_TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "p_mode": "live",
+    "p_status": "succeeded",
+    "p_limit": 100,
+    "p_offset": 0
+  }'`,
+      refundPosTransaction: `curl -X POST "${OPENPAY_RPC_BASE}/refund_my_pos_transaction" \\
+  -H "apikey: YOUR_SERVICE_OR_ANON_KEY" \\
+  -H "Authorization: Bearer MERCHANT_AUTH_ACCESS_TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "p_mode": "live",
+    "p_transaction_id": "POS_TX_UUID",
+    "p_reason": "POS refund"
+  }'`,
+      createMerchantApiKey: `curl -X POST "${OPENPAY_RPC_BASE}/create_my_merchant_api_key" \\
+  -H "apikey: YOUR_SERVICE_OR_ANON_KEY" \\
+  -H "Authorization: Bearer MERCHANT_AUTH_ACCESS_TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "p_mode": "live",
+    "p_key_name": "Primary production key"
+  }'`,
+      merchantAnalytics: `curl -X POST "${OPENPAY_RPC_BASE}/get_my_merchant_analytics" \\
+  -H "apikey: YOUR_SERVICE_OR_ANON_KEY" \\
+  -H "Authorization: Bearer MERCHANT_AUTH_ACCESS_TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "p_mode": "live",
+    "p_days": 30
+  }'`,
+      transferMerchantBalance: `curl -X POST "${OPENPAY_RPC_BASE}/transfer_my_merchant_balance" \\
+  -H "apikey: YOUR_SERVICE_OR_ANON_KEY" \\
+  -H "Authorization: Bearer MERCHANT_AUTH_ACCESS_TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "p_mode": "live",
+    "p_destination": "wallet",
+    "p_amount": 100.00
   }'`,
       jsFetch: `const rpc = async (fn, body, token) => {
   const res = await fetch(\`${OPENPAY_RPC_BASE}/\${fn}\`, {
@@ -386,12 +480,446 @@ const OpenPayApiDocsPage = () => {
         </div>
       </div>
 
+      <div className="paypal-surface mt-4 rounded-3xl p-5">
+        <div className="mb-3 flex items-center gap-2">
+          <Server className="h-4 w-4 text-paypal-blue" />
+          <h2 className="font-semibold text-foreground">POS API Endpoints</h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-border text-muted-foreground">
+                <th className="pb-2 pr-3">RPC</th>
+                <th className="pb-2 pr-3">Purpose</th>
+                <th className="pb-2">Main Inputs</th>
+              </tr>
+            </thead>
+            <tbody className="text-foreground">
+              <tr className="border-b border-border/60">
+                <td className="py-2 pr-3 font-mono text-xs">create_my_pos_checkout_session</td>
+                <td className="py-2 pr-3">Create POS checkout session for QR payment</td>
+                <td className="py-2">`p_mode`, `p_amount`, `p_currency`, `p_note`</td>
+              </tr>
+              <tr className="border-b border-border/60">
+                <td className="py-2 pr-3 font-mono text-xs">get_my_pos_transactions</td>
+                <td className="py-2 pr-3">List POS transactions by mode/status</td>
+                <td className="py-2">`p_mode`, `p_status`, pagination</td>
+              </tr>
+              <tr className="border-b border-border/60">
+                <td className="py-2 pr-3 font-mono text-xs">get_my_pos_dashboard</td>
+                <td className="py-2 pr-3">Load POS dashboard totals and metrics</td>
+                <td className="py-2">`p_mode`</td>
+              </tr>
+              <tr className="border-b border-border/60">
+                <td className="py-2 pr-3 font-mono text-xs">upsert_my_pos_api_key</td>
+                <td className="py-2 pr-3">Save POS secret key for sandbox/live mode</td>
+                <td className="py-2">`p_mode`, `p_secret_key`</td>
+              </tr>
+              <tr>
+                <td className="py-2 pr-3 font-mono text-xs">refund_my_pos_transaction</td>
+                <td className="py-2 pr-3">Issue POS refund and update transaction state</td>
+                <td className="py-2">`p_mode`, `p_transaction_id`, `p_reason`</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div className="mt-3">
+          <Button variant="outline" className="h-9 rounded-lg px-3 text-xs" onClick={() => navigate("/openpay-pos-docs")}>
+            View full POS documentation
+          </Button>
+        </div>
+      </div>
+
+      <div className="paypal-surface mt-4 rounded-3xl p-5">
+        <div className="mb-3 flex items-center gap-2">
+          <Store className="h-4 w-4 text-paypal-blue" />
+          <h2 className="font-semibold text-foreground">Merchant Portal API Section</h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-border text-muted-foreground">
+                <th className="pb-2 pr-3">RPC</th>
+                <th className="pb-2 pr-3">Purpose</th>
+                <th className="pb-2">Main Inputs</th>
+              </tr>
+            </thead>
+            <tbody className="text-foreground">
+              <tr className="border-b border-border/60">
+                <td className="py-2 pr-3 font-mono text-xs">upsert_my_merchant_profile</td>
+                <td className="py-2 pr-3">Save merchant profile settings</td>
+                <td className="py-2">merchant name, username, logo, defaults</td>
+              </tr>
+              <tr className="border-b border-border/60">
+                <td className="py-2 pr-3 font-mono text-xs">create_my_merchant_api_key</td>
+                <td className="py-2 pr-3">Create API key in sandbox/live mode</td>
+                <td className="py-2">`p_mode`, `p_key_name`</td>
+              </tr>
+              <tr className="border-b border-border/60">
+                <td className="py-2 pr-3 font-mono text-xs">create_merchant_checkout_session</td>
+                <td className="py-2 pr-3">Create hosted checkout session</td>
+                <td className="py-2">secret key, mode, currency, items</td>
+              </tr>
+              <tr className="border-b border-border/60">
+                <td className="py-2 pr-3 font-mono text-xs">get_my_merchant_analytics</td>
+                <td className="py-2 pr-3">Load merchant metrics</td>
+                <td className="py-2">`p_mode`, `p_days`</td>
+              </tr>
+              <tr className="border-b border-border/60">
+                <td className="py-2 pr-3 font-mono text-xs">get_my_merchant_balance_overview</td>
+                <td className="py-2 pr-3">Load wallet and available balance totals</td>
+                <td className="py-2">`p_mode`</td>
+              </tr>
+              <tr>
+                <td className="py-2 pr-3 font-mono text-xs">transfer_my_merchant_balance</td>
+                <td className="py-2 pr-3">Transfer merchant balance to destination</td>
+                <td className="py-2">`p_mode`, `p_destination`, `p_amount`</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div className="mt-3">
+          <Button variant="outline" className="h-9 rounded-lg px-3 text-xs" onClick={() => navigate("/openpay-merchant-portal-docs")}>
+            View full Merchant Portal documentation
+          </Button>
+        </div>
+      </div>
+
+      <div className="paypal-surface mt-4 rounded-3xl p-5">
+        <div className="mb-3 flex items-center gap-2">
+          <BookOpen className="h-4 w-4 text-paypal-blue" />
+          <h2 className="font-semibold text-foreground">Merchant Portal Previews</h2>
+        </div>
+        <div className="mb-3 flex flex-wrap gap-2 rounded-xl border border-border bg-secondary/20 p-1">
+          {([
+            ["home", "Dashboard"],
+            ["api_keys", "API Keys"],
+            ["checkout", "Checkout"],
+            ["analytics", "Analytics"],
+            ["actual", "Actual Portal"],
+          ] as const).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setMerchantPreviewTab(key)}
+              className={`rounded-lg px-3 py-2 text-sm ${merchantPreviewTab === key ? "bg-white font-semibold text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {merchantPreviewTab === "home" && (
+          <div className="rounded-2xl border border-border bg-white p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <Wallet className="h-4 w-4 text-paypal-blue" />
+              <p className="text-sm font-semibold text-foreground">Merchant dashboard (live)</p>
+            </div>
+            <div className="grid gap-2 text-sm md:grid-cols-3">
+              <div className="rounded-xl border border-border p-3">
+                <p className="text-muted-foreground">Gross volume</p>
+                <p className="font-semibold text-foreground">12,450.20 USD</p>
+              </div>
+              <div className="rounded-xl border border-border p-3">
+                <p className="text-muted-foreground">Succeeded payments</p>
+                <p className="font-semibold text-foreground">214</p>
+              </div>
+              <div className="rounded-xl border border-border p-3">
+                <p className="text-muted-foreground">Available balance</p>
+                <p className="font-semibold text-foreground">8,104.90 USD</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {merchantPreviewTab === "api_keys" && (
+          <div className="rounded-2xl border border-border bg-white p-4">
+            <p className="text-sm font-semibold text-foreground">API keys panel</p>
+            <div className="mt-3 space-y-2">
+              <div className="rounded-xl border border-border p-3 text-sm">
+                <p className="font-semibold text-foreground">Primary live key</p>
+                <p className="mt-1 font-mono text-xs text-muted-foreground">opk_live_xxxxxxxxx</p>
+                <p className="text-xs text-muted-foreground">Secret ending: ****92f4</p>
+              </div>
+              <div className="rounded-xl border border-border p-3 text-sm">
+                <p className="font-semibold text-foreground">QA sandbox key</p>
+                <p className="mt-1 font-mono text-xs text-muted-foreground">opk_sandbox_xxxxxxxxx</p>
+                <p className="text-xs text-muted-foreground">Secret ending: ****a1c8</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {merchantPreviewTab === "checkout" && (
+          <div className="space-y-3">
+            <div className="rounded-2xl border border-border bg-white p-4">
+              <p className="text-sm font-semibold text-foreground">Checkout links panel</p>
+              <p className="mt-1 break-all text-xs text-muted-foreground">{sampleMerchantCheckoutLink}</p>
+              <div className="mt-3 flex gap-2">
+                <Button variant="outline" className="h-8 rounded-lg px-2 text-xs" onClick={() => handleCopy(sampleMerchantCheckoutLink, "Merchant checkout link")}>
+                  <Copy className="mr-1 h-3.5 w-3.5" />
+                  Copy
+                </Button>
+                <Button variant="outline" className="h-8 rounded-lg px-2 text-xs" onClick={() => window.open(sampleMerchantCheckoutLink, "_blank", "noopener,noreferrer")}>
+                  Open
+                </Button>
+              </div>
+            </div>
+            <div className="rounded-xl border border-border bg-white p-2">
+              <iframe
+                src={sampleMerchantCheckoutLink}
+                title="Merchant checkout preview"
+                className="h-[520px] w-full rounded-lg border border-border"
+                loading="lazy"
+              />
+            </div>
+          </div>
+        )}
+
+        {merchantPreviewTab === "analytics" && (
+          <div className="rounded-2xl border border-border bg-white p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <BarChart3 className="h-4 w-4 text-paypal-blue" />
+              <p className="text-sm font-semibold text-foreground">Analytics panel</p>
+            </div>
+            <div className="grid gap-2 text-sm md:grid-cols-2">
+              <div className="rounded-xl border border-border p-3">
+                <p className="text-muted-foreground">30-day conversion</p>
+                <p className="font-semibold text-foreground">68.4%</p>
+              </div>
+              <div className="rounded-xl border border-border p-3">
+                <p className="text-muted-foreground">Refund ratio</p>
+                <p className="font-semibold text-foreground">2.1%</p>
+              </div>
+              <div className="rounded-xl border border-border p-3">
+                <p className="text-muted-foreground">Top currency</p>
+                <p className="font-semibold text-foreground">USD</p>
+              </div>
+              <div className="rounded-xl border border-border p-3">
+                <p className="text-muted-foreground">Unique customers</p>
+                <p className="font-semibold text-foreground">173</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {merchantPreviewTab === "actual" && (
+          <div className="space-y-3">
+            <div className="rounded-2xl border border-border bg-white p-4">
+              <p className="text-sm font-semibold text-foreground">Actual Merchant Portal</p>
+              <p className="mt-1 text-xs text-muted-foreground">Open the live merchant interface at <code>/merchant-onboarding</code>.</p>
+              <div className="mt-3 flex gap-2">
+                <Button className="h-9 rounded-lg bg-paypal-blue text-white hover:bg-[#004dc5]" onClick={() => navigate("/merchant-onboarding")}>
+                  Open Merchant Portal
+                </Button>
+                <Button variant="outline" className="h-9 rounded-lg" onClick={() => window.open("/merchant-onboarding", "_blank", "noopener,noreferrer")}>
+                  Open in New Tab
+                </Button>
+              </div>
+            </div>
+            <div className="rounded-2xl border border-border bg-white p-4">
+              <p className="text-sm font-semibold text-foreground">Embed Snippet</p>
+              <pre className="mt-2 overflow-x-auto rounded-xl bg-slate-950 p-3 text-xs text-slate-100"><code>{sampleMerchantPortalEmbed}</code></pre>
+            </div>
+            <div className="rounded-xl border border-border bg-white p-2">
+              <iframe
+                src="/merchant-onboarding"
+                title="OpenPay merchant portal actual preview"
+                className="h-[720px] w-full rounded-lg border border-border"
+                loading="lazy"
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="paypal-surface mt-4 rounded-3xl p-5">
+        <div className="mb-3 flex items-center gap-2">
+          <BookOpen className="h-4 w-4 text-paypal-blue" />
+          <h2 className="font-semibold text-foreground">POS Share Method Previews</h2>
+        </div>
+        <div className="mb-3 flex flex-wrap gap-2 rounded-xl border border-border bg-secondary/20 p-1">
+          {([
+            ["qr", "POS QR"],
+            ["deeplink", "POS Link"],
+            ["button", "Button"],
+            ["widget", "Widget"],
+            ["receipt", "Receipt"],
+            ["actual", "Actual POS"],
+            ["thankyou", "Thank You"],
+          ] as const).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setPosPreviewTab(key)}
+              className={`rounded-lg px-3 py-2 text-sm ${posPreviewTab === key ? "bg-white font-semibold text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {posPreviewTab === "qr" && (
+          <div className="rounded-2xl border border-border bg-white p-4 text-center">
+            <p className="text-sm font-semibold text-foreground">Scan QR Code to Pay</p>
+            <p className="mt-1 text-sm font-semibold text-foreground">{samplePosStore}</p>
+            <div className="mt-3 flex justify-center">
+              <QRCodeSVG
+                value={samplePosDeepLink}
+                size={220}
+                level="H"
+                includeMargin
+                imageSettings={{ src: "/openpay-o.svg", height: 34, width: 34, excavate: true }}
+              />
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">{samplePosAmount} {samplePosCurrency}</p>
+            <p className="mt-1 text-xs text-muted-foreground">@{samplePosMerchant}</p>
+          </div>
+        )}
+
+        {posPreviewTab === "deeplink" && (
+          <div className="rounded-2xl border border-border bg-white p-4">
+            <p className="text-sm font-semibold text-foreground">POS Deep Link</p>
+            <p className="mt-1 break-all text-xs text-muted-foreground">{samplePosDeepLink}</p>
+            <Button variant="outline" className="mt-3 h-8 rounded-lg px-2 text-xs" onClick={() => handleCopy(samplePosDeepLink, "POS deep link")}>
+              <Copy className="mr-1 h-3.5 w-3.5" />
+              Copy
+            </Button>
+          </div>
+        )}
+
+        {posPreviewTab === "button" && (
+          <div className="space-y-3">
+            <div className="rounded-2xl border border-border bg-white p-4">
+              <p className="text-sm font-semibold text-foreground">POS Button Embed Code</p>
+              <pre className="mt-2 overflow-x-auto rounded-xl bg-slate-950 p-3 text-xs text-slate-100"><code>{samplePosButtonCode}</code></pre>
+            </div>
+            <div className="rounded-xl bg-secondary/30 p-6 text-center">
+              <a href={samplePosCheckoutLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-[10px] bg-paypal-blue px-6 py-3 font-bold text-white">
+                <BrandLogo className="h-4 w-4" />
+                Pay at POS
+              </a>
+            </div>
+          </div>
+        )}
+
+        {posPreviewTab === "widget" && (
+          <div className="space-y-3">
+            <div className="rounded-2xl border border-border bg-white p-4">
+              <p className="text-sm font-semibold text-foreground">POS Widget HTML</p>
+              <pre className="mt-2 max-h-64 overflow-auto rounded-xl bg-slate-950 p-3 text-xs text-slate-100"><code>{samplePosWidgetCode}</code></pre>
+            </div>
+            <div className="rounded-xl bg-secondary/20 p-4">
+              <div className="mx-auto max-w-sm rounded-xl border border-border bg-white p-4 shadow-sm">
+                <div className="mb-3 flex items-center gap-2">
+                  <BrandLogo className="h-5 w-5" />
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">OpenPay POS</p>
+                </div>
+                <p className="text-sm text-muted-foreground">In-store checkout</p>
+                <p className="text-xl font-semibold text-foreground">{samplePosStore}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{samplePosAmount} {samplePosCurrency} • Scan or tap to pay</p>
+                <a href={samplePosCheckoutLink} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex h-10 w-full items-center justify-center rounded-full bg-paypal-blue text-sm font-semibold text-white">
+                  Open POS checkout
+                </a>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {posPreviewTab === "receipt" && (
+          <div className="flex justify-center rounded-xl bg-white p-4">
+            <div className="w-[302px] bg-card px-4 py-3 font-mono text-[11px] leading-4 text-black">
+              <p className="text-center text-[15px] font-bold">OpenPay Merchant POS</p>
+              <p className="text-center">{samplePosStore}</p>
+              <p className="text-center">@{samplePosMerchant}</p>
+              <p className="mt-1 text-center">{new Date(samplePosIssuedAt).toLocaleString()}</p>
+              <p className="mt-2 border-t border-dashed border-black pt-2 text-center font-bold">ACKNOWLEDGEMENT RECEIPT</p>
+              <p className="mt-2">Type: POS RECEIVE</p>
+              <p>Mode: LIVE</p>
+              <p>Currency: {samplePosCurrency}</p>
+              <p>Amount: {samplePosAmount}</p>
+              <p>Status: {samplePosStatus.toUpperCase()}</p>
+              <p className="break-all">Session: {samplePosSessionToken}</p>
+              <p className="mt-2 border-t border-dashed border-black pt-2 text-center">SCAN QR CODE TO PAY</p>
+              <div className="mt-2 flex justify-center">
+                <QRCodeSVG
+                  value={samplePosDeepLink}
+                  size={170}
+                  level="H"
+                  includeMargin
+                  imageSettings={{ src: "/openpay-o.svg", height: 28, width: 28, excavate: true }}
+                />
+              </div>
+              <p className="mt-1 text-center text-[10px]">@{samplePosMerchant}</p>
+              <p className="mt-1 text-center text-[10px]">Merchant and amount are pre-filled after scan.</p>
+              <p className="mt-2 border-t border-dashed border-black pt-2 text-center">Thank you for using OpenPay</p>
+            </div>
+          </div>
+        )}
+
+        {posPreviewTab === "actual" && (
+          <div className="space-y-3">
+            <div className="rounded-2xl border border-border bg-white p-4">
+              <p className="text-sm font-semibold text-foreground">Actual POS Screen</p>
+              <p className="mt-1 text-xs text-muted-foreground">Open the live POS interface at <code>/merchant-pos</code>.</p>
+              <div className="mt-3 flex gap-2">
+                <Button className="h-9 rounded-lg bg-paypal-blue text-white hover:bg-[#004dc5]" onClick={() => navigate("/merchant-pos")}>
+                  Open Actual POS
+                </Button>
+                <Button variant="outline" className="h-9 rounded-lg" onClick={() => window.open("/merchant-pos", "_blank", "noopener,noreferrer")}>
+                  Open in New Tab
+                </Button>
+              </div>
+            </div>
+            <div className="rounded-xl border border-border bg-white p-2">
+              <iframe
+                src="/merchant-pos"
+                title="OpenPay POS actual preview"
+                className="h-[620px] w-full rounded-lg border border-border"
+                loading="lazy"
+              />
+            </div>
+          </div>
+        )}
+
+        {posPreviewTab === "thankyou" && (
+          <div className="space-y-3">
+            <div className="rounded-2xl border border-border bg-white p-4">
+              <p className="text-sm font-semibold text-foreground">Actual POS Thank You Page</p>
+              <p className="mt-1 text-xs text-muted-foreground">Open the live POS success page at <code>/pos-thank-you</code>.</p>
+              <div className="mt-3 flex gap-2">
+                <Button className="h-9 rounded-lg bg-paypal-blue text-white hover:bg-[#004dc5]" onClick={() => navigate(samplePosThankYouLink)}>
+                  Open Thank You Page
+                </Button>
+                <Button variant="outline" className="h-9 rounded-lg" onClick={() => window.open(samplePosThankYouLink, "_blank", "noopener,noreferrer")}>
+                  Open in New Tab
+                </Button>
+              </div>
+            </div>
+            <div className="rounded-xl border border-border bg-white p-2">
+              <iframe
+                src={samplePosThankYouLink}
+                title="OpenPay POS thank you page preview"
+                className="h-[620px] w-full rounded-lg border border-border"
+                loading="lazy"
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
       <div className="mt-4 space-y-3">
         <Snippet title="Create Payment Link (cURL)" code={snippets.createPaymentLink} />
         <Snippet title="Create Checkout Session (cURL)" code={snippets.createCheckoutSession} />
         <Snippet title="Create Session from Payment Link (cURL)" code={snippets.createSessionFromLink} />
         <Snippet title="Pay Checkout with Virtual Card (cURL)" code={snippets.payWithVirtualCard} />
         <Snippet title="Get Merchant Transactions (cURL)" code={snippets.merchantTransactions} />
+        <Snippet title="Create POS Checkout Session (cURL)" code={snippets.createPosCheckoutSession} />
+        <Snippet title="Get POS Transactions (cURL)" code={snippets.posTransactions} />
+        <Snippet title="Refund POS Transaction (cURL)" code={snippets.refundPosTransaction} />
+        <Snippet title="Create Merchant API Key (cURL)" code={snippets.createMerchantApiKey} />
+        <Snippet title="Get Merchant Analytics (cURL)" code={snippets.merchantAnalytics} />
+        <Snippet title="Transfer Merchant Balance (cURL)" code={snippets.transferMerchantBalance} />
         <Snippet title="Reusable JS Fetch RPC Helper" code={snippets.jsFetch} />
       </div>
 

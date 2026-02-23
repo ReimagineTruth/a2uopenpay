@@ -231,7 +231,6 @@ const MenuPage = () => {
       title: "Legal and Docs",
       items: [
         { icon: BookOpen, label: "OpenPay Documentation", action: () => navigate("/openpay-documentation") },
-        { icon: BookOpen, label: "OpenPay API Docs", action: () => navigate("/openpay-api-docs") },
         { icon: FileText, label: "Pi Whitepaper", action: () => navigate("/pi-whitepaper") },
         { icon: FileText, label: "Pi MiCA Whitepaper", action: () => navigate("/pi-mica-whitepaper") },
         { icon: ShieldCheck, label: "GDPR", action: () => navigate("/gdpr") },
@@ -239,6 +238,14 @@ const MenuPage = () => {
         { icon: FileCheck, label: "Terms", action: () => navigate("/terms") },
         { icon: Lock, label: "Privacy", action: () => navigate("/privacy") },
         { icon: Scale, label: "Legal", action: () => navigate("/legal") },
+      ],
+    },
+    {
+      title: "API Docs",
+      items: [
+        { icon: BookOpen, label: "OpenPay API Docs", action: () => navigate("/openpay-api-docs") },
+        { icon: BookOpen, label: "OpenPay POS Docs", action: () => navigate("/openpay-pos-docs") },
+        { icon: BookOpen, label: "OpenPay Merchant Portal Docs", action: () => navigate("/openpay-merchant-portal-docs") },
       ],
     },
     ...(canOpenAdminDashboard
