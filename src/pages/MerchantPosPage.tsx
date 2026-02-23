@@ -501,6 +501,7 @@ const MerchantPosPage = () => {
       toast.error("Enter an amount first");
       return;
     }
+    playUiSound("receipt");
     window.print();
   };
 

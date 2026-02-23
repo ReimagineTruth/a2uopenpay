@@ -9,7 +9,7 @@ const AnnouncementsPage = () => {
       title: "OpenPay Feature Rollout (Full Platform)",
       date: "Feb 20, 2026",
       body:
-        "OpenPay now includes: Pi-auth and email sign-in, Express Send, Receive QR, request payment, invoices, contacts, merchant portal, merchant checkout links, POS mode, API keys, analytics, virtual card checkout, remittance merchant tools, public ledger, and admin dashboard tools.",
+        "OpenPay now includes: Pi-auth and email sign-in, Express Send, Receive QR, request payment, invoices, contacts, merchant portal, merchant checkout links, POS mode, API keys, analytics, virtual card checkout, remittance merchant tools, OpenLedger, and admin dashboard tools.",
     },
     {
       title: "Transaction Email Notifications Enabled",
@@ -23,9 +23,9 @@ const AnnouncementsPage = () => {
       body: "OpenPay is live with Pi-auth sign-in, Express Send, Receive QR, payment requests, and secure activity history.",
     },
     {
-      title: "Public Ledger Updates",
+      title: "OpenLedger Updates",
       date: "Feb 16, 2026",
-      body: "The public ledger now shows only Pi-auth account transactions and hides record IDs for safety.",
+      body: "OpenLedger now shows only Pi-auth account transactions and hides record IDs for safety.",
     },
   ];
 

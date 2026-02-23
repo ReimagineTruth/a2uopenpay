@@ -227,7 +227,7 @@ serve(async (req) => {
 
     // Record top-up as a self transaction so activity, notifications,
     // realtime hooks, and admin ledger all include it consistently.
-    const { error: transactionError } = await supabase
+    const { data: transactionRow, error: transactionError } = await supabase
       .from("transactions")
       .insert({
         sender_id: user.id,
@@ -235,7 +235,9 @@ serve(async (req) => {
         amount: parsedAmount,
         note: `Wallet top up (PI -> OPEN USD) | ${parsedAmount.toFixed(2)} PI = ${parsedAmountUsd.toFixed(2)} OPEN USD`,
         status: "completed",
-      });
+      })
+      .select("id")
+      .single();
 
     if (transactionError) {
       // Best-effort rollback of wallet update if transaction log fails.
@@ -247,7 +249,7 @@ serve(async (req) => {
       throw transactionError;
     }
 
-    return jsonResponse({ success: true, paymentId });
+    return jsonResponse({ success: true, paymentId, transaction_id: transactionRow?.id || null });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unexpected error";
     return jsonResponse({ error: message }, 400);

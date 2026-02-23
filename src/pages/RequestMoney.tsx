@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { QRCodeSVG } from "qrcode.react";
 import { Html5Qrcode } from "html5-qrcode";
 import { Info } from "lucide-react";
+import TransactionReceipt, { type ReceiptData } from "@/components/TransactionReceipt";
 
 interface Profile {
   id: string;
@@ -50,6 +51,8 @@ const RequestMoney = () => {
   const [accountLookupResult, setAccountLookupResult] = useState<Profile | null>(null);
   const [accountLookupLoading, setAccountLookupLoading] = useState(false);
   const [confirmModalOpen, setConfirmModalOpen] = useState(false);
+  const [receiptOpen, setReceiptOpen] = useState(false);
+  const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
   const [confirmAction, setConfirmAction] = useState<
     | { type: "create"; payer: Profile; amount: number; note: string }
     | { type: "pay"; request: PaymentRequest; requester: Profile | null }
@@ -347,9 +350,9 @@ const RequestMoney = () => {
     await loadData();
   };
 
-  const submitPay = async (request: PaymentRequest) => {
+  const submitPay = async (request: PaymentRequest, requester?: Profile | null) => {
     setLoading(true);
-    const { error } = await supabase.functions.invoke("send-money", {
+    const { data, error } = await supabase.functions.invoke("send-money", {
       body: {
         receiver_id: request.requester_id,
         receiver_email: "__by_id__",
@@ -375,6 +378,18 @@ const RequestMoney = () => {
       return;
     }
 
+    const txId = String((data as { transaction_id?: string } | null)?.transaction_id || "");
+    setReceiptData({
+      transactionId: txId || request.id,
+      ledgerTransactionId: txId || undefined,
+      type: "send",
+      amount: request.amount,
+      otherPartyName: requester?.full_name || "OpenPay User",
+      otherPartyUsername: requester?.username || undefined,
+      note: request.note || "Payment request",
+      date: new Date(),
+    });
+    setReceiptOpen(true);
     toast.success("Request paid");
     await loadData();
   };
@@ -414,7 +429,7 @@ const RequestMoney = () => {
     if (confirmAction.type === "create") {
       await submitCreate();
     } else {
-      await submitPay(confirmAction.request);
+      await submitPay(confirmAction.request, confirmAction.requester);
     }
 
     setConfirmModalOpen(false);
@@ -801,6 +816,12 @@ const RequestMoney = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      <TransactionReceipt
+        open={receiptOpen}
+        onOpenChange={setReceiptOpen}
+        receipt={receiptData}
+      />
     </div>
   );
 };

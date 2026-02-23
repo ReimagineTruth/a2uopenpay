@@ -87,6 +87,7 @@ const MerchantCheckoutThankYouPage = () => {
     if (!transactionId) return;
     setReceiptData({
       transactionId,
+      ledgerTransactionId: transactionId,
       type: "send",
       amount: amountInUsd,
       otherPartyName: mergedMerchantName,

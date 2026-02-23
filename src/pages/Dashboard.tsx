@@ -631,6 +631,7 @@ const Dashboard = () => {
   const showReceipt = (tx: Transaction) => {
     setReceiptData({
       transactionId: tx.id,
+      ledgerTransactionId: tx.id,
       type: tx.is_topup ? "topup" : tx.is_sent ? "send" : "receive",
       amount: tx.amount,
       otherPartyName: tx.other_name,

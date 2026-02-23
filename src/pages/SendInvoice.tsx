@@ -11,6 +11,7 @@ import { useCurrency } from "@/contexts/CurrencyContext";
 import { getFunctionErrorMessage } from "@/lib/supabaseFunctionError";
 import { Info } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import TransactionReceipt, { type ReceiptData } from "@/components/TransactionReceipt";
 
 interface Profile {
   id: string;
@@ -47,6 +48,8 @@ const SendInvoice = () => {
   const [accountLookupLoading, setAccountLookupLoading] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
   const [confirmModalOpen, setConfirmModalOpen] = useState(false);
+  const [receiptOpen, setReceiptOpen] = useState(false);
+  const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
   const [confirmAction, setConfirmAction] = useState<
     | { type: "create"; recipient: Profile; amount: number; description: string; dueDate: string | null }
     | { type: "pay"; invoice: Invoice; sender: Profile | null }
@@ -171,9 +174,9 @@ const SendInvoice = () => {
     await loadData();
   };
 
-  const submitPay = async (invoice: Invoice) => {
+  const submitPay = async (invoice: Invoice, sender?: Profile | null) => {
     setLoading(true);
-    const { error } = await supabase.functions.invoke("send-money", {
+    const { data, error } = await supabase.functions.invoke("send-money", {
       body: {
         receiver_id: invoice.sender_id,
         receiver_email: "__by_id__",
@@ -199,6 +202,18 @@ const SendInvoice = () => {
       return;
     }
 
+    const txId = String((data as { transaction_id?: string } | null)?.transaction_id || "");
+    setReceiptData({
+      transactionId: txId || invoice.id,
+      ledgerTransactionId: txId || undefined,
+      type: "send",
+      amount: invoice.amount,
+      otherPartyName: sender?.full_name || "OpenPay User",
+      otherPartyUsername: sender?.username || undefined,
+      note: invoice.description || "Invoice payment",
+      date: new Date(),
+    });
+    setReceiptOpen(true);
     toast.success("Invoice paid");
     await loadData();
   };
@@ -240,7 +255,7 @@ const SendInvoice = () => {
     if (confirmAction.type === "create") {
       await submitCreate();
     } else {
-      await submitPay(confirmAction.invoice);
+      await submitPay(confirmAction.invoice, confirmAction.sender);
     }
 
     setConfirmModalOpen(false);
@@ -564,6 +579,12 @@ const SendInvoice = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      <TransactionReceipt
+        open={receiptOpen}
+        onOpenChange={setReceiptOpen}
+        receipt={receiptData}
+      />
     </div>
   );
 };

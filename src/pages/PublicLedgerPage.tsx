@@ -84,11 +84,11 @@ const PublicLedgerPage = () => {
             <ArrowLeft className="h-6 w-6 text-foreground" />
           </button>
           <div>
-            <h1 className="text-xl font-bold text-paypal-dark">Public Ledger</h1>
+            <h1 className="text-xl font-bold text-paypal-dark">OpenLedger</h1>
             <p className="text-xs text-muted-foreground">
               {transactionId
-                ? `Public record for transaction ${transactionId.slice(0, 8)}...`
-                : "Public transaction history. User IDs are not shown."}
+                ? `OpenLedger record for transaction ${transactionId.slice(0, 8)}...`
+                : "OpenLedger transaction history. User IDs are not shown."}
             </p>
           </div>
         </div>
@@ -118,7 +118,7 @@ const PublicLedgerPage = () => {
               </div>
               <div className="text-right">
                 <p className="font-semibold text-paypal-success">{formatCurrency(row.amount)}</p>
-                <p className="text-xs text-muted-foreground">Public record</p>
+                <p className="text-xs text-muted-foreground">OpenLedger record</p>
               </div>
             </div>
           ))}

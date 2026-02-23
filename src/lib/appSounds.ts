@@ -1,7 +1,8 @@
 const SOUND_URLS = {
   scan: "https://www.myinstants.com/media/sounds/store-scanner-beep-sound-effect.mp3",
   send: "https://www.myinstants.com/media/sounds/applepay.mp3",
-  receive: "https://www.myinstants.com/media/sounds/notification-bell_VW6Rkj4.mp3",
+  receive: "https://www.myinstants.com/media/sounds/dono_UZmG3Ta.mp3",
+  receipt: "https://www.myinstants.com/media/sounds/cashier-receipt-servo-sound-effect.mp3",
 } as const;
 
 type SoundKind = keyof typeof SOUND_URLS;
@@ -55,4 +56,3 @@ export const playUiSound = (kind: SoundKind) => {
     playFallbackTone();
   }
 };
-

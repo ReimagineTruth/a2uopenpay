@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-const notificationBellSoundUrl = "https://www.myinstants.com/media/sounds/notification-bell_VW6Rkj4.mp3";
+const notificationBellSoundUrl = "https://www.myinstants.com/media/sounds/dono_UZmG3Ta.mp3";
 let notificationBellAudio: HTMLAudioElement | null = null;
 let receiveSoundUnlocked = false;
 

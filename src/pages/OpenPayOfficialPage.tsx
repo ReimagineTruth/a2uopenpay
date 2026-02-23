@@ -38,7 +38,7 @@ const OpenPayOfficialPage = () => {
     },
     {
       icon: BookOpen,
-      title: "Activity and Public Ledger",
+      title: "Activity and OpenLedger",
       description: "Review transparent payment history with auditable records and receipt details.",
     },
     {

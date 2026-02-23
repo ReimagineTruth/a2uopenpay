@@ -155,30 +155,28 @@ const MenuPage = () => {
 
   const sections = [
     {
-      title: "Send and pay",
+      title: "Transactions",
       items: [
         { icon: Send, label: "Express Send", action: () => navigate("/send") },
         { icon: ArrowLeftRight, label: "Transfer balance", action: () => navigate("/topup") },
-      ],
-    },
-    {
-      title: "Get paid",
-      items: [
         { icon: CircleDollarSign, label: "Request payment", action: () => navigate("/request-payment") },
         { icon: FileText, label: "Send invoice", action: () => navigate("/send-invoice") },
       ],
     },
     {
-      title: "Manage finances",
+      title: "Wallet and Account",
       items: [
-        { icon: Users, label: "User profile", action: () => navigate("/profile") },
         { icon: Wallet, label: "Wallet", action: () => navigate("/dashboard") },
+        { icon: Users, label: "User profile", action: () => navigate("/profile") },
+        { icon: CreditCard, label: "OpenPay Virtual Card", action: () => navigate("/virtual-card") },
+        { icon: ArrowLeftRight, label: "Currency converter", action: () => navigate("/currency-converter") },
+      ],
+    },
+    {
+      title: "Merchant",
+      items: [
         { icon: Store, label: "Merchant Portal", action: () => navigate("/merchant-onboarding") },
         { icon: Store, label: "Merchant POS", action: () => navigate("/merchant-pos") },
-        ...(canOpenAdminDashboard
-          ? [{ icon: ShieldCheck, label: "Admin Dashboard", action: () => navigate("/admin-dashboard") }]
-          : []),
-        { icon: CreditCard, label: "OpenPay Virtual Card", action: () => navigate("/virtual-card") },
         { icon: FileText, label: "Payment Link Creator", action: () => navigate("/payment-links/create") },
         ...(remittanceUiEnabled
           ? [{
@@ -195,16 +193,20 @@ const MenuPage = () => {
               subtitle: hasRemittanceAccess ? "Developer access enabled" : "Under development",
             }]
           : []),
-        { icon: ArrowLeftRight, label: "Currency converter", action: () => navigate("/currency-converter") },
-        { icon: Activity, label: "Activity", action: () => navigate("/activity") },
-        { icon: BookOpen, label: "Public ledger", action: () => navigate("/ledger") },
-        { icon: Users, label: "Affiliate referrals", action: () => navigate("/affiliate") },
-        { icon: Clapperboard, label: "Pi Ad Network", action: () => navigate("/pi-ads") },
       ],
     },
     {
-      title: "Rewards",
+      title: "Activity and Records",
       items: [
+        { icon: Activity, label: "Activity", action: () => navigate("/activity") },
+        { icon: BookOpen, label: "OpenLedger", action: () => navigate("/ledger") },
+      ],
+    },
+    {
+      title: "Earning and Bonus",
+      items: [
+        { icon: Users, label: "Affiliate referrals", action: () => navigate("/affiliate") },
+        { icon: Clapperboard, label: "Pi Ad Network", action: () => navigate("/pi-ads") },
         {
           icon: CircleDollarSign,
           label: welcomeClaimedAt ? "Welcome bonus claimed" : "Claim $1 welcome bonus",
@@ -215,17 +217,21 @@ const MenuPage = () => {
       ],
     },
     {
-      title: "Get support",
+      title: "Support",
       items: [
         { icon: ShieldAlert, label: "Disputes", action: () => navigate("/disputes") },
         { icon: HelpCircle, label: "Help Center", action: () => navigate("/help-center") },
         { icon: Megaphone, label: "Announcements", action: () => navigate("/announcements") },
         { icon: Smartphone, label: "OpenPay Official Page", action: () => navigate("/openpay-official") },
-        { icon: Smartphone, label: "OpenApp Utility Apps", action: () => navigate("/openapp") },
         { icon: Store, label: "Where to use OpenPay", action: () => navigate("/openpay-guide") },
+        { icon: Handshake, label: "Open Partner", action: () => navigate("/open-partner") },
+      ],
+    },
+    {
+      title: "Legal and Docs",
+      items: [
         { icon: BookOpen, label: "OpenPay Documentation", action: () => navigate("/openpay-documentation") },
         { icon: BookOpen, label: "OpenPay API Docs", action: () => navigate("/openpay-api-docs") },
-        { icon: Handshake, label: "Open Partner", action: () => navigate("/open-partner") },
         { icon: FileText, label: "Pi Whitepaper", action: () => navigate("/pi-whitepaper") },
         { icon: FileText, label: "Pi MiCA Whitepaper", action: () => navigate("/pi-mica-whitepaper") },
         { icon: ShieldCheck, label: "GDPR", action: () => navigate("/gdpr") },
@@ -233,6 +239,18 @@ const MenuPage = () => {
         { icon: FileCheck, label: "Terms", action: () => navigate("/terms") },
         { icon: Lock, label: "Privacy", action: () => navigate("/privacy") },
         { icon: Scale, label: "Legal", action: () => navigate("/legal") },
+      ],
+    },
+    ...(canOpenAdminDashboard
+      ? [{
+          title: "Admin",
+          items: [{ icon: ShieldCheck, label: "Admin Dashboard", action: () => navigate("/admin-dashboard") }],
+        }]
+      : []),
+    {
+      title: "Utility App",
+      items: [
+        { icon: Smartphone, label: "OpenApp Utility Apps", action: () => navigate("/openapp") },
       ],
     },
     {

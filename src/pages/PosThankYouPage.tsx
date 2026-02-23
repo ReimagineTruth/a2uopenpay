@@ -75,6 +75,7 @@ const PosThankYouPage = () => {
     if (!sessionData || !transactionId) return;
     setReceiptData({
       transactionId,
+      ledgerTransactionId: transactionId,
       type: "send",
       amount: amountInUsd,
       otherPartyName: sessionData.merchant_name,

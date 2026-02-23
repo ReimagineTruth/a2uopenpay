@@ -3,9 +3,11 @@ import { Button } from "@/components/ui/button";
 import { CheckCircle, Download, ExternalLink, X } from "lucide-react";
 import { format } from "date-fns";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { playUiSound } from "@/lib/appSounds";
 
 interface ReceiptData {
   transactionId: string;
+  ledgerTransactionId?: string;
   type: "send" | "receive" | "topup";
   amount: number;
   otherPartyName?: string;
@@ -32,11 +34,17 @@ const toPreviewText = (value: string, max = 60) => {
   const tokenShortened = raw
     .replace(/\bopsess_[a-zA-Z0-9_-]+\b/g, (m) => shortenToken(m))
     .replace(/\boplink_[a-zA-Z0-9_-]+\b/g, (m) => shortenToken(m))
+    .replace(/\b[a-zA-Z]{2,}_[a-zA-Z0-9_-]{16,}\b/g, (m) => shortenToken(m))
     .replace(/\bhttps?:\/\/[^\s]+/gi, (m) => shortenToken(m, 22, 10));
 
   if (tokenShortened.length <= max) return tokenShortened;
   return `${tokenShortened.slice(0, max - 3)}...`;
 };
+
+const shortenTransactionId = (transactionId: string) =>
+  transactionId.length > 18 ? `${transactionId.slice(0, 10)}...${transactionId.slice(-6)}` : transactionId;
+
+const isUuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 
 const TransactionReceipt = ({ open, onOpenChange, receipt }: TransactionReceiptProps) => {
   const { format: formatCurrency } = useCurrency();
@@ -45,10 +53,12 @@ const TransactionReceipt = ({ open, onOpenChange, receipt }: TransactionReceiptP
 
   const typeLabel =
     receipt.type === "topup" ? "Top Up" : receipt.type === "send" ? "Payment Sent" : "Payment Received";
-  const transactionIdPreview =
-    receipt.transactionId.length > 18
-      ? `${receipt.transactionId.slice(0, 10)}...${receipt.transactionId.slice(-6)}`
-      : receipt.transactionId;
+  const transactionIdPreview = shortenTransactionId(receipt.transactionId);
+  const ledgerTransactionId = isUuid(receipt.ledgerTransactionId || "")
+    ? String(receipt.ledgerTransactionId)
+    : isUuid(receipt.transactionId)
+      ? receipt.transactionId
+      : "";
 
   const handleSave = () => {
     const canvas = document.createElement("canvas");
@@ -61,7 +71,37 @@ const TransactionReceipt = ({ open, onOpenChange, receipt }: TransactionReceiptP
       const words = String(text || "").split(/\s+/).filter(Boolean);
       const lines: string[] = [];
       let line = "";
+
+      const splitLongWord = (word: string) => {
+        const chunks: string[] = [];
+        let current = "";
+        for (const char of word) {
+          const test = `${current}${char}`;
+          if (ctx.measureText(test).width <= maxWidth) {
+            current = test;
+          } else {
+            if (current) chunks.push(current);
+            current = char;
+          }
+        }
+        if (current) chunks.push(current);
+        return chunks;
+      };
+
       for (const word of words) {
+        if (ctx.measureText(word).width > maxWidth) {
+          if (line) {
+            lines.push(line);
+            line = "";
+          }
+          const chunks = splitLongWord(word);
+          for (let i = 0; i < chunks.length; i += 1) {
+            const chunk = chunks[i];
+            if (i === chunks.length - 1) line = chunk;
+            else lines.push(chunk);
+          }
+          continue;
+        }
         const test = line ? `${line} ${word}` : word;
         if (ctx.measureText(test).width <= maxWidth) {
           line = test;
@@ -103,10 +143,10 @@ const TransactionReceipt = ({ open, onOpenChange, receipt }: TransactionReceiptP
 
     const rows: Array<[string, string]> = [
       ["Date", format(receipt.date, "MMM d, yyyy h:mm a")],
-      ["Transaction ID", receipt.transactionId],
+      ["Transaction ID", transactionIdPreview],
       [receipt.type === "send" ? "To" : "From", receipt.otherPartyName || "N/A"],
       ["Username", receipt.otherPartyUsername ? `@${receipt.otherPartyUsername}` : "N/A"],
-      ["Note", receipt.note || "N/A"],
+      ["Note", receipt.note ? toPreviewText(receipt.note, 90) : "N/A"],
     ];
 
     ctx.textAlign = "left";
@@ -137,10 +177,12 @@ const TransactionReceipt = ({ open, onOpenChange, receipt }: TransactionReceiptP
     a.href = canvas.toDataURL("image/png");
     a.download = `openpay-receipt-${receipt.transactionId.slice(0, 8)}.png`;
     a.click();
+    playUiSound("receipt");
   };
 
   const openLedgerTransaction = () => {
-    const txId = encodeURIComponent(receipt.transactionId);
+    if (!ledgerTransactionId) return;
+    const txId = encodeURIComponent(ledgerTransactionId);
     window.location.assign(`/ledger?tx=${txId}`);
   };
 
@@ -164,12 +206,14 @@ const TransactionReceipt = ({ open, onOpenChange, receipt }: TransactionReceiptP
             <span className="text-muted-foreground">Transaction ID</span>
             <span className="text-foreground font-mono text-xs">{transactionIdPreview}</span>
           </div>
-          <div className="flex justify-end">
-            <Button variant="link" className="h-auto p-0 text-xs" onClick={openLedgerTransaction}>
-              <ExternalLink className="mr-1 h-3.5 w-3.5" />
-              View on Public Ledger
-            </Button>
-          </div>
+          {!!ledgerTransactionId && (
+            <div className="flex justify-end">
+              <Button variant="link" className="h-auto p-0 text-xs" onClick={openLedgerTransaction}>
+                <ExternalLink className="mr-1 h-3.5 w-3.5" />
+                View on OpenLedger
+              </Button>
+            </div>
+          )}
           {receipt.otherPartyName && (
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">{receipt.type === "send" ? "To" : "From"}</span>

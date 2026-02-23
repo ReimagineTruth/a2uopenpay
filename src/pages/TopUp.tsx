@@ -10,6 +10,8 @@ import { getFunctionErrorMessage } from "@/lib/supabaseFunctionError";
 import TransactionReceipt, { type ReceiptData } from "@/components/TransactionReceipt";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 
+const isUuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+
 const TopUp = () => {
   const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(false);
@@ -98,8 +100,9 @@ const TopUp = () => {
   const invokeTopUpAction = async (body: Record<string, unknown>, fallbackError: string) => {
     const { data, error } = await supabase.functions.invoke("top-up", { body });
     if (error) throw new Error(await getFunctionErrorMessage(error, fallbackError));
-    const payload = data as { success?: boolean; error?: string } | null;
+    const payload = data as { success?: boolean; error?: string; transaction_id?: string | null } | null;
     if (payload && payload.success === false) throw new Error(payload.error || fallbackError);
+    return payload;
   };
 
   const verifyPiAccessToken = async (accessToken: string) => {
@@ -164,6 +167,7 @@ const TopUp = () => {
 
       let completedPaymentId = "";
       let completedTxid = "";
+      let creditedTransactionId = "";
 
       await new Promise<void>((resolve, reject) => {
         let completed = false;
@@ -188,7 +192,7 @@ const TopUp = () => {
               completedPaymentId = paymentId;
               completedTxid = txid;
               await invokeTopUpAction({ action: "complete", paymentId, txid }, "Pi server completion failed");
-              await invokeTopUpAction(
+              const creditResult = await invokeTopUpAction(
                 {
                   action: "credit",
                   amount: parsedAmount,
@@ -200,6 +204,9 @@ const TopUp = () => {
                 },
                 "Top up failed",
               );
+              if (typeof creditResult?.transaction_id === "string" && creditResult.transaction_id) {
+                creditedTransactionId = creditResult.transaction_id;
+              }
               resolve();
             },
             onCancel: () => reject(new Error("Payment cancelled")),
@@ -216,8 +223,10 @@ const TopUp = () => {
         );
       });
 
+      const receiptTransactionId = creditedTransactionId || completedTxid || completedPaymentId || crypto.randomUUID();
       setReceiptData({
-        transactionId: completedPaymentId || completedTxid || crypto.randomUUID(),
+        transactionId: receiptTransactionId,
+        ledgerTransactionId: isUuid(creditedTransactionId) ? creditedTransactionId : undefined,
         type: "topup",
         amount: parsedAmount,
         note: "Pi Network top up (PI -> OPEN USD)",

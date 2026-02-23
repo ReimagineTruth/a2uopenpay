@@ -429,6 +429,7 @@ const SendMoney = () => {
     setLoading(false);
     setReceiptData({
       transactionId: txId,
+      ledgerTransactionId: txId,
       type: "send",
       amount: usdAmount,
       otherPartyName: selectedUser.full_name,
