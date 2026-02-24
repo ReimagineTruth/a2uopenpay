@@ -1079,6 +1079,14 @@ const Dashboard = () => {
     navigate(`/swap-withdrawal?amount=${amountForSwap.toFixed(2)}`);
   };
 
+  const getSwapWithdrawalUrl = () => {
+    if (Number.isFinite(safeSwapSpend) && safeSwapSpend > 0) {
+      const amountForSwap = Math.max(0.01, Number(swapOpenUsdAmount.toFixed(2)));
+      return `/swap-withdrawal?amount=${amountForSwap.toFixed(2)}`;
+    }
+    return "/swap-withdrawal";
+  };
+
   return (
     <div className="min-h-screen overflow-x-hidden bg-background pb-28">
       <div className="flex items-center justify-between px-4 pt-5">
@@ -1788,7 +1796,7 @@ const Dashboard = () => {
             </button>
             <button
               type="button"
-              onClick={() => navigate("/swap-withdrawal")}
+              onClick={() => navigate(getSwapWithdrawalUrl())}
               className="mt-2 h-11 w-full rounded-xl border border-paypal-blue/40 bg-white text-sm font-semibold text-paypal-blue"
             >
               Withdraw OpenUSD to PI Wallet

@@ -4,6 +4,7 @@ import { ArrowLeft, Copy, HelpCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import TopUpAccountDetails from "@/components/TopUpAccountDetails";
 
 const PAYPAL_ICON_URL = "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/PayPal.svg/1920px-PayPal.svg.png";
 const PAYPAL_CLIENT_ID = (import.meta.env.VITE_PAYPAL_CLIENT_ID as string | undefined) ??
@@ -39,6 +40,7 @@ const TopUpPaypal = () => {
   const [showSafetyAgreement, setShowSafetyAgreement] = useState(false);
   const [safetyAgreementChecked, setSafetyAgreementChecked] = useState(false);
   const [safetyAccepted, setSafetyAccepted] = useState(false);
+  const [paymentCompleted, setPaymentCompleted] = useState(false);
   const paypalButtonRef = useRef<HTMLDivElement | null>(null);
   const paypalSectionRef = useRef<HTMLDivElement | null>(null);
 
@@ -191,6 +193,22 @@ const TopUpPaypal = () => {
         <p className="mt-3 text-center text-sm font-medium text-foreground">
           Note: PayPal checkout will redirect you to PayPal. Review the top-up instructions below, then proceed with your top up.
         </p>
+
+        <Button
+          type="button"
+          variant="outline"
+          className="mt-4 h-11 w-full rounded-2xl"
+          onClick={() => setPaymentCompleted(true)}
+          disabled={!safetyAccepted || safeUsdAmount <= 0}
+        >
+          I completed PayPal payment
+        </Button>
+
+        {paymentCompleted && (
+          <div className="mt-5 rounded-2xl border border-border bg-white p-4">
+            <TopUpAccountDetails providerName="PayPal" amount={safeUsdAmount} submitLabel="Submit PayPal Top Up" />
+          </div>
+        )}
 
         <Button
           type="button"

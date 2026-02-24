@@ -46,6 +46,9 @@ BEFORE UPDATE ON public.user_swap_withdrawals
 FOR EACH ROW
 EXECUTE FUNCTION public.set_common_updated_at();
 
+-- Parameter name changes require dropping existing function signature.
+DROP FUNCTION IF EXISTS public.submit_swap_withdrawal(NUMERIC, TEXT, TEXT, TEXT, TEXT);
+
 CREATE OR REPLACE FUNCTION public.submit_swap_withdrawal(
   p_amount NUMERIC,
   p_openpay_account_name TEXT,
@@ -194,28 +197,6 @@ BEGIN
 
   RETURN v_row;
 END;
-$$;
-
--- Backward-compatible wrapper (older client arg order)
-CREATE OR REPLACE FUNCTION public.submit_swap_withdrawal(
-  p_amount NUMERIC,
-  p_openpay_account_name TEXT,
-  p_openpay_account_number TEXT,
-  p_openpay_account_username TEXT,
-  p_pi_wallet_address TEXT
-)
-RETURNS public.user_swap_withdrawals
-LANGUAGE sql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT public.submit_swap_withdrawal(
-    p_amount,
-    p_openpay_account_name,
-    p_openpay_account_username,
-    p_openpay_account_number,
-    p_pi_wallet_address
-  );
 $$;
 
 CREATE OR REPLACE FUNCTION public.admin_list_swap_withdrawals(

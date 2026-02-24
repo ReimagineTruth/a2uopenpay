@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { useState } from "react";
+import TopUpAccountDetails from "@/components/TopUpAccountDetails";
 
 const APPLE_PAY_ICON_URL =
   "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b0/Apple_Pay_logo.svg/1920px-Apple_Pay_logo.svg.png";
@@ -16,6 +17,7 @@ const TopUpApplePay = () => {
   const [showSafetyAgreement, setShowSafetyAgreement] = useState(false);
   const [safetyAgreementChecked, setSafetyAgreementChecked] = useState(false);
   const [safetyAccepted, setSafetyAccepted] = useState(false);
+  const [paymentCompleted, setPaymentCompleted] = useState(false);
 
   const parsedUsdAmount = Number(searchParams.get("openUsdAmount") || searchParams.get("amount") || "0");
   const safeUsdAmount = Number.isFinite(parsedUsdAmount) && parsedUsdAmount > 0 ? parsedUsdAmount : 0;
@@ -99,6 +101,22 @@ const TopUpApplePay = () => {
         <p className="mt-3 text-center text-sm font-medium text-foreground">
           Note: Apple Pay checkout may redirect you. Review the top-up instructions below, then proceed with your top up.
         </p>
+
+        <Button
+          type="button"
+          variant="outline"
+          className="mt-4 h-11 w-full rounded-2xl"
+          onClick={() => setPaymentCompleted(true)}
+          disabled={!safetyAccepted || safeUsdAmount <= 0}
+        >
+          I completed Apple Pay payment
+        </Button>
+
+        {paymentCompleted && (
+          <div className="mt-5 rounded-2xl border border-border bg-white p-4">
+            <TopUpAccountDetails providerName="Apple Pay" amount={safeUsdAmount} submitLabel="Submit Apple Pay Top Up" />
+          </div>
+        )}
 
         <Button
           type="button"

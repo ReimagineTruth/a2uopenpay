@@ -5,6 +5,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import TopUpAccountDetails from "@/components/TopUpAccountDetails";
 const JQRPH_ICON_URL = "https://upload.wikimedia.org/wikipedia/commons/thumb/3/35/QR_Ph_Logo.svg/960px-QR_Ph_Logo.svg.png?20250310160234";
 const E_WALLET_PHP_PER_OUSD = 57;
 
@@ -17,6 +18,7 @@ const TopUpEwalletQrPh = () => {
   const [showSupportedQrPh, setShowSupportedQrPh] = useState(false);
   const [showSafetyAgreement, setShowSafetyAgreement] = useState(false);
   const [safetyAgreementChecked, setSafetyAgreementChecked] = useState(false);
+  const [paymentCompleted, setPaymentCompleted] = useState(false);
 
   const parsedPhpAmount = Number(searchParams.get("phpAmount") || "0");
   const safePhpAmount = Number.isFinite(parsedPhpAmount) && parsedPhpAmount > 0 ? parsedPhpAmount : 0;
@@ -94,6 +96,22 @@ const TopUpEwalletQrPh = () => {
         <p className="mt-3 text-center text-sm font-medium text-foreground">
           Note: Scanning this QR code will redirect you to a third-party payment provider. Read the top-up instructions below, review all disclaimers, then proceed with your top up.
         </p>
+
+        <Button
+          type="button"
+          variant="outline"
+          className="mt-4 h-11 w-full rounded-2xl"
+          onClick={() => setPaymentCompleted(true)}
+          disabled={roundedOpenUsdAmount <= 0}
+        >
+          I completed QR PH payment
+        </Button>
+
+        {paymentCompleted && (
+          <div className="mt-5 rounded-2xl border border-border bg-white p-4">
+            <TopUpAccountDetails providerName="Ewallet QR PH" amount={roundedOpenUsdAmount} submitLabel="Submit Ewallet Top Up" />
+          </div>
+        )}
 
         <Button
           type="button"

@@ -53,6 +53,9 @@ import PiAuthPage from "./pages/PiAuthPage";
 import SetupProfilePage from "./pages/SetupProfilePage";
 import PiAdsPage from "./pages/PiAdsPage";
 import AdminDashboard from "./pages/AdminDashboard";
+import AdminSwapWithdrawalsPage from "./pages/AdminSwapWithdrawalsPage";
+import AdminLoanApplicationsPage from "./pages/AdminLoanApplicationsPage";
+import AdminTopUpRequestsPage from "./pages/AdminTopUpRequestsPage";
 import MerchantOnboardingPage from "./pages/MerchantOnboardingPage";
 import OpenPayOfficialPage from "./pages/OpenPayOfficialPage";
 import RemittanceMerchantPage from "./pages/RemittanceMerchantPage";
@@ -114,6 +117,9 @@ const AppRoutes = () => {
         <Route path="/sign-in" element={<AdminMrwainAuth />} />
         <Route path="/admin-mrwain" element={<LegacyAdminMrwainRedirect />} />
         <Route path="/admin-dashboard" element={<AdminDashboard />} />
+        <Route path="/admin-swap-withrawals" element={<AdminSwapWithdrawalsPage />} />
+        <Route path="/admin-loan-applications" element={<AdminLoanApplicationsPage />} />
+        <Route path="/admin-topup-requests" element={<AdminTopUpRequestsPage />} />
         <Route path="/signin" element={<Navigate to="/sign-in?mode=signin" replace />} />
         <Route path="/signup" element={<Navigate to="/sign-in?mode=signup" replace />} />
         <Route path="/dashboard" element={<Dashboard />} />

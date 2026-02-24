@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { ArrowLeft, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
@@ -86,6 +86,7 @@ const displayNullableName = (
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [historyRows, setHistoryRows] = useState<AdminHistoryRow[]>([]);
   const [summary, setSummary] = useState<AdminSummary | null>(null);
@@ -126,10 +127,9 @@ const AdminDashboard = () => {
           .select("username")
           .eq("id", user.id)
           .maybeSingle();
-        const normalizedUsername = (profile?.username || "").trim().toLowerCase();
+        const normalizedUsername = (profile?.username || "").trim().toLowerCase().replace(/^@+/, "");
         setViewerUsername(normalizedUsername);
-        const normalizedEmailLocal = String(user.email || "").split("@")[0].trim().toLowerCase();
-        if (!ADMIN_PROFILE_USERNAMES.has(normalizedUsername) && !ADMIN_PROFILE_USERNAMES.has(normalizedEmailLocal)) {
+        if (!ADMIN_PROFILE_USERNAMES.has(normalizedUsername)) {
           toast.error("Admin access is restricted to @openpay and @wainfoundation");
           navigate("/dashboard", { replace: true });
           return;
@@ -229,6 +229,16 @@ const AdminDashboard = () => {
     loadPage(0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (location.hash !== "#swap-withdrawals") return;
+    const target = document.getElementById("swap-withdrawals");
+    if (!target) return;
+    const timer = window.setTimeout(() => {
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 200);
+    return () => window.clearTimeout(timer);
+  }, [location.hash]);
 
   const isSelfSendRow = (row: AdminHistoryRow) =>
     row.source_table === "transactions" &&
@@ -417,7 +427,7 @@ const AdminDashboard = () => {
           </table>
         </div>
 
-        <div className="mt-6 rounded-2xl border border-border bg-card p-4">
+        <div id="swap-withdrawals" className="mt-6 rounded-2xl border border-border bg-card p-4">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-lg font-bold text-paypal-dark">Loan Applications (Pending)</h2>
             <p className="text-xs text-muted-foreground">{loanApplications.length} pending</p>

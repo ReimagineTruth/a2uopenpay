@@ -159,6 +159,7 @@ const MenuPage = () => {
       items: [
         { icon: Send, label: "Express Send", action: () => navigate("/send") },
         { icon: ArrowLeftRight, label: "Transfer balance", action: () => navigate("/topup") },
+        { icon: ArrowLeftRight, label: "Swap Withdrawal", action: () => navigate("/swap-withdrawal") },
         { icon: CircleDollarSign, label: "Request payment", action: () => navigate("/request-payment") },
         { icon: FileText, label: "Send invoice", action: () => navigate("/send-invoice") },
       ],
@@ -251,7 +252,12 @@ const MenuPage = () => {
     ...(canOpenAdminDashboard
       ? [{
           title: "Admin",
-          items: [{ icon: ShieldCheck, label: "Admin Dashboard", action: () => navigate("/admin-dashboard") }],
+          items: [
+            { icon: ShieldCheck, label: "Admin Dashboard", action: () => navigate("/admin-dashboard") },
+            { icon: ShieldCheck, label: "Swap Withdrawals", action: () => navigate("/admin-swap-withrawals") },
+            { icon: ShieldCheck, label: "Loan Applications", action: () => navigate("/admin-loan-applications") },
+            { icon: ShieldCheck, label: "Top Up Requests", action: () => navigate("/admin-topup-requests") },
+          ],
         }]
       : []),
     {

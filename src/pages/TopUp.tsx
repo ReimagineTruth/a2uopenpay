@@ -9,6 +9,7 @@ import { useCurrency } from "@/contexts/CurrencyContext";
 import { getFunctionErrorMessage } from "@/lib/supabaseFunctionError";
 import TransactionReceipt, { type ReceiptData } from "@/components/TransactionReceipt";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import TopUpAccountDetails from "@/components/TopUpAccountDetails";
 
 const isUuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 const PI_PAYMENT_ICON_URL = "https://i.ibb.co/jk8XtTPj/pi-network-pi-icons-pi-logo-design-illustration-trendy-and-modern-crypto-currency-pi-symbol-for-logo.png";
@@ -21,6 +22,7 @@ const TopUp = () => {
   const [showInstructions, setShowInstructions] = useState(false);
   const [showSafetyAgreement, setShowSafetyAgreement] = useState(false);
   const [safetyAgreementChecked, setSafetyAgreementChecked] = useState(false);
+  const [paymentCompleted, setPaymentCompleted] = useState(false);
   const [generatedTopUpLink, setGeneratedTopUpLink] = useState("");
   const [userAccountNumber, setUserAccountNumber] = useState("");
   const [userAccountUsername, setUserAccountUsername] = useState("");
@@ -238,6 +240,7 @@ const TopUp = () => {
       });
       setReceiptOpen(true);
       toast.success(`${usdCurrency.symbol}${parsedAmount.toFixed(2)} added to your balance!`);
+      setPaymentCompleted(true);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Top up failed");
     } finally {
@@ -331,6 +334,12 @@ const TopUp = () => {
         <p className="mt-3 text-center text-sm font-medium text-foreground">
           Note: Pi payment completes in Pi Browser. If you are not in Pi Browser, generate a top-up link and open it there.
         </p>
+
+        {paymentCompleted && (
+          <div className="mt-5 rounded-2xl border border-border bg-white p-4">
+            <TopUpAccountDetails providerName="Pi Payment" amount={safeAmount} submitLabel="Submit Pi Top Up Request" />
+          </div>
+        )}
 
         <Button
           type="button"

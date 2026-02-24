@@ -1,8 +1,9 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import TopUpAccountDetails from "@/components/TopUpAccountDetails";
 
 type TopUpProviderPageProps = {
   providerName: string;
@@ -25,6 +26,7 @@ const TopUpProviderPage = ({
   const usdDisplay = safeUsdAmount > 0 ? safeUsdAmount.toFixed(2) : "0.00";
 
   const openUsdDisplay = useMemo(() => usdDisplay, [usdDisplay]);
+  const [paymentCompleted, setPaymentCompleted] = useState(false);
 
   const handleProceed = () => {
     if (!providerUrl) {
@@ -76,6 +78,26 @@ const TopUpProviderPage = ({
             </p>
           )}
         </div>
+
+        <Button
+          type="button"
+          variant="outline"
+          className="mt-4 h-11 w-full rounded-2xl"
+          onClick={() => setPaymentCompleted(true)}
+          disabled={safeUsdAmount <= 0}
+        >
+          I completed {providerName} payment
+        </Button>
+
+        {paymentCompleted && (
+          <div className="mt-5 rounded-2xl border border-border bg-white p-4">
+            <TopUpAccountDetails
+              providerName={providerName}
+              amount={safeUsdAmount}
+              submitLabel={`Submit ${providerName} Top Up`}
+            />
+          </div>
+        )}
 
         <Button
           type="button"

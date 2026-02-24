@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import BrandLogo from "@/components/BrandLogo";
 
 type SwapWithdrawalRow = {
@@ -30,6 +31,7 @@ const normalizeUsername = (value: string) => value.trim().replace(/^@+/, "").toL
 
 const SwapWithdrawalPage = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [amount, setAmount] = useState("");
@@ -38,6 +40,8 @@ const SwapWithdrawalPage = () => {
   const [openpayAccountNumber, setOpenpayAccountNumber] = useState("");
   const [piWalletAddress, setPiWalletAddress] = useState("");
   const [agreementAccepted, setAgreementAccepted] = useState(false);
+  const [showAgreementModal, setShowAgreementModal] = useState(false);
+  const [agreementChecked, setAgreementChecked] = useState(false);
   const [history, setHistory] = useState<SwapWithdrawalRow[]>([]);
   const [piPriceUsd, setPiPriceUsd] = useState<number | null>(null);
   const [piPriceUpdatedAt, setPiPriceUpdatedAt] = useState<number | null>(null);
@@ -143,6 +147,15 @@ const SwapWithdrawalPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    const amountParam = searchParams.get("amount");
+    if (!amountParam) return;
+    const parsed = Number(amountParam);
+    if (!Number.isFinite(parsed) || parsed <= 0) return;
+    const formatted = parsed.toFixed(2);
+    setAmount((prev) => prev || formatted);
+  }, [searchParams]);
+
   const submitWithdrawal = async () => {
     if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
       toast.error("Enter a valid amount");
@@ -157,10 +170,15 @@ const SwapWithdrawalPage = () => {
       return;
     }
     if (!agreementAccepted) {
-      toast.error("Accept the withdrawal agreement to continue");
+      setAgreementChecked(false);
+      setShowAgreementModal(true);
       return;
     }
 
+    await submitWithdrawalRequest();
+  };
+
+  const submitWithdrawalRequest = async () => {
     setLoading(true);
     try {
       const { data, error } = await supabase.rpc("submit_swap_withdrawal", {
@@ -183,6 +201,13 @@ const SwapWithdrawalPage = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const confirmAgreementAndSubmit = async () => {
+    if (!agreementChecked) return;
+    setAgreementAccepted(true);
+    setShowAgreementModal(false);
+    await submitWithdrawalRequest();
   };
 
   return (
@@ -212,14 +237,14 @@ const SwapWithdrawalPage = () => {
           </Button>
         </div>
 
-        <div className="paypal-surface rounded-3xl p-4">
+        <div className="paypal-surface rounded-3xl p-4 space-y-4">
           <div className="rounded-2xl border border-border/70 bg-secondary/30 p-4 text-sm text-muted-foreground">
             <p className="font-semibold text-foreground">How this works</p>
             <p className="mt-2">1. Fill in your OpenPay identity and mainnet PI wallet address.</p>
             <p>2. When you submit, your OpenUSD is moved to the settlement account {SETTLEMENT_USERNAME} ({SETTLEMENT_ACCOUNT_NUMBER}).</p>
             <p>3. After admin approval, you receive PI to your mainnet wallet. Rate is always 1 OPEN USD = 1 PI.</p>
             <p>4. A 2% processing fee applies to withdrawals.</p>
-            <div className="mt-3 rounded-xl border border-border/60 bg-white/70 p-3 text-xs text-foreground">
+            <div className="mt-3 rounded-xl border border-border/60 bg-secondary/30 p-3 text-xs text-foreground">
               <div className="flex items-center justify-between">
                 <span className="inline-flex items-center gap-2">
                   <img src={PI_LOGO_URL} alt="Pi" className="h-4 w-4" />
@@ -241,6 +266,11 @@ const SwapWithdrawalPage = () => {
             </p>
           </div>
 
+          <div>
+            <p className="text-sm font-semibold text-foreground">Withdrawal details</p>
+            <p className="text-xs text-muted-foreground">Confirm your OpenPay identity and enter your PI wallet address.</p>
+          </div>
+
           <div className="mt-4 grid gap-3">
             <label className="space-y-1 text-xs text-muted-foreground">
               <span>OpenUSD amount (min 1)</span>
@@ -251,7 +281,9 @@ const SwapWithdrawalPage = () => {
                 min="1"
                 step="0.01"
                 placeholder="Enter amount"
-                className="h-11 w-full rounded-xl border border-border px-3 text-sm text-foreground"
+                readOnly
+                aria-readonly="true"
+                className="h-11 w-full rounded-xl border border-border bg-secondary/30 px-3 text-sm text-foreground"
               />
             </label>
             <label className="space-y-1 text-xs text-muted-foreground">
@@ -260,7 +292,9 @@ const SwapWithdrawalPage = () => {
                 value={openpayName}
                 onChange={(e) => setOpenpayName(e.target.value)}
                 placeholder="Full name"
-                className="h-11 w-full rounded-xl border border-border px-3 text-sm text-foreground"
+                readOnly
+                aria-readonly="true"
+                className="h-11 w-full rounded-xl border border-border bg-secondary/30 px-3 text-sm text-foreground"
               />
             </label>
             <label className="space-y-1 text-xs text-muted-foreground">
@@ -269,7 +303,9 @@ const SwapWithdrawalPage = () => {
                 value={openpayUsername}
                 onChange={(e) => setOpenpayUsername(e.target.value)}
                 placeholder="@username"
-                className="h-11 w-full rounded-xl border border-border px-3 text-sm text-foreground"
+                readOnly
+                aria-readonly="true"
+                className="h-11 w-full rounded-xl border border-border bg-secondary/30 px-3 text-sm text-foreground"
               />
             </label>
             <label className="space-y-1 text-xs text-muted-foreground">
@@ -278,7 +314,9 @@ const SwapWithdrawalPage = () => {
                 value={openpayAccountNumber}
                 onChange={(e) => setOpenpayAccountNumber(e.target.value)}
                 placeholder="OPEA..."
-                className="h-11 w-full rounded-xl border border-border px-3 text-sm text-foreground"
+                readOnly
+                aria-readonly="true"
+                className="h-11 w-full rounded-xl border border-border bg-secondary/30 px-3 text-sm text-foreground"
               />
             </label>
             <label className="space-y-1 text-xs text-muted-foreground">
@@ -289,6 +327,7 @@ const SwapWithdrawalPage = () => {
                 placeholder="Pi wallet address"
                 className="h-11 w-full rounded-xl border border-border px-3 text-sm text-foreground"
               />
+              <span className="text-[11px] text-muted-foreground">Make sure this is your PI mainnet address.</span>
             </label>
           </div>
 
@@ -310,22 +349,10 @@ const SwapWithdrawalPage = () => {
             </div>
           </div>
 
-          <label className="mt-3 flex items-start gap-2 text-xs text-foreground">
-            <input
-              type="checkbox"
-              checked={agreementAccepted}
-              onChange={(e) => setAgreementAccepted(e.target.checked)}
-              className="mt-0.5"
-            />
-            <span>
-              I agree to the OpenPay swap withdrawal terms, including the 2% processing fee and possible delays due to network congestion.
-            </span>
-          </label>
-
           <Button
             className="mt-3 h-11 w-full rounded-xl bg-paypal-blue text-sm font-semibold text-white hover:bg-[#004dc5]"
             onClick={submitWithdrawal}
-            disabled={loading || !meetsMinimum || !agreementAccepted}
+            disabled={loading || !meetsMinimum}
           >
             {loading ? "Submitting..." : "Submit Withdrawal"}
           </Button>
@@ -363,6 +390,49 @@ const SwapWithdrawalPage = () => {
           )}
         </div>
       </div>
+
+      <Dialog open={showAgreementModal} onOpenChange={setShowAgreementModal}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto rounded-3xl sm:max-w-lg">
+          <DialogTitle className="text-xl font-bold text-foreground">OpenPay Swap Withdrawal Agreement</DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground">
+            Please review and accept before proceeding with your swap withdrawal.
+          </DialogDescription>
+          <div className="rounded-2xl border border-border p-3 text-sm text-foreground">
+            <p className="font-semibold">1. Nature of Service</p>
+            <p className="mt-1">
+              OpenPay facilitates internal balance transfers and swap withdrawal requests. OpenPay is not a bank or
+              licensed money service business unless stated under applicable law.
+            </p>
+            <p className="mt-3 font-semibold">2. Withdrawal Authorization</p>
+            <p className="mt-1">By proceeding, you authorize OpenPay to move your OpenUSD to the settlement account.</p>
+            <p className="mt-1">You confirm the OpenPay account details and PI wallet address are correct.</p>
+            <p className="mt-3 font-semibold">3. Fees and Processing</p>
+            <p className="mt-1">A 2% processing fee applies to swap withdrawals.</p>
+            <p className="mt-1">Processing time depends on network conditions and admin approval.</p>
+            <p className="mt-3 font-semibold">4. User Responsibility</p>
+            <p className="mt-1">Verify the withdrawal amount and wallet address before submitting.</p>
+            <p className="mt-1">Incorrect details may lead to delayed or failed payouts.</p>
+            <p className="mt-3 font-semibold">5. No Deposit Insurance</p>
+            <p className="mt-1">OpenPay balances are not insured by any government deposit insurance program.</p>
+          </div>
+          <label className="flex items-start gap-2 text-sm text-foreground">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={agreementChecked}
+              onChange={(e) => setAgreementChecked(e.target.checked)}
+            />
+            <span>I understand and agree to proceed with this withdrawal.</span>
+          </label>
+          <Button
+            className="h-11 w-full rounded-2xl bg-paypal-blue text-white hover:bg-[#004dc5]"
+            disabled={!agreementChecked}
+            onClick={confirmAgreementAndSubmit}
+          >
+            Accept & Continue
+          </Button>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
