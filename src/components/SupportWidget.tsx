@@ -97,6 +97,16 @@ const SupportWidget = () => {
   }, []);
 
   useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<{ tab?: "home" | "messages" | "help" }>).detail;
+      setOpen(true);
+      setActiveTab(detail?.tab ?? "messages");
+    };
+    window.addEventListener("open-support-widget", handler as EventListener);
+    return () => window.removeEventListener("open-support-widget", handler as EventListener);
+  }, []);
+
+  useEffect(() => {
     if (!open) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -244,22 +254,21 @@ const SupportWidget = () => {
     setActiveTab("messages");
   };
 
-  const allowSupport =
+  const allowSupportButton =
     location.pathname.startsWith("/menu") ||
     location.pathname.startsWith("/merchant-onboarding");
-  if (!allowSupport) {
-    return null;
-  }
 
   return (
     <>
-      <button
-        onClick={() => setOpen(true)}
-        className="fixed bottom-24 right-4 z-[90] flex h-12 w-12 items-center justify-center rounded-full bg-paypal-blue text-white shadow-lg shadow-black/20 md:bottom-6 md:right-6"
-        aria-label="Open support"
-      >
-        <HelpCircle className="h-6 w-6" />
-      </button>
+      {allowSupportButton && (
+        <button
+          onClick={() => setOpen(true)}
+          className="fixed bottom-24 right-4 z-[90] flex h-12 w-12 items-center justify-center rounded-full bg-paypal-blue text-white shadow-lg shadow-black/20 md:bottom-6 md:right-6"
+          aria-label="Open support"
+        >
+          <HelpCircle className="h-6 w-6" />
+        </button>
+      )}
 
       {open && (
         <div className="fixed inset-0 z-[100]">

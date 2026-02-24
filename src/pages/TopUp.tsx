@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,7 @@ import TransactionReceipt, { type ReceiptData } from "@/components/TransactionRe
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 
 const isUuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
-const PI_PAYMENT_ICON_URL = "https://i.ibb.co/BV8PHjB4/Pi-200x200.png";
+const PI_PAYMENT_ICON_URL = "https://i.ibb.co/jk8XtTPj/pi-network-pi-icons-pi-logo-design-illustration-trendy-and-modern-crypto-currency-pi-symbol-for-logo.png";
 
 const TopUp = () => {
   const [amount, setAmount] = useState("");
@@ -24,6 +24,7 @@ const TopUp = () => {
   const [generatedTopUpLink, setGeneratedTopUpLink] = useState("");
   const [userAccountNumber, setUserAccountNumber] = useState("");
   const [userAccountUsername, setUserAccountUsername] = useState("");
+  const piSectionRef = useRef<HTMLDivElement | null>(null);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { currencies } = useCurrency();
@@ -267,9 +268,11 @@ const TopUp = () => {
   return (
     <div className="min-h-screen bg-background px-4 pt-4">
       <div className="flex items-center gap-3">
-        <button onClick={() => navigate("/dashboard")}><ArrowLeft className="h-6 w-6 text-foreground" /></button>
-        <h1 className="text-lg font-semibold text-paypal-dark">Top Up</h1>
-        <img src={PI_PAYMENT_ICON_URL} alt="Pi Payment" className="ml-auto h-7 w-7 rounded-full object-cover" />
+        <button onClick={() => navigate("/dashboard")}>
+          <ArrowLeft className="h-6 w-6 text-foreground" />
+        </button>
+        <h1 className="text-lg font-semibold text-paypal-dark">Top Up - Pi Payment</h1>
+        <img src={PI_PAYMENT_ICON_URL} alt="Pi Payment" className="ml-auto h-12 w-auto object-contain" />
         <button
           onClick={() => setShowInstructions(true)}
           className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1.5 text-xs font-medium text-foreground"
@@ -279,75 +282,129 @@ const TopUp = () => {
         </button>
       </div>
 
-      <div className="paypal-surface mt-10 rounded-3xl p-6">
-        <div className="mb-8 text-center">
-          <p className="text-5xl font-bold text-foreground">{usdCurrency.symbol}{safeAmount.toFixed(2)}</p>
-          <p className="mt-2 text-muted-foreground">Enter amount to add - OPEN USD</p>
+      <div className="paypal-surface mt-8 rounded-3xl p-6">
+        <p className="text-center text-sm text-muted-foreground">Amount to pay</p>
+        <p className="mt-1 text-center text-5xl font-bold text-foreground">
+          {usdCurrency.symbol}{safeAmount.toFixed(2)}
+        </p>
+        <p className="mt-1 text-center text-xs text-muted-foreground">
+          You will receive {safeAmount.toFixed(2)} OPEN USD (1 OPEN USD = 1 PI)
+        </p>
+        <p className="mt-2 text-center text-sm font-semibold text-foreground">
+          OPEN USD to receive: {safeAmount.toFixed(2)} OPEN USD
+        </p>
+        <div className="mt-5 rounded-2xl border border-border bg-white p-4 text-center">
+          <p className="text-xs text-muted-foreground">Enter amount to add - OPEN USD</p>
+          <div className="mt-3 flex justify-center">
+            <Input
+              type="number"
+              placeholder="0.00"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              className="h-12 w-full max-w-md rounded-full border border-border bg-white text-center text-base"
+              min="0.01"
+              step="0.01"
+            />
+          </div>
+          <p className="mt-3 text-xs text-muted-foreground">
+            OpenPay uses a stable in-app value: 1 Pi = 1 OPEN USD.
+          </p>
         </div>
-        <Input
-          type="number"
-          placeholder="0.00"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          className="mb-6 h-14 rounded-2xl border-white/70 bg-white text-center text-2xl"
-          min="0.01"
-          step="0.01"
-        />
-        <div className="mb-4 grid grid-cols-2 gap-3 text-center text-xs text-muted-foreground">
-          <p className="rounded-xl border border-border px-3 py-2">Pay: {safeAmount.toFixed(2)} PI</p>
-          <p className="rounded-xl border border-border px-3 py-2">Add: {usdCurrency.symbol}{safeAmount.toFixed(2)} OPEN USD</p>
-        </div>
-        <p className="mb-4 text-center text-xs text-muted-foreground">OpenPay uses a stable in-app value: 1 Pi = 1 OPEN USD.</p>
-        <Button
-          onClick={handleTopUp}
-          disabled={loading || safeAmount <= 0}
-          className="h-14 w-full rounded-full bg-paypal-blue text-lg font-semibold text-white hover:bg-[#004dc5]"
-        >
-          {!loading && safeAmount > 0 && <img src={PI_PAYMENT_ICON_URL} alt="Pi Payment" className="mr-2 h-5 w-5 rounded-full object-cover" />}
-          {topUpButtonLabel}
-        </Button>
-        <p className="mt-3 text-center text-xs text-muted-foreground">
-          Pi payment completes in Pi Browser. If you are not in Pi Browser, generate a top-up link and open it there.
+
+        {safeAmount > 0 && (
+          <div ref={piSectionRef} className="mt-5 rounded-2xl border border-border bg-white p-4">
+            <p className="text-center text-xs font-semibold text-muted-foreground">Pay with Pi Payment</p>
+            <div className="mt-3 flex justify-center">
+              <Button
+                onClick={handleTopUp}
+                disabled={loading || safeAmount <= 0}
+                className="h-12 w-full max-w-md rounded-full bg-paypal-blue text-base font-semibold text-white hover:bg-[#004dc5]"
+              >
+                {!loading && safeAmount > 0 && (
+                  <img src={PI_PAYMENT_ICON_URL} alt="Pi Payment" className="mr-2 h-8 w-auto object-contain" />
+                )}
+                {topUpButtonLabel}
+              </Button>
+            </div>
+          </div>
+        )}
+        <p className="mt-3 text-center text-sm font-medium text-foreground">
+          Note: Pi payment completes in Pi Browser. If you are not in Pi Browser, generate a top-up link and open it there.
         </p>
 
-        <div className="mt-4 rounded-2xl border border-border p-3">
-          <p className="text-sm font-semibold text-foreground">Top up link (Desktop / Other browser)</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Generate a link with this amount, open it in Pi Browser, then complete payment there.
-          </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              className="h-10 rounded-xl"
-              onClick={createTopUpLink}
-              disabled={safeAmount <= 0}
-            >
-              Generate Top Up Link
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="h-10 rounded-xl"
-              onClick={copyGeneratedTopUpLink}
-              disabled={!generatedTopUpLink}
-            >
-              Copy Link
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="h-10 rounded-xl"
-              onClick={() => window.open(generatedTopUpLink, "_blank")}
-              disabled={!generatedTopUpLink}
-            >
-              Open Link
-            </Button>
-          </div>
-          {!!generatedTopUpLink && (
-            <p className="mt-2 break-all text-xs text-muted-foreground">{generatedTopUpLink}</p>
-          )}
-        </div>
+        <Button
+          type="button"
+          variant="outline"
+          className="mt-4 h-11 w-full rounded-2xl border-paypal-blue/40 bg-white text-foreground hover:bg-secondary/30"
+          onClick={() => {
+            piSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+            handleTopUp();
+          }}
+          disabled={loading || safeAmount <= 0}
+        >
+          <img src={PI_PAYMENT_ICON_URL} alt="Pi Payment" className="mr-2 h-8 w-auto object-contain" />
+          Pay with Pi Payment
+        </Button>
+
+        <Button
+          type="button"
+          variant="outline"
+          className="mt-2 h-11 w-full rounded-2xl border-paypal-blue/40 bg-white text-foreground hover:bg-secondary/30"
+          onClick={() => setShowInstructions(true)}
+        >
+          OpenPay Top-Up Instructions
+        </Button>
+
+        <Button
+          type="button"
+          variant="outline"
+          className="mt-2 h-11 w-full rounded-2xl"
+          onClick={createTopUpLink}
+          disabled={safeAmount <= 0}
+        >
+          Generate Top Up Link
+        </Button>
+
+        <Button
+          type="button"
+          variant="outline"
+          className="mt-2 h-11 w-full rounded-2xl"
+          onClick={copyGeneratedTopUpLink}
+          disabled={!generatedTopUpLink}
+        >
+          Copy Top Up Link
+        </Button>
+
+        <Button
+          type="button"
+          variant="outline"
+          className="mt-2 h-11 w-full rounded-2xl"
+          onClick={() => window.open(generatedTopUpLink, "_blank")}
+          disabled={!generatedTopUpLink}
+        >
+          Open Top Up Link
+        </Button>
+
+        {!!generatedTopUpLink && (
+          <p className="mt-2 break-all text-xs text-muted-foreground">{generatedTopUpLink}</p>
+        )}
+
+        <Button
+          type="button"
+          variant="outline"
+          className="mt-2 h-11 w-full rounded-2xl"
+          onClick={() => navigate("/live-customer-service")}
+        >
+          Live Customer Service
+        </Button>
+
+        <Button
+          type="button"
+          className="mt-2 h-11 w-full rounded-2xl bg-paypal-blue text-white hover:bg-[#004dc5]"
+          onClick={() => navigate("/dashboard")}
+        >
+          Done
+        </Button>
       </div>
 
       <TransactionReceipt

@@ -11,6 +11,13 @@ import SendMoney from "./pages/SendMoney";
 import QrScannerPage from "./pages/QrScannerPage";
 import TopUp from "./pages/TopUp";
 import TopUpEwalletQrPh from "./pages/TopUpEwalletQrPh";
+import TopUpPaypal from "./pages/TopUpPaypal";
+import TopUpDebit from "./pages/TopUpDebit";
+import TopUpCredit from "./pages/TopUpCredit";
+import TopUpApplePay from "./pages/TopUpApplePay";
+import TopUpGooglePay from "./pages/TopUpGooglePay";
+import TopUpStripe from "./pages/TopUpStripe";
+import TopUpVenmo from "./pages/TopUpVenmo";
 import ReceivePage from "./pages/ReceivePage";
 import Contacts from "./pages/Contacts";
 import MenuPage from "./pages/MenuPage";
@@ -113,6 +120,13 @@ const AppRoutes = () => {
         <Route path="/scan-qr" element={<QrScannerPage />} />
         <Route path="/topup" element={<TopUp />} />
         <Route path="/topup-ewallet-qrph" element={<TopUpEwalletQrPh />} />
+        <Route path="/topup-paypal" element={<TopUpPaypal />} />
+        <Route path="/topup-debit" element={<TopUpDebit />} />
+        <Route path="/topup-credit" element={<TopUpCredit />} />
+        <Route path="/topup-apple-pay" element={<TopUpApplePay />} />
+        <Route path="/topup-google-pay" element={<TopUpGooglePay />} />
+        <Route path="/topup-stripe" element={<TopUpStripe />} />
+        <Route path="/topup-venmo" element={<TopUpVenmo />} />
         <Route path="/receive" element={<ReceivePage />} />
         <Route path="/contacts" element={<Contacts />} />
         <Route path="/menu" element={<MenuPage />} />
