@@ -46,12 +46,12 @@ EXECUTE FUNCTION public.set_common_updated_at();
 
 CREATE OR REPLACE FUNCTION public.submit_topup_request(
   p_amount NUMERIC,
-  p_provider TEXT,
   p_openpay_account_name TEXT,
-  p_openpay_account_username TEXT,
   p_openpay_account_number TEXT,
-  p_reference_code TEXT,
-  p_proof_url TEXT
+  p_openpay_account_username TEXT,
+  p_proof_url TEXT,
+  p_provider TEXT,
+  p_reference_code TEXT
 )
 RETURNS public.user_topup_requests
 LANGUAGE plpgsql
@@ -61,12 +61,12 @@ AS $$
 DECLARE
   v_user_id UUID := auth.uid();
   v_amount NUMERIC(12,2) := ROUND(COALESCE(p_amount, 0), 2);
-  v_provider TEXT := LEFT(TRIM(COALESCE(p_provider, '')), 80);
   v_name TEXT := LEFT(TRIM(COALESCE(p_openpay_account_name, '')), 160);
-  v_username TEXT := LEFT(TRIM(COALESCE(p_openpay_account_username, '')), 120);
   v_account TEXT := UPPER(TRIM(COALESCE(p_openpay_account_number, '')));
-  v_reference TEXT := LEFT(TRIM(COALESCE(p_reference_code, '')), 160);
+  v_username TEXT := LEFT(TRIM(COALESCE(p_openpay_account_username, '')), 120);
   v_proof_url TEXT := LEFT(TRIM(COALESCE(p_proof_url, '')), 400);
+  v_provider TEXT := LEFT(TRIM(COALESCE(p_provider, '')), 80);
+  v_reference TEXT := LEFT(TRIM(COALESCE(p_reference_code, '')), 160);
   v_row public.user_topup_requests;
 BEGIN
   IF v_user_id IS NULL THEN

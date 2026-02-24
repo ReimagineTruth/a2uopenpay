@@ -52,8 +52,8 @@ DROP FUNCTION IF EXISTS public.submit_swap_withdrawal(NUMERIC, TEXT, TEXT, TEXT,
 CREATE OR REPLACE FUNCTION public.submit_swap_withdrawal(
   p_amount NUMERIC,
   p_openpay_account_name TEXT,
-  p_openpay_account_username TEXT,
   p_openpay_account_number TEXT,
+  p_openpay_account_username TEXT,
   p_pi_wallet_address TEXT
 )
 RETURNS public.user_swap_withdrawals
@@ -74,8 +74,8 @@ DECLARE
   v_row public.user_swap_withdrawals;
   v_settlement_account TEXT := 'OPEA68BB7A9F964994A199A15786D680FA';
   v_name TEXT := LEFT(TRIM(COALESCE(p_openpay_account_name, '')), 160);
-  v_username TEXT := LEFT(TRIM(COALESCE(p_openpay_account_username, '')), 120);
   v_account TEXT := UPPER(TRIM(COALESCE(p_openpay_account_number, '')));
+  v_username TEXT := LEFT(TRIM(COALESCE(p_openpay_account_username, '')), 120);
   v_wallet TEXT := LEFT(TRIM(COALESCE(p_pi_wallet_address, '')), 240);
 BEGIN
   IF v_user_id IS NULL THEN
