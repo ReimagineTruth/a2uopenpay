@@ -51,6 +51,21 @@ type LoanApplicationRow = {
   applicant_display_name: string;
 };
 
+type SwapWithdrawalRow = {
+  id: string;
+  user_id: string;
+  amount: number;
+  openpay_account_name: string;
+  openpay_account_username: string;
+  openpay_account_number: string;
+  pi_wallet_address: string;
+  status: string;
+  admin_note: string;
+  reviewed_at: string | null;
+  created_at: string;
+  applicant_display_name: string;
+};
+
 const PAGE_SIZE = 50;
 const ADMIN_PROFILE_USERNAMES = new Set(["openpay", "wainfoundation"]);
 
@@ -79,6 +94,7 @@ const AdminDashboard = () => {
   const [viewerUsername, setViewerUsername] = useState<string>("");
   const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [loanApplications, setLoanApplications] = useState<LoanApplicationRow[]>([]);
+  const [swapWithdrawals, setSwapWithdrawals] = useState<SwapWithdrawalRow[]>([]);
 
   const hasPrev = offset > 0;
   const hasNext = useMemo(() => {
@@ -178,6 +194,30 @@ const AdminDashboard = () => {
           applicant_display_name: String(row.applicant_display_name || ""),
         })),
       );
+
+      const { data: swapRows, error: swapError } = await (supabase as any).rpc("admin_list_swap_withdrawals", {
+        p_status: "pending",
+        p_limit: 50,
+        p_offset: 0,
+      });
+      if (swapError) throw new Error(swapError.message || "Failed to load swap withdrawals");
+      const normalizedSwapRows = Array.isArray(swapRows) ? swapRows : [];
+      setSwapWithdrawals(
+        normalizedSwapRows.map((row: any) => ({
+          id: String(row.id),
+          user_id: String(row.user_id),
+          amount: Number(row.amount || 0),
+          openpay_account_name: String(row.openpay_account_name || ""),
+          openpay_account_username: String(row.openpay_account_username || ""),
+          openpay_account_number: String(row.openpay_account_number || ""),
+          pi_wallet_address: String(row.pi_wallet_address || ""),
+          status: String(row.status || "pending"),
+          admin_note: String(row.admin_note || ""),
+          reviewed_at: row.reviewed_at ? String(row.reviewed_at) : null,
+          created_at: String(row.created_at || ""),
+          applicant_display_name: String(row.applicant_display_name || ""),
+        })),
+      );
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to load admin dashboard");
     } finally {
@@ -241,6 +281,24 @@ const AdminDashboard = () => {
       await loadPage(offset);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Loan review failed");
+    } finally {
+      setReviewingId(null);
+    }
+  };
+
+  const handleSwapWithdrawalReview = async (withdrawalId: string, decision: "approve" | "reject") => {
+    setReviewingId(withdrawalId);
+    try {
+      const { error } = await (supabase as any).rpc("admin_review_swap_withdrawal", {
+        p_withdrawal_id: withdrawalId,
+        p_decision: decision,
+        p_admin_note: `Reviewed by @${viewerUsername || "admin"}`,
+      });
+      if (error) throw new Error(error.message || "Withdrawal review failed");
+      toast.success(decision === "approve" ? "Withdrawal approved" : "Withdrawal rejected");
+      await loadPage(offset);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Withdrawal review failed");
     } finally {
       setReviewingId(null);
     }
@@ -401,6 +459,57 @@ const AdminDashboard = () => {
                       variant="outline"
                       onClick={() => handleLoanReview(app.id, "reject")}
                       disabled={reviewingId === app.id}
+                    >
+                      Reject
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-6 rounded-2xl border border-border bg-card p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-lg font-bold text-paypal-dark">Swap Withdrawals (Pending)</h2>
+            <p className="text-xs text-muted-foreground">{swapWithdrawals.length} pending</p>
+          </div>
+          {swapWithdrawals.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No pending swap withdrawals.</p>
+          ) : (
+            <div className="space-y-3">
+              {swapWithdrawals.map((row) => (
+                <div key={row.id} className="rounded-xl border border-border/70 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-foreground">{row.applicant_display_name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {format(new Date(row.created_at), "MMM d, yyyy h:mm a")}
+                      </p>
+                    </div>
+                    <p className="text-sm font-semibold text-paypal-blue">
+                      {row.amount.toFixed(2)} OPEN USD
+                    </p>
+                  </div>
+                  <div className="mt-2 grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
+                    <p>OpenPay name: {row.openpay_account_name}</p>
+                    <p>OpenPay username: @{row.openpay_account_username}</p>
+                    <p>Account number: {row.openpay_account_number}</p>
+                    <p className="sm:col-span-2">PI wallet: {row.pi_wallet_address}</p>
+                  </div>
+                  <div className="mt-3 flex gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => handleSwapWithdrawalReview(row.id, "approve")}
+                      disabled={reviewingId === row.id}
+                    >
+                      Approve
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleSwapWithdrawalReview(row.id, "reject")}
+                      disabled={reviewingId === row.id}
                     >
                       Reject
                     </Button>

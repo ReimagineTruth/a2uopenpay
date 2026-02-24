@@ -64,6 +64,7 @@ import OpenAppPage from "./pages/OpenAppPage";
 import OpenPayDesktopPage from "./pages/OpenPayDesktopPage";
 import VirtualCardPage from "./pages/VirtualCardPage";
 import LiveCustomerServicePage from "./pages/LiveCustomerServicePage";
+import SwapWithdrawalPage from "./pages/SwapWithdrawalPage";
 import NotFound from "./pages/NotFound";
 import { CurrencyProvider } from "./contexts/CurrencyContext";
 import { useRealtimePushNotifications } from "./hooks/useRealtimePushNotifications";
@@ -170,6 +171,7 @@ const AppRoutes = () => {
         <Route path="/openapp" element={<OpenAppPage />} />
         <Route path="/openpay-desktop" element={<OpenPayDesktopPage />} />
         <Route path="/live-customer-service" element={<LiveCustomerServicePage />} />
+        <Route path="/swap-withdrawal" element={<SwapWithdrawalPage />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
       <AppSecurityGate />

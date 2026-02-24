@@ -36,7 +36,7 @@ interface UserAccount {
   account_username: string;
 }
 
-type DashboardSection = "wallet" | "savings" | "credit" | "loans" | "cards" | "buy";
+type DashboardSection = "wallet" | "savings" | "credit" | "loans" | "cards" | "buy" | "swap";
 type MerchantMode = "sandbox" | "live";
 type BuyOnrampProvider =
   | "Pi Payment"
@@ -206,6 +206,7 @@ const Dashboard = () => {
   const [agreementChecked, setAgreementChecked] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showReceiveOptions, setShowReceiveOptions] = useState(false);
+  const [showBuyOptions, setShowBuyOptions] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [remittanceFeeIncome, setRemittanceFeeIncome] = useState(0);
   const [remittanceTxCount, setRemittanceTxCount] = useState(0);
@@ -253,6 +254,7 @@ const Dashboard = () => {
   const [virtualCardActive, setVirtualCardActive] = useState(false);
   const [hideCardPreviewDetails, setHideCardPreviewDetails] = useState(false);
   const [buySpendAmount, setBuySpendAmount] = useState("");
+  const [swapSpendAmount, setSwapSpendAmount] = useState("");
   const buyFiatCurrency = "PI";
   const [buyOnrampProvider, setBuyOnrampProvider] = useState<BuyOnrampProvider>("Pi Payment");
   const [buyPaymentMethod, setBuyPaymentMethod] = useState<BuyPaymentMethod>("Pi Payment");
@@ -262,7 +264,7 @@ const Dashboard = () => {
   const { format: formatCurrency, currency } = useCurrency();
   const currencyLabel = currency.code === "OUSD" ? "OPEN USD" : currency.code;
   const piCurrencyLabel = currency.code === "OUSD" ? "OPEN USD" : `PI ${currency.code}`;
-  const cardCurrencyLabel = currency.code === "PI" ? "PI" : currency.code === "OUSD" ? "OPEN USD" : `π ${currency.code}`;
+  const cardCurrencyLabel = currency.code === "PI" ? "PI" : currency.code === "OUSD" ? "OPEN USD" : `PI ${currency.code}`;
   const currencyTag = currency.code === "PI" ? "PI" : `${currencyLabel} (Pi rate)`;
   const onboardingSteps = [
     {
@@ -954,28 +956,20 @@ const Dashboard = () => {
   const isEwalletBuyFlow = buyPaymentMethod === "Ewallet";
   const isPaypalBuyFlow = buyPaymentMethod !== "Ewallet" && buyPaymentMethod !== "Pi Payment";
   const onrampRates: Record<BuyOnrampProvider, number> = {
-    "Pi Payment": 9.39,
-    "Ewallet QR PH": 9.39,
-    PayPal: 9.39,
-    "Apple Pay": 9.39,
-    "Debit Card": 9.39,
-    "Credit Card": 9.39,
-    "Google Pay": 9.39,
-    Stripe: 9.39,
-    Venmo: 9.39,
-    TransFi: 9.39,
-    "Onramp Money": 10.13,
-    Banxa: 9.8,
+    "Pi Payment": 1,
+    "Ewallet QR PH": 1,
+    "PayPal": 1,
+    "Apple Pay": 1,
+    "Debit Card": 1,
+    "Credit Card": 1,
+    "Google Pay": 1,
+    "Stripe": 1,
+    "Venmo": 1,
+    "TransFi": 1,
+    "Onramp Money": 1,
+    "Banxa": 1,
   };
-  const selectedRate = 1;
-  const buyOpenUsdAmount = safeBuySpend > 0
-    ? isEwalletBuyFlow
-      ? safeBuySpend / E_WALLET_PHP_PER_OUSD
-      : safeBuySpend
-    : 0;
-  const buyOpenUsdDisplay = buyOpenUsdAmount > 0 ? buyOpenUsdAmount.toFixed(6) : "0.000000";
-  const buyOpenUsdMinimum = 1;
-  const buyOpenUsdMeetsMinimum = buyOpenUsdAmount >= buyOpenUsdMinimum;
+  const selectedRate = onrampRates[buyOnrampProvider] ?? 1;
   const onrampRows: Array<{ key: BuyOnrampProvider; disabled?: boolean; subtitle: string; delta?: string; recommended?: boolean }> = [
     { key: "Pi Payment", subtitle: "Active", recommended: true },
     { key: "Ewallet QR PH", subtitle: "Active" },
@@ -1005,15 +999,33 @@ const Dashboard = () => {
     "Pi Payment",
     "Ewallet",
     "PayPal",
-    "Debit Card",
-    "Credit Card",
     "Apple Pay",
     "Google Pay",
+    "Debit Card",
+    "Credit Card",
     "Stripe",
     "Venmo",
   ];
-  const getBuyPaymentMethodLabel = (method: BuyPaymentMethod) => (method === "Ewallet" ? "Ewallet QR PH" : method);
-
+  const getBuyPaymentMethodLabel = (method: BuyPaymentMethod) => {
+    if (method === "Ewallet") return "Ewallet QR PH";
+    return method;
+  };
+  const buyOpenUsdAmount =
+    safeBuySpend <= 0
+      ? 0
+      : isEwalletBuyFlow
+        ? safeBuySpend / E_WALLET_PHP_PER_OUSD
+        : safeBuySpend;
+  const buyOpenUsdDisplay =
+    buyOpenUsdAmount > 0
+      ? buyOpenUsdAmount.toFixed(isEwalletBuyFlow ? 6 : 2)
+      : "0.00";
+  const buyOpenUsdMeetsMinimum = buyOpenUsdAmount >= 1;
+  const parsedSwapSpend = Number(swapSpendAmount);
+  const safeSwapSpend = Number.isFinite(parsedSwapSpend) && parsedSwapSpend > 0 ? parsedSwapSpend : 0;
+  const swapOpenUsdAmount = safeSwapSpend;
+  const swapOpenUsdDisplay = swapOpenUsdAmount > 0 ? swapOpenUsdAmount.toFixed(2) : "0.00";
+  const swapOpenUsdMeetsMinimum = swapOpenUsdAmount >= 1;
   const handleBuyOpenUsd = () => {
     if (safeBuySpend <= 0) {
       toast.error("Enter a valid amount");
@@ -1033,7 +1045,7 @@ const Dashboard = () => {
       navigate(`/topup-ewallet-qrph?phpAmount=${phpAmountForTopUp.toFixed(2)}&openUsdAmount=${openUsdAmountForTopUp.toFixed(6)}`);
       return;
     }
-    if (buyPaymentMethod !== "Pi Payment" && buyPaymentMethod !== "Ewallet") {
+    if (buyPaymentMethod !== "Pi Payment") {
       const amountForTopUp = Math.max(0.01, Number(buyOpenUsdAmount.toFixed(2)));
       const methodRouteMap: Record<string, string> = {
         "PayPal": "/topup-paypal",
@@ -1050,6 +1062,21 @@ const Dashboard = () => {
     }
     const amountForTopUp = Math.max(0.01, Number(buyOpenUsdAmount.toFixed(2)));
     navigate(`/topup?amount=${amountForTopUp.toFixed(2)}`);
+  };
+
+  const openBuyOptions = () => setShowBuyOptions(true);
+
+  const handleSwapOpenUsd = () => {
+    if (safeSwapSpend <= 0) {
+      toast.error("Enter a valid amount");
+      return;
+    }
+    if (!swapOpenUsdMeetsMinimum) {
+      toast.error("Minimum swap is 1 OPEN USD");
+      return;
+    }
+    const amountForSwap = Math.max(0.01, Number(swapOpenUsdAmount.toFixed(2)));
+    navigate(`/swap-withdrawal?amount=${amountForSwap.toFixed(2)}`);
   };
 
   return (
@@ -1078,9 +1105,17 @@ const Dashboard = () => {
       {/* Greeting */}
       <div className="px-4 mt-3">
         <h1 className="text-2xl font-bold text-foreground">
-          {activeSection === "cards" ? "OpenPay Cards" : activeSection === "buy" ? "Buy OpenUSD" : `${getGreeting()}, ${userName.split(" ")[0] || "there"}!`}
+          {activeSection === "cards"
+            ? "OpenPay Cards"
+            : activeSection === "buy"
+              ? "Buy OpenUSD"
+              : activeSection === "swap"
+                ? "Swap OpenUSD"
+                : `${getGreeting()}, ${userName.split(" ")[0] || "there"}!`}
         </h1>
-        {activeSection !== "cards" && activeSection !== "buy" && username && <p className="text-sm text-muted-foreground">@{username}</p>}
+        {activeSection !== "cards" && activeSection !== "buy" && activeSection !== "swap" && username && (
+          <p className="text-sm text-muted-foreground">@{username}</p>
+        )}
       </div>
 
       <div className="mt-4 px-4">
@@ -1093,6 +1128,7 @@ const Dashboard = () => {
               { key: "loans", label: "Loans" },
               { key: "cards", label: "Cards" },
               { key: "buy", label: "Buy" },
+              { key: "swap", label: "Swap" },
             ] as Array<{ key: DashboardSection; label: string }>).map((item) => (
               <button
                 key={item.key}
@@ -1263,7 +1299,7 @@ const Dashboard = () => {
               </button>
               <button
                 type="button"
-                onClick={() => setActiveSection("buy")}
+                onClick={openBuyOptions}
                 className="h-11 rounded-full bg-white/10 text-sm font-semibold text-white"
               >
                 Buy
@@ -1414,7 +1450,7 @@ const Dashboard = () => {
                 onClick={() => setLoanPaymentMethod("wallet")}
                 className={`h-10 rounded-xl border text-sm font-semibold ${loanPaymentMethod === "wallet" ? "border-paypal-blue bg-paypal-blue text-white" : "border-border bg-white text-foreground"}`}
               >
-                OpenPay Balance
+                Pi Payment
               </button>
               <button
                 type="button"
@@ -1483,7 +1519,7 @@ const Dashboard = () => {
               {hideCardPreviewDetails ? "**** **** **** ****" : virtualCardNumber}
             </p>
             <p className="mt-2 text-sm text-white/80">
-              {hideCardPreviewDetails ? "Card details hidden" : `Linked to wallet · ${virtualCardActive ? "Active" : "Inactive"}`}
+              {hideCardPreviewDetails ? "Card details hidden" : `Linked to wallet - ${virtualCardActive ? "Active" : "Inactive"}`}
             </p>
           </div>
 
@@ -1504,7 +1540,7 @@ const Dashboard = () => {
             </button>
             <button
               type="button"
-              onClick={() => setActiveSection("buy")}
+              onClick={openBuyOptions}
               className="h-11 rounded-full bg-white/10 text-sm font-semibold text-white"
             >
               Buy
@@ -1598,17 +1634,17 @@ const Dashboard = () => {
                     ? `${E_WALLET_PHP_PER_OUSD.toFixed(2)} PHP = 1 OPEN USD`
                     : isPaypalBuyFlow
                       ? "1 USD = 1 OPEN USD"
-                      : "1 PI = 1 OPEN USD"}
+                      : "1 OPEN USD to PI"}
                 </p>
               </div>
 
               <div className="rounded-2xl bg-secondary/50 p-4">
-                <p className="text-sm text-muted-foreground">You get (OPEN USD amount)</p>
+                <p className="text-sm text-muted-foreground">You get (PI amount)</p>
                 <div className="mt-2 flex items-center justify-between gap-3">
                   <p className="text-4xl font-semibold text-foreground">{buyOpenUsdDisplay}</p>
-                  <span className="inline-flex h-11 items-center rounded-xl bg-white px-3 text-sm font-semibold text-foreground">OPEN USD</span>
+                  <span className="inline-flex h-11 items-center rounded-xl bg-white px-3 text-sm font-semibold text-foreground">PI</span>
                 </div>
-                <p className="mt-2 text-xs font-medium text-foreground">1 OPEN USD = 1 USD stable coin</p>
+                <p className="mt-2 text-xs font-medium text-foreground">1 OPEN USD = 1 PI</p>
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-border/50 pt-3 text-sm text-muted-foreground">
                   <p>
                     1 OUSD ~ {isEwalletBuyFlow
@@ -1684,10 +1720,84 @@ const Dashboard = () => {
                 ? `Ewallet QR PH uses PH price: 1 OPEN USD = ${E_WALLET_PHP_PER_OUSD.toFixed(2)} PHP.`
                 : buyPaymentMethod === "PayPal"
                   ? "PayPal uses USD amount and credits OPEN USD balance."
-                  : "Purchase flow uses OpenPay Pi buy and credits OPEN USD balance."}
+                  : "Purchase flow uses OpenPay OPEN USD to PI balance."}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
               Stable mode enabled: 1 PI = 1 OPEN USD.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {activeSection === "swap" && (
+        <div className="mx-4 mt-4 space-y-4">
+          <div className="paypal-surface rounded-3xl p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-xl font-semibold text-foreground">Swap</p>
+              <span className="rounded-full border border-border/70 px-3 py-1 text-xs font-semibold text-muted-foreground">OPEN USD to PI</span>
+            </div>
+
+            <div className="space-y-3">
+              <div className="rounded-2xl bg-secondary/50 p-4">
+                <p className="text-sm text-muted-foreground">You spend (OPEN USD amount)</p>
+                <div className="mt-2 flex items-center justify-between gap-3">
+                  <input
+                    value={swapSpendAmount}
+                    onChange={(e) => setSwapSpendAmount(e.target.value)}
+                    type="number"
+                    min="1"
+                    step="0.01"
+                    placeholder="Custom amount (min 1)"
+                    className="h-10 w-full bg-transparent text-4xl font-semibold text-foreground outline-none"
+                  />
+                  <span className="inline-flex h-11 items-center rounded-xl bg-white px-3 text-sm font-semibold text-foreground">OPEN USD</span>
+                </div>
+                <p className="mt-2 text-xs font-medium text-foreground">1 OPEN USD = 1 PI</p>
+              </div>
+
+              <div className="rounded-2xl bg-secondary/50 p-4">
+                <p className="text-sm text-muted-foreground">You get (PI amount)</p>
+                <div className="mt-2 flex items-center justify-between gap-3">
+                  <p className="text-4xl font-semibold text-foreground">{swapOpenUsdDisplay}</p>
+                  <span className="inline-flex h-11 items-center rounded-xl bg-white px-3 text-sm font-semibold text-foreground">PI</span>
+                </div>
+                <p className="mt-2 text-xs font-medium text-foreground">1 OPEN USD = 1 PI</p>
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-border/50 pt-3 text-sm text-muted-foreground">
+                  <p>1 PI ~ 1.0000 OUSD</p>
+                  <span className="inline-flex items-center gap-1 font-semibold text-foreground">
+                    By OpenPay Balance
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <p className="mt-4 text-base text-foreground">Pay using</p>
+            <div className="mt-2 flex h-14 w-full items-center justify-between rounded-2xl border border-border/70 bg-white px-4">
+              <span className="inline-flex items-center gap-2 text-base font-semibold text-foreground">
+                <CircleDollarSign className="h-5 w-5 text-paypal-blue" />
+                OpenPay Balance
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={handleSwapOpenUsd}
+              disabled={!swapOpenUsdMeetsMinimum}
+              className="mt-3 h-11 w-full rounded-xl bg-paypal-blue text-sm font-semibold text-white hover:bg-[#004dc5] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Swap OpenUSD to PI
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate("/swap-withdrawal")}
+              className="mt-2 h-11 w-full rounded-xl border border-paypal-blue/40 bg-white text-sm font-semibold text-paypal-blue"
+            >
+              Withdraw OpenUSD to PI Wallet
+            </button>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Minimum swap: 1 OPEN USD. Swap uses OpenPay balance and is processed by admin approval.
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Stable mode enabled: 1 OPEN USD = 1 PI.
             </p>
           </div>
         </div>
@@ -1854,7 +1964,7 @@ const Dashboard = () => {
                           : entry.activity_type === "transfer_to_savings"
                             ? "Move merchant balance to savings"
                             : entry.activity_type.replaceAll("_", " ");
-                  const detailLine = entry.note || `${entry.status} · ${entry.source}`;
+                  const detailLine = entry.note || `${entry.status} - ${entry.source}`;
                   const previewDetail = detailLine ? toPreviewText(detailLine, 64) : "";
                   return (
                     <div key={entry.activity_id} className="flex flex-col gap-2 px-3 py-2.5 sm:flex-row sm:items-start sm:justify-between">
@@ -1934,7 +2044,7 @@ const Dashboard = () => {
       <div className="mt-6 px-4">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-xl font-bold text-paypal-dark">Recent activity</h2>
-          <button onClick={() => navigate("/activity")} className="text-sm font-semibold text-paypal-blue">See more →</button>
+          <button onClick={() => navigate("/activity")} className="text-sm font-semibold text-paypal-blue">See more</button>
         </div>
 
         {transactions.length === 0 ? (
@@ -1987,7 +2097,7 @@ const Dashboard = () => {
           </button>
           <button onClick={() => navigate("/send")} className="min-w-0 flex-1 rounded-full bg-paypal-blue py-3.5 text-center text-sm font-semibold text-white shadow-lg shadow-[#0057d8]/30">Pay</button>
           <button onClick={() => setShowReceiveOptions(true)} className="min-w-0 flex-1 rounded-full border border-paypal-blue/25 bg-white py-3.5 text-center text-sm font-semibold text-paypal-blue">Receive</button>
-          <button onClick={() => setActiveSection("buy")} className="min-w-0 flex-1 rounded-full border border-paypal-blue/25 bg-white py-3.5 text-center text-sm font-semibold text-paypal-blue">Buy</button>
+          <button onClick={openBuyOptions} className="min-w-0 flex-1 rounded-full border border-paypal-blue/25 bg-white py-3.5 text-center text-sm font-semibold text-paypal-blue">Buy</button>
         </div>
       </div>
       </>
@@ -2038,6 +2148,43 @@ const Dashboard = () => {
                 <FileText className="h-5 w-5 text-paypal-blue" />
               </div>
               <p className="text-sm font-semibold text-foreground">Invoice</p>
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showBuyOptions} onOpenChange={setShowBuyOptions}>
+        <DialogContent className="top-auto bottom-0 translate-y-0 rounded-b-none rounded-t-3xl px-5 pb-7 pt-5 sm:max-w-lg data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:slide-in-from-bottom-8 data-[state=closed]:slide-out-to-bottom-8 data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0">
+          <DialogTitle className="text-center text-2xl font-bold text-foreground">Buy Options</DialogTitle>
+          <DialogDescription className="text-center text-sm text-muted-foreground">
+            Choose how you want to get OpenUSD.
+          </DialogDescription>
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <button
+              onClick={() => {
+                setShowBuyOptions(false);
+                setActiveSection("buy");
+              }}
+              className="rounded-2xl border border-border/70 bg-secondary/50 p-3 text-center transition hover:bg-secondary"
+            >
+              <div className="mx-auto mb-2 flex h-11 w-11 items-center justify-center rounded-full bg-white">
+                <CircleDollarSign className="h-5 w-5 text-paypal-blue" />
+              </div>
+              <p className="text-sm font-semibold text-foreground">Top Up</p>
+              <p className="text-xs text-muted-foreground">Buy OpenUSD</p>
+            </button>
+            <button
+              onClick={() => {
+                setShowBuyOptions(false);
+                setActiveSection("swap");
+              }}
+              className="rounded-2xl border border-border/70 bg-secondary/50 p-3 text-center transition hover:bg-secondary"
+            >
+              <div className="mx-auto mb-2 flex h-11 w-11 items-center justify-center rounded-full bg-white">
+                <RefreshCw className="h-5 w-5 text-paypal-blue" />
+              </div>
+              <p className="text-sm font-semibold text-foreground">Swap</p>
+              <p className="text-xs text-muted-foreground">PI to OpenUSD</p>
             </button>
           </div>
         </DialogContent>
@@ -2094,7 +2241,7 @@ const Dashboard = () => {
             Select the provider for your OpenUSD buy quote.
           </DialogDescription>
           <p className="mt-1 text-center text-xs font-medium text-foreground">
-            Conversion: 1 PI = 1 OPEN USD | 1 USD = 1 OPEN USD | 57 PHP = 1 OPEN USD
+            Conversion: 1 OPEN USD to PI
           </p>
           <div className="mt-3 space-y-3">
             {onrampRows.map((row) => {
@@ -2210,7 +2357,7 @@ const Dashboard = () => {
         <DialogContent className="top-auto bottom-0 translate-y-0 rounded-b-none rounded-t-3xl px-5 pb-7 pt-5 sm:max-w-lg">
           <DialogTitle className="text-center text-2xl font-bold text-foreground">Choose payment method</DialogTitle>
           <DialogDescription className="text-center text-sm text-muted-foreground">
-            Pi Payment and Ewallet are currently supported for OpenUSD buy.
+            PI to OpenUSD buy.
           </DialogDescription>
           <div className="mt-3 space-y-2">
             {paymentMethodRows.map((row) => {
