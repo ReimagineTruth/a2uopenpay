@@ -171,12 +171,16 @@ const SupportWidget = () => {
   const sendMessage = async () => {
     const text = messageDraft.trim();
     if (!text || !userId) return;
-    const convo = await ensureConversation();
-    if (!convo) return;
+    const convo = isAgent ? null : await ensureConversation();
+    const conversationId = isAgent ? selectedConversationId : convo?.id;
+    if (!conversationId) {
+      toast.error("Select a conversation to reply.");
+      return;
+    }
     const { error } = await supabase
       .from("support_messages")
       .insert({
-        conversation_id: convo.id,
+        conversation_id: conversationId,
         sender_id: userId,
         sender_role: isAgent ? "agent" : "user",
         message: text,
@@ -190,14 +194,14 @@ const SupportWidget = () => {
       ...prev,
       {
         id: crypto.randomUUID(),
-        conversation_id: convo.id,
+        conversation_id: conversationId,
         sender_id: userId,
         sender_role: isAgent ? "agent" : "user",
         message: text,
         created_at: new Date().toISOString(),
       },
     ]);
-    await supabase.from("support_conversations").update({ last_message_at: new Date().toISOString() }).eq("id", convo.id);
+    await supabase.from("support_conversations").update({ last_message_at: new Date().toISOString() }).eq("id", conversationId);
 
     if (isAgent) return;
 

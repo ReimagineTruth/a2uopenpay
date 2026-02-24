@@ -185,6 +185,12 @@ BEGIN
   WHERE NOT EXISTS (SELECT 1 FROM public.support_faq_items f WHERE LOWER(f.question) = 'does openpay support external wallets or bank transfer rails?');
 
   INSERT INTO public.support_faq_items (category_id, question, answer, tags)
+  SELECT v_getting_started, 'What payment methods are supported for OpenUSD buy?',
+    'OpenUSD buy supports Pi Payment, Ewallet QR PH, debit card, credit card, Apple Pay, Google Pay, PayPal, Stripe, and Venmo. Availability can vary by region and account status.',
+    ARRAY['payment-methods', 'openusd', 'buy']
+  WHERE NOT EXISTS (SELECT 1 FROM public.support_faq_items f WHERE LOWER(f.question) = 'what payment methods are supported for openusd buy?');
+
+  INSERT INTO public.support_faq_items (category_id, question, answer, tags)
   SELECT v_account, 'I cannot sign in. What should I check first?',
     'Confirm your login method, network connection, and correct account credentials. If still blocked, use support chat and include your username and error screenshot.',
     ARRAY['signin', 'access']

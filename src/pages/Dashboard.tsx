@@ -39,7 +39,16 @@ interface UserAccount {
 type DashboardSection = "wallet" | "savings" | "credit" | "loans" | "cards" | "buy";
 type MerchantMode = "sandbox" | "live";
 type BuyOnrampProvider = "Pi Payment" | "Ewallet QR PH" | "TransFi" | "Onramp Money" | "Banxa";
-type BuyPaymentMethod = "Pi Payment" | "Ewallet" | "Debit Card" | "Credit Card" | "Apple Pay";
+type BuyPaymentMethod =
+  | "Pi Payment"
+  | "Ewallet"
+  | "Debit Card"
+  | "Credit Card"
+  | "Apple Pay"
+  | "Google Pay"
+  | "PayPal"
+  | "Stripe"
+  | "Venmo";
 const JQRPH_ICON_URL = "https://upload.wikimedia.org/wikipedia/commons/thumb/3/35/QR_Ph_Logo.svg/960px-QR_Ph_Logo.svg.png?20250310160234";
 const PI_PAYMENT_ICON_URL = "https://i.ibb.co/BV8PHjB4/Pi-200x200.png";
 const E_WALLET_PHP_PER_OUSD = 57;
@@ -945,6 +954,10 @@ const Dashboard = () => {
     { key: "Debit Card" },
     { key: "Credit Card" },
     { key: "Apple Pay" },
+    { key: "Google Pay" },
+    { key: "PayPal" },
+    { key: "Stripe" },
+    { key: "Venmo" },
   ];
   const supportedBuyPaymentMethods: BuyPaymentMethod[] = ["Pi Payment", "Ewallet"];
   const getBuyPaymentMethodLabel = (method: BuyPaymentMethod) => (method === "Ewallet" ? "Ewallet QR PH" : method);
