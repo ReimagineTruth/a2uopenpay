@@ -24,6 +24,15 @@ type TopUpHistoryRow = {
 const normalizeUsername = (value: string) => value.trim().replace(/^@+/, "").toLowerCase();
 const isSchemaCacheMissingError = (message: string | undefined, target: string) =>
   Boolean(message) && message.includes("schema cache") && message.includes(target);
+const TOPUP_DRAFT_KEY = "openpay_topup_proof_draft_v1";
+
+const fileToDataUrl = (file: File) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Failed to read image"));
+    reader.readAsDataURL(file);
+  });
 
 const TopUpAccountDetails = ({
   providerName,
@@ -36,6 +45,9 @@ const TopUpAccountDetails = ({
   const [openpayAccountNumber, setOpenpayAccountNumber] = useState("");
   const [referenceCode, setReferenceCode] = useState("");
   const [proofFile, setProofFile] = useState<File | null>(null);
+  const [proofDataUrl, setProofDataUrl] = useState<string | null>(null);
+  const [proofName, setProofName] = useState<string>("");
+  const [proofType, setProofType] = useState<string>("");
   const [proofPreview, setProofPreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -47,6 +59,45 @@ const TopUpAccountDetails = ({
 
   const normalizedUsername = useMemo(() => normalizeUsername(openpayUsername), [openpayUsername]);
   const safeAmount = Number.isFinite(amount) && amount > 0 ? amount : 0;
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.sessionStorage.getItem(TOPUP_DRAFT_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw) as {
+        referenceCode?: string;
+        proofDataUrl?: string | null;
+        proofName?: string;
+        proofType?: string;
+      };
+      if (typeof saved.referenceCode === "string") setReferenceCode(saved.referenceCode);
+      if (typeof saved.proofDataUrl === "string" && saved.proofDataUrl) {
+        setProofDataUrl(saved.proofDataUrl);
+        setProofName(String(saved.proofName || "topup-proof.jpg"));
+        setProofType(String(saved.proofType || "image/jpeg"));
+      }
+    } catch {
+      // no-op
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.sessionStorage.setItem(
+        TOPUP_DRAFT_KEY,
+        JSON.stringify({
+          referenceCode,
+          proofDataUrl,
+          proofName,
+          proofType,
+        }),
+      );
+    } catch {
+      // no-op
+    }
+  }, [referenceCode, proofDataUrl, proofName, proofType]);
 
   useEffect(() => {
     const loadIdentity = async () => {
@@ -99,6 +150,10 @@ const TopUpAccountDetails = ({
   };
 
   useEffect(() => {
+    if (proofDataUrl) {
+      setProofPreview(proofDataUrl);
+      return;
+    }
     if (!proofFile) {
       setProofPreview(null);
       return;
@@ -106,7 +161,7 @@ const TopUpAccountDetails = ({
     const previewUrl = URL.createObjectURL(proofFile);
     setProofPreview(previewUrl);
     return () => URL.revokeObjectURL(previewUrl);
-  }, [proofFile]);
+  }, [proofDataUrl, proofFile]);
 
   useEffect(() => {
     void loadHistory();
@@ -127,7 +182,7 @@ const TopUpAccountDetails = ({
       toast.error("Payment reference is required");
       return false;
     }
-    if (!proofFile) {
+    if (!proofFile && !proofDataUrl) {
       toast.error("Payment proof screenshot is required");
       return false;
     }
@@ -145,11 +200,20 @@ const TopUpAccountDetails = ({
       if (userError || !user) {
         throw new Error("Sign in required");
       }
-      const safeName = proofFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const uploadFile =
+        proofFile ||
+        (() => {
+          const bytes = atob((proofDataUrl || "").split(",")[1] || "");
+          const array = new Uint8Array(bytes.length);
+          for (let i = 0; i < bytes.length; i += 1) array[i] = bytes.charCodeAt(i);
+          const mime = proofType || "image/jpeg";
+          return new File([array], proofName || "topup-proof.jpg", { type: mime });
+        })();
+      const safeName = uploadFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
       const filePath = `${user.id}/${Date.now()}-${safeName}`;
       const { error: uploadError } = await supabase.storage
         .from("topup-proof")
-        .upload(filePath, proofFile, { upsert: true });
+        .upload(filePath, uploadFile, { upsert: true, contentType: uploadFile.type });
       if (uploadError) {
         throw new Error(uploadError.message || "Upload failed");
       }
@@ -177,6 +241,14 @@ const TopUpAccountDetails = ({
       }
       toast.message("Please wait for admin confirmation. You will receive updates in your dashboard activity history.");
       setSubmitted(true);
+      setProofFile(null);
+      setProofDataUrl(null);
+      setProofName("");
+      setProofType("");
+      setReferenceCode("");
+      if (typeof window !== "undefined") {
+        window.sessionStorage.removeItem(TOPUP_DRAFT_KEY);
+      }
       await loadHistory();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Top up request failed";
@@ -203,7 +275,25 @@ const TopUpAccountDetails = ({
         <input
           type="file"
           accept="image/*"
-          onChange={(event) => setProofFile(event.target.files?.[0] ?? null)}
+          onChange={async (event) => {
+            const file = event.target.files?.[0] ?? null;
+            if (!file) {
+              setProofFile(null);
+              setProofDataUrl(null);
+              setProofName("");
+              setProofType("");
+              return;
+            }
+            setProofFile(file);
+            setProofName(file.name);
+            setProofType(file.type);
+            try {
+              const dataUrl = await fileToDataUrl(file);
+              setProofDataUrl(dataUrl);
+            } catch (error) {
+              toast.error(error instanceof Error ? error.message : "Failed to load image");
+            }
+          }}
           className="w-full text-sm text-foreground"
         />
       </label>

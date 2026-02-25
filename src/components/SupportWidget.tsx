@@ -4,6 +4,7 @@ import { HelpCircle, Image as ImageIcon, MessageCircle, Search, Send, X } from "
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import BrandLogo from "@/components/BrandLogo";
 import { toast } from "sonner";
 
@@ -38,7 +39,18 @@ type SupportFaqItem = {
   answer: string;
 };
 
-type SupportConversationRow = SupportConversation & { profile?: { full_name?: string | null; username?: string | null } | null };
+type SupportConversationRow = SupportConversation & {
+  profile?: { full_name?: string | null; username?: string | null; account_number?: string | null } | null;
+};
+const SUPPORT_WIDGET_DRAFT_KEY = "openpay_support_widget_draft_v1";
+
+const fileToDataUrl = (file: File) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Failed to read image"));
+    reader.readAsDataURL(file);
+  });
 
 const SupportWidget = () => {
   const location = useLocation();
@@ -51,6 +63,9 @@ const SupportWidget = () => {
   const [messages, setMessages] = useState<SupportMessage[]>([]);
   const [messageDraft, setMessageDraft] = useState("");
   const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
+  const [attachmentDataUrl, setAttachmentDataUrl] = useState<string | null>(null);
+  const [attachmentName, setAttachmentName] = useState<string>("");
+  const [attachmentType, setAttachmentType] = useState<string>("");
   const [attachmentPreview, setAttachmentPreview] = useState<string | null>(null);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const [aiReplying, setAiReplying] = useState(false);
@@ -60,6 +75,60 @@ const SupportWidget = () => {
   const [allConversations, setAllConversations] = useState<SupportConversationRow[]>([]);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [supportTicketId, setSupportTicketId] = useState<string | null>(null);
+  const [imageViewerUrl, setImageViewerUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.sessionStorage.getItem(SUPPORT_WIDGET_DRAFT_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw) as {
+        open?: boolean;
+        activeTab?: "home" | "messages" | "help";
+        messageDraft?: string;
+        selectedConversationId?: string | null;
+        attachmentDataUrl?: string | null;
+        attachmentName?: string;
+        attachmentType?: string;
+      };
+      if (saved.open === true || saved.open === false) setOpen(Boolean(saved.open));
+      if (saved.activeTab === "home" || saved.activeTab === "messages" || saved.activeTab === "help") {
+        setActiveTab(saved.activeTab);
+      }
+      if (typeof saved.messageDraft === "string") setMessageDraft(saved.messageDraft);
+      if (typeof saved.selectedConversationId === "string" || saved.selectedConversationId === null) {
+        setSelectedConversationId(saved.selectedConversationId);
+      }
+      if (typeof saved.attachmentDataUrl === "string" && saved.attachmentDataUrl) {
+        setAttachmentDataUrl(saved.attachmentDataUrl);
+        setAttachmentName(String(saved.attachmentName || "support-image.jpg"));
+        setAttachmentType(String(saved.attachmentType || "image/jpeg"));
+      }
+    } catch {
+      // no-op
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const draftData = JSON.stringify({
+        open,
+        activeTab,
+        messageDraft,
+        selectedConversationId,
+        attachmentDataUrl,
+        attachmentName,
+        attachmentType,
+      });
+      // Only save if it's not too large for sessionStorage (limit is usually ~5MB)
+      if (draftData.length < 4000000) {
+        window.sessionStorage.setItem(SUPPORT_WIDGET_DRAFT_KEY, draftData);
+      }
+    } catch (e) {
+      console.warn("Failed to save support widget draft to sessionStorage:", e);
+    }
+  }, [open, activeTab, messageDraft, selectedConversationId, attachmentDataUrl, attachmentName, attachmentType]);
 
   useEffect(() => {
     const boot = async () => {
@@ -144,13 +213,20 @@ const SupportWidget = () => {
       const { data: profiles } = userIds.length
         ? await supabase.from("profiles").select("id, full_name, username").in("id", userIds)
         : { data: [] as Array<{ id: string; full_name: string | null; username: string | null }> };
+      const { data: accounts } = userIds.length
+        ? await supabase.from("user_accounts").select("user_id, account_number").in("user_id", userIds)
+        : { data: [] as Array<{ user_id: string; account_number: string | null }> };
 
       const profileMap = new Map(
         (profiles || []).map((row) => [
           row.id,
-          { full_name: row.full_name || null, username: row.username || null },
+          { full_name: row.full_name || null, username: row.username || null, account_number: null as string | null },
         ]),
       );
+      for (const account of accounts || []) {
+        const existing = profileMap.get(account.user_id) || { full_name: null, username: null, account_number: null as string | null };
+        profileMap.set(account.user_id, { ...existing, account_number: account.account_number || null });
+      }
       const merged = convoRows.map((row) => ({
         ...row,
         profile: profileMap.get(row.user_id) || null,
@@ -173,6 +249,10 @@ const SupportWidget = () => {
   }, [selectedConversationId]);
 
   useEffect(() => {
+    if (attachmentDataUrl) {
+      setAttachmentPreview(attachmentDataUrl);
+      return;
+    }
     if (!attachmentFile) {
       setAttachmentPreview(null);
       return;
@@ -180,7 +260,7 @@ const SupportWidget = () => {
     const previewUrl = URL.createObjectURL(attachmentFile);
     setAttachmentPreview(previewUrl);
     return () => URL.revokeObjectURL(previewUrl);
-  }, [attachmentFile]);
+  }, [attachmentDataUrl, attachmentFile]);
 
   const filteredFaqs = useMemo(() => {
     const query = helpQuery.trim().toLowerCase();
@@ -247,8 +327,8 @@ const SupportWidget = () => {
   const sendMessage = async () => {
     const text = messageDraft.trim();
     if (!userId) return;
-    if (!text && !attachmentFile) return;
-    const ticketMessage = text || (attachmentFile ? "Image attachment in support chat" : "Support request");
+    if (!text && !attachmentFile && !attachmentDataUrl) return;
+    const ticketMessage = text || (attachmentFile || attachmentDataUrl ? "Image attachment in support chat" : "Support request");
     if (!isAgent) {
       const ticketId = await ensureSupportTicket(ticketMessage);
       if (!ticketId) return;
@@ -261,14 +341,23 @@ const SupportWidget = () => {
       return;
     }
     let attachmentUrl = "";
-    if (attachmentFile) {
+    if (attachmentFile || attachmentDataUrl) {
       setUploadingAttachment(true);
       try {
-        const safeName = attachmentFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const uploadFile =
+          attachmentFile ||
+          (() => {
+            const bytes = atob((attachmentDataUrl || "").split(",")[1] || "");
+            const array = new Uint8Array(bytes.length);
+            for (let i = 0; i < bytes.length; i += 1) array[i] = bytes.charCodeAt(i);
+            const mime = attachmentType || "image/jpeg";
+            return new File([array], attachmentName || "support-image.jpg", { type: mime });
+          })();
+        const safeName = uploadFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
         const filePath = `${userId}/${Date.now()}-${safeName}`;
         const { error: uploadError } = await supabase.storage
           .from("support-attachments")
-          .upload(filePath, attachmentFile, { upsert: true, contentType: attachmentFile.type });
+          .upload(filePath, uploadFile, { upsert: true, contentType: uploadFile.type });
         if (uploadError) {
           throw new Error(uploadError.message || "Upload failed");
         }
@@ -301,10 +390,13 @@ const SupportWidget = () => {
     }
     setMessageDraft("");
     setAttachmentFile(null);
+    setAttachmentDataUrl(null);
+    setAttachmentName("");
+    setAttachmentType("");
     setMessages((prev) => [
       ...prev,
       {
-        id: crypto.randomUUID(),
+        id: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2),
         conversation_id: conversationId,
         sender_id: userId,
         sender_role: isAgent ? "agent" : "user",
@@ -325,6 +417,9 @@ const SupportWidget = () => {
 
     setAiReplying(true);
     try {
+      if (!convo) {
+        throw new Error("Conversation not found");
+      }
       const { data: aiData, error: aiError } = await supabase.functions.invoke("support-ai-chat", {
         body: {
           conversation_id: convo.id,
@@ -341,7 +436,7 @@ const SupportWidget = () => {
       setMessages((prev) => [
         ...prev,
         {
-          id: crypto.randomUUID(),
+          id: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2),
           conversation_id: convo.id,
           sender_id: "openpay-ai",
           sender_role: "agent",
@@ -361,6 +456,7 @@ const SupportWidget = () => {
     setSelectedConversationId(id);
     setActiveTab("messages");
   };
+  const selectedConversation = allConversations.find((row) => row.id === selectedConversationId) || null;
 
   const allowSupportButton =
     location.pathname.startsWith("/menu") ||
@@ -419,13 +515,26 @@ const SupportWidget = () => {
                           onClick={() => selectConversation(row.id)}
                           className={`flex w-full items-center justify-between px-3 py-2 text-left text-xs ${selectedConversationId === row.id ? "bg-blue-50 text-blue-700" : "text-foreground"}`}
                         >
-                          <span>{row.profile?.username ? `@${row.profile.username}` : row.user_id.slice(0, 8)}</span>
+                          <span className="flex flex-col">
+                            <span>{row.profile?.username ? `@${row.profile.username}` : row.user_id.slice(0, 8)}</span>
+                            <span className="text-[10px] text-muted-foreground">{row.profile?.account_number || "No account number"}</span>
+                          </span>
                           <span className="text-[10px] text-muted-foreground">{row.last_message_at ? new Date(row.last_message_at).toLocaleDateString() : ""}</span>
                         </button>
                       ))}
                       {!allConversations.length && <p className="px-3 py-2 text-xs text-muted-foreground">No conversations yet.</p>}
                     </div>
                   )}
+                  {isAgent && selectedConversation ? (
+                    <div className="mb-2 rounded-lg border border-border bg-secondary/20 px-3 py-2 text-xs">
+                      <p className="font-semibold text-foreground">
+                        {selectedConversation.profile?.username ? `@${selectedConversation.profile.username}` : selectedConversation.user_id.slice(0, 8)}
+                      </p>
+                      <p className="text-muted-foreground">
+                        Account: {selectedConversation.profile?.account_number || "Not available"}
+                      </p>
+                    </div>
+                  ) : null}
                   <div className={`min-h-0 flex-1 overflow-y-auto rounded-lg border border-border bg-white p-3 text-sm ${hiddenScrollbarClass}`}>
                     {messages.length === 0 ? (
                       <p className="text-xs text-muted-foreground">No messages yet.</p>
@@ -436,7 +545,13 @@ const SupportWidget = () => {
                             {msg.message}
                             {msg.attachment_url ? (
                               <div className="mt-2 overflow-hidden rounded-lg border border-white/20 bg-white/10">
-                                <img src={msg.attachment_url} alt="Support attachment" className="max-h-48 w-full object-cover" />
+                                <button
+                                  type="button"
+                                  className="block w-full"
+                                  onClick={() => setImageViewerUrl(msg.attachment_url || null)}
+                                >
+                                  <img src={msg.attachment_url} alt="Support attachment" className="max-h-48 w-full object-cover" />
+                                </button>
                               </div>
                             ) : null}
                           </div>
@@ -451,13 +566,31 @@ const SupportWidget = () => {
                         type="file"
                         accept="image/*"
                         className="hidden"
-                        onChange={(event) => setAttachmentFile(event.target.files?.[0] ?? null)}
+                        onChange={async (event) => {
+                          const file = event.target.files?.[0] ?? null;
+                          if (!file) {
+                            setAttachmentFile(null);
+                            setAttachmentDataUrl(null);
+                            setAttachmentName("");
+                            setAttachmentType("");
+                            return;
+                          }
+                          setAttachmentFile(file);
+                          setAttachmentName(file.name);
+                          setAttachmentType(file.type);
+                          try {
+                            const dataUrl = await fileToDataUrl(file);
+                            setAttachmentDataUrl(dataUrl);
+                          } catch (error) {
+                            toast.error(error instanceof Error ? error.message : "Failed to load image");
+                          }
+                        }}
                       />
                       <ImageIcon className="h-4 w-4" />
                     </label>
                     <Button
                       onClick={sendMessage}
-                      disabled={aiReplying || uploadingAttachment || (!messageDraft.trim() && !attachmentFile)}
+                      disabled={aiReplying || uploadingAttachment || (!messageDraft.trim() && !attachmentFile && !attachmentDataUrl)}
                       className="h-9 rounded-full bg-paypal-blue text-white hover:bg-[#004dc5]"
                     >
                       <Send className="h-4 w-4" />
@@ -469,13 +602,27 @@ const SupportWidget = () => {
                         <p className="text-xs text-muted-foreground">Image attached</p>
                         <button
                           type="button"
-                          onClick={() => setAttachmentFile(null)}
+                          onClick={() => {
+                            setAttachmentFile(null);
+                            setAttachmentDataUrl(null);
+                            setAttachmentName("");
+                            setAttachmentType("");
+                          }}
                           className="text-xs font-semibold text-paypal-blue"
                         >
                           Remove
                         </button>
                       </div>
-                      <img src={attachmentPreview} alt="Attachment preview" className="mt-2 max-h-40 w-full rounded-md object-cover" />
+                      <button type="button" className="mt-2 block w-full" onClick={() => setImageViewerUrl(attachmentPreview)}>
+                        <img src={attachmentPreview} alt="Attachment preview" className="max-h-40 w-full rounded-md object-cover" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setImageViewerUrl(attachmentPreview)}
+                        className="mt-2 w-full text-xs font-semibold text-paypal-blue"
+                      >
+                        View full image
+                      </button>
                     </div>
                   ) : null}
                 </div>
@@ -524,6 +671,19 @@ const SupportWidget = () => {
           </div>
         </div>
       )}
+      <Dialog open={Boolean(imageViewerUrl)} onOpenChange={(openState) => { if (!openState) setImageViewerUrl(null); }}>
+        <DialogContent className="rounded-3xl sm:max-w-3xl">
+          <DialogTitle className="text-lg font-bold text-foreground">Support image</DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground">
+            Full-size preview of the attached image.
+          </DialogDescription>
+          {imageViewerUrl ? (
+            <img src={imageViewerUrl} alt="Support attachment full size" className="mt-2 w-full rounded-2xl object-contain" />
+          ) : (
+            <p className="text-sm text-muted-foreground">No image available.</p>
+          )}
+        </DialogContent>
+      </Dialog>
     </>
   );
 };
