@@ -123,9 +123,9 @@ const AdminTopUpRequestsPage = () => {
     setReviewingId(requestId);
     try {
       const { error } = await (supabase as any).rpc("admin_review_topup_request", {
-        p_request_id: requestId,
-        p_decision: decision,
         p_admin_note: `Reviewed by @${viewerUsername || "admin"}`,
+        p_decision: decision,
+        p_request_id: requestId,
       });
       if (error) throw new Error(error.message || "Top up review failed");
       toast.success(decision === "approve" ? "Top up approved" : "Top up rejected");

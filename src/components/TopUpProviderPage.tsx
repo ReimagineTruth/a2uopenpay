@@ -27,6 +27,13 @@ const TopUpProviderPage = ({
   const usdDisplay = safeUsdAmount > 0 ? safeUsdAmount.toFixed(2) : "0.00";
 
   const openUsdDisplay = useMemo(() => usdDisplay, [usdDisplay]);
+  const providerUnit = providerName === "USDT" ? "USDT" : providerName === "USDC" ? "USDC" : "USD";
+  const conversionText =
+    providerName === "USDT"
+      ? "1 USDT = 1 OPEN USD"
+      : providerName === "USDC"
+        ? "1 USDC = 1 OPEN USD"
+        : "1 OPEN USD = 1 USD";
   const [paymentCompleted, setPaymentCompleted] = useState(false);
   const [showSafetyAgreement, setShowSafetyAgreement] = useState(false);
   const [safetyAgreementChecked, setSafetyAgreementChecked] = useState(false);
@@ -72,9 +79,9 @@ const TopUpProviderPage = ({
 
       <div className="paypal-surface mt-8 rounded-3xl p-6">
         <p className="text-center text-sm text-muted-foreground">Amount to pay</p>
-        <p className="mt-1 text-center text-5xl font-bold text-foreground">{usdDisplay} USD</p>
+        <p className="mt-1 text-center text-5xl font-bold text-foreground">{usdDisplay} {providerUnit}</p>
         <p className="mt-1 text-center text-xs text-muted-foreground">
-          You will receive {openUsdDisplay} OPEN USD (1 OPEN USD = 1 USD)
+          You will receive {openUsdDisplay} OPEN USD ({conversionText})
         </p>
         <p className="mt-2 text-center text-sm font-semibold text-foreground">
           OPEN USD to receive: {openUsdDisplay} OPEN USD

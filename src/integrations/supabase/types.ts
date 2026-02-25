@@ -310,6 +310,151 @@ export type Database = {
         }
         Relationships: []
       }
+      support_agents: {
+        Row: {
+          created_at: string
+          handle: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          handle?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          handle?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      support_conversations: {
+        Row: {
+          created_at: string
+          id: string
+          last_message_at: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_message_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_message_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      support_faq_categories: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          sort_order: number
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string
+          id?: string
+          sort_order?: number
+          title: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          sort_order?: number
+          title?: string
+        }
+        Relationships: []
+      }
+      support_faq_items: {
+        Row: {
+          answer: string
+          category_id: string | null
+          created_at: string
+          id: string
+          question: string
+          tags: string[]
+        }
+        Insert: {
+          answer: string
+          category_id?: string | null
+          created_at?: string
+          id?: string
+          question: string
+          tags?: string[]
+        }
+        Update: {
+          answer?: string
+          category_id?: string | null
+          created_at?: string
+          id?: string
+          question?: string
+          tags?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_faq_items_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "support_faq_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      support_messages: {
+        Row: {
+          attachment_url: string | null
+          conversation_id: string
+          created_at: string
+          id: string
+          message: string
+          read_at: string | null
+          sender_id: string
+          sender_role: string
+        }
+        Insert: {
+          attachment_url?: string | null
+          conversation_id: string
+          created_at?: string
+          id?: string
+          message: string
+          read_at?: string | null
+          sender_id: string
+          sender_role?: string
+        }
+        Update: {
+          attachment_url?: string | null
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          message?: string
+          read_at?: string | null
+          sender_id?: string
+          sender_role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "support_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       support_tickets: {
         Row: {
           created_at: string

@@ -18,6 +18,8 @@ import TopUpApplePay from "./pages/TopUpApplePay";
 import TopUpGooglePay from "./pages/TopUpGooglePay";
 import TopUpStripe from "./pages/TopUpStripe";
 import TopUpVenmo from "./pages/TopUpVenmo";
+import TopUpUSDT from "./pages/TopUpUSDT";
+import TopUpUSDC from "./pages/TopUpUSDC";
 import ReceivePage from "./pages/ReceivePage";
 import Contacts from "./pages/Contacts";
 import MenuPage from "./pages/MenuPage";
@@ -136,6 +138,8 @@ const AppRoutes = () => {
         <Route path="/topup-google-pay" element={<TopUpGooglePay />} />
         <Route path="/topup-stripe" element={<TopUpStripe />} />
         <Route path="/topup-venmo" element={<TopUpVenmo />} />
+        <Route path="/topup-usdt" element={<TopUpUSDT />} />
+        <Route path="/topup-usdc" element={<TopUpUSDC />} />
         <Route path="/receive" element={<ReceivePage />} />
         <Route path="/contacts" element={<Contacts />} />
         <Route path="/menu" element={<MenuPage />} />
@@ -180,6 +184,7 @@ const AppRoutes = () => {
         <Route path="/openapp" element={<OpenAppPage />} />
         <Route path="/openpay-desktop" element={<OpenPayDesktopPage />} />
         <Route path="/live-customer-service" element={<LiveCustomerServicePage />} />
+        <Route path="/support" element={<div className="min-h-screen bg-background" />} />
         <Route path="/swap-withdrawal" element={<SwapWithdrawalPage />} />
         <Route path="*" element={<NotFound />} />
       </Routes>

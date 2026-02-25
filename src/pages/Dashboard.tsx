@@ -41,6 +41,8 @@ type MerchantMode = "sandbox" | "live";
 type BuyOnrampProvider =
   | "Pi Payment"
   | "Ewallet QR PH"
+  | "USDT"
+  | "USDC"
   | "PayPal"
   | "Apple Pay"
   | "Debit Card"
@@ -54,6 +56,8 @@ type BuyOnrampProvider =
 type BuyPaymentMethod =
   | "Pi Payment"
   | "Ewallet"
+  | "USDT"
+  | "USDC"
   | "Debit Card"
   | "Credit Card"
   | "Apple Pay"
@@ -74,6 +78,11 @@ const VENMO_ICON_URL =
   "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Venmo_Logo.svg/1920px-Venmo_Logo.svg.png";
 const VISA_ICON_URL = "https://i.ibb.co/G3FGwngR/Visa-Inc-logo-2021-present-svg.png";
 const MASTERCARD_ICON_URL = "https://i.ibb.co/9kkZmFDq/Mastercard-2019-logo-svg.png";
+const USDT_ICON_URL = "https://cryptologos.cc/logos/tether-usdt-logo.png";
+const USDC_ICON_URL = "https://cryptologos.cc/logos/usd-coin-usdc-logo.png";
+const TRANSFI_ICON_URL = "https://logo.clearbit.com/transfi.com";
+const ONRAMP_MONEY_ICON_URL = "https://logo.clearbit.com/onramp.money";
+const BANXA_ICON_URL = "https://logo.clearbit.com/banxa.com";
 const E_WALLET_PHP_PER_OUSD = 57;
 
 interface SavingsDashboard {
@@ -954,10 +963,33 @@ const Dashboard = () => {
   const parsedBuySpend = Number(buySpendAmount);
   const safeBuySpend = Number.isFinite(parsedBuySpend) && parsedBuySpend > 0 ? parsedBuySpend : 0;
   const isEwalletBuyFlow = buyPaymentMethod === "Ewallet";
-  const isPaypalBuyFlow = buyPaymentMethod !== "Ewallet" && buyPaymentMethod !== "Pi Payment";
+  const isUsdtBuyFlow = buyPaymentMethod === "USDT";
+  const isUsdcBuyFlow = buyPaymentMethod === "USDC";
+  const isUsdFiatBuyFlow =
+    buyPaymentMethod !== "Ewallet" &&
+    buyPaymentMethod !== "Pi Payment" &&
+    buyPaymentMethod !== "USDT" &&
+    buyPaymentMethod !== "USDC";
+  const buySpendUnit = isEwalletBuyFlow ? "PHP" : isUsdtBuyFlow ? "USDT" : isUsdcBuyFlow ? "USDC" : isUsdFiatBuyFlow ? "USD" : "PI";
+  const buySpendRateText = isEwalletBuyFlow
+    ? `${E_WALLET_PHP_PER_OUSD.toFixed(2)} PHP = 1 OPEN USD`
+    : isUsdtBuyFlow
+      ? "1 USDT = 1 OPEN USD"
+      : isUsdcBuyFlow
+        ? "1 USDC = 1 OPEN USD"
+        : isUsdFiatBuyFlow
+          ? "1 USD = 1 OPEN USD"
+          : "1 OPEN USD to PI";
+  const buyOpenUsdRateText = isUsdtBuyFlow
+    ? "1 USDT = 1 OPEN USD"
+    : isUsdcBuyFlow
+      ? "1 USDC = 1 OPEN USD"
+      : "1 OPEN USD = 1 PI";
   const onrampRates: Record<BuyOnrampProvider, number> = {
     "Pi Payment": 1,
     "Ewallet QR PH": 1,
+    "USDT": 1,
+    "USDC": 1,
     "PayPal": 1,
     "Apple Pay": 1,
     "Debit Card": 1,
@@ -973,6 +1005,8 @@ const Dashboard = () => {
   const onrampRows: Array<{ key: BuyOnrampProvider; disabled?: boolean; subtitle: string; delta?: string; recommended?: boolean }> = [
     { key: "Pi Payment", subtitle: "Active", recommended: true },
     { key: "Ewallet QR PH", subtitle: "Active" },
+    { key: "USDT", subtitle: "Active" },
+    { key: "USDC", subtitle: "Active" },
     { key: "PayPal", subtitle: "Active" },
     { key: "Apple Pay", subtitle: "Active" },
     { key: "Google Pay", subtitle: "Active" },
@@ -987,6 +1021,8 @@ const Dashboard = () => {
   const paymentMethodRows: Array<{ key: BuyPaymentMethod; recommended?: boolean; disabled?: boolean }> = [
     { key: "Pi Payment", recommended: true },
     { key: "Ewallet" },
+    { key: "USDT" },
+    { key: "USDC" },
     { key: "PayPal" },
     { key: "Apple Pay" },
     { key: "Google Pay" },
@@ -998,6 +1034,8 @@ const Dashboard = () => {
   const supportedBuyPaymentMethods: BuyPaymentMethod[] = [
     "Pi Payment",
     "Ewallet",
+    "USDT",
+    "USDC",
     "PayPal",
     "Apple Pay",
     "Google Pay",
@@ -1048,6 +1086,8 @@ const Dashboard = () => {
     if (buyPaymentMethod !== "Pi Payment") {
       const amountForTopUp = Math.max(0.01, Number(buyOpenUsdAmount.toFixed(2)));
       const methodRouteMap: Record<string, string> = {
+        "USDT": "/topup-usdt",
+        "USDC": "/topup-usdc",
         "PayPal": "/topup-paypal",
         "Debit Card": "/topup-debit",
         "Credit Card": "/topup-credit",
@@ -1621,7 +1661,7 @@ const Dashboard = () => {
             <div className="space-y-3">
               <div className="rounded-2xl bg-secondary/50 p-4">
                 <p className="text-sm text-muted-foreground">
-                  You spend ({isEwalletBuyFlow ? "PHP" : isPaypalBuyFlow ? "USD" : "PI"} amount)
+                  You spend ({buySpendUnit} amount)
                 </p>
                 <div className="mt-2 flex items-center justify-between gap-3">
                   <input
@@ -1634,15 +1674,11 @@ const Dashboard = () => {
                     className="h-10 w-full bg-transparent text-4xl font-semibold text-foreground outline-none"
                   />
                   <span className="inline-flex h-11 items-center rounded-xl bg-white px-3 text-sm font-semibold text-foreground">
-                    {isEwalletBuyFlow ? "PHP" : isPaypalBuyFlow ? "USD" : buyFiatCurrency}
+                    {buySpendUnit}
                   </span>
                 </div>
                 <p className="mt-2 text-xs font-medium text-foreground">
-                  {isEwalletBuyFlow
-                    ? `${E_WALLET_PHP_PER_OUSD.toFixed(2)} PHP = 1 OPEN USD`
-                    : isPaypalBuyFlow
-                      ? "1 USD = 1 OPEN USD"
-                      : "1 OPEN USD to PI"}
+                  {buySpendRateText}
                 </p>
               </div>
 
@@ -1652,12 +1688,16 @@ const Dashboard = () => {
                   <p className="text-4xl font-semibold text-foreground">{buyOpenUsdDisplay}</p>
                   <span className="inline-flex h-11 items-center rounded-xl bg-white px-3 text-sm font-semibold text-foreground">PI</span>
                 </div>
-                <p className="mt-2 text-xs font-medium text-foreground">1 OPEN USD = 1 PI</p>
+                <p className="mt-2 text-xs font-medium text-foreground">{buyOpenUsdRateText}</p>
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-border/50 pt-3 text-sm text-muted-foreground">
                   <p>
                     1 OUSD ~ {isEwalletBuyFlow
                       ? `${E_WALLET_PHP_PER_OUSD.toFixed(4)} PHP`
-                      : isPaypalBuyFlow
+                      : isUsdtBuyFlow
+                        ? "1.0000 USDT"
+                        : isUsdcBuyFlow
+                          ? "1.0000 USDC"
+                          : isUsdFiatBuyFlow
                         ? "1.0000 USD"
                         : `${selectedRate.toFixed(4)} PI`}
                   </p>
@@ -1689,6 +1729,12 @@ const Dashboard = () => {
                 {buyPaymentMethod === "PayPal" && (
                   <img src={PAYPAL_ICON_URL} alt="PayPal" className="h-5 w-auto object-contain" />
                 )}
+                {buyPaymentMethod === "USDT" && (
+                  <img src={USDT_ICON_URL} alt="USDT" className="h-5 w-auto object-contain" />
+                )}
+                {buyPaymentMethod === "USDC" && (
+                  <img src={USDC_ICON_URL} alt="USDC" className="h-5 w-auto object-contain" />
+                )}
                 {buyPaymentMethod === "Apple Pay" && (
                   <img src={APPLE_PAY_ICON_URL} alt="Apple Pay" className="h-5 w-auto object-contain" />
                 )}
@@ -1719,6 +1765,10 @@ const Dashboard = () => {
             >
               {buyPaymentMethod === "Ewallet"
                 ? "Buy OpenUSD with Ewallet QR PH"
+                : buyPaymentMethod === "USDT"
+                  ? "Buy OpenUSD with USDT"
+                  : buyPaymentMethod === "USDC"
+                    ? "Buy OpenUSD with USDC"
                 : buyPaymentMethod === "PayPal"
                   ? "Buy OpenUSD with PayPal"
                   : "Buy OpenUSD with Pi Payment"}
@@ -1726,6 +1776,10 @@ const Dashboard = () => {
             <p className="mt-2 text-xs text-muted-foreground">
               Minimum buy: 1 OPEN USD. {isEwalletBuyFlow
                 ? `Ewallet QR PH uses PH price: 1 OPEN USD = ${E_WALLET_PHP_PER_OUSD.toFixed(2)} PHP.`
+                : isUsdtBuyFlow
+                  ? "USDT buy uses fixed rate: 1 USDT = 1 OPEN USD."
+                  : isUsdcBuyFlow
+                    ? "USDC buy uses fixed rate: 1 USDC = 1 OPEN USD."
                 : buyPaymentMethod === "PayPal"
                   ? "PayPal uses USD amount and credits OPEN USD balance."
                   : "Purchase flow uses OpenPay OPEN USD to PI balance."}
@@ -2266,6 +2320,10 @@ const Dashboard = () => {
               const quoteLabel =
                 row.key === "Ewallet QR PH"
                   ? `${(targetOpenUsdAmount * E_WALLET_PHP_PER_OUSD).toFixed(2)} PHP`
+                  : row.key === "USDT"
+                    ? `${targetOpenUsdAmount.toFixed(2)} USDT`
+                    : row.key === "USDC"
+                      ? `${targetOpenUsdAmount.toFixed(2)} USDC`
                   : usdOnrampProviders.includes(row.key)
                     ? `${targetOpenUsdAmount.toFixed(2)} USD`
                     : `${targetOpenUsdAmount.toFixed(5)} PI`;
@@ -2280,6 +2338,10 @@ const Dashboard = () => {
                     setBuyOnrampProvider(row.key);
                     if (row.key === "Ewallet QR PH") {
                       setBuyPaymentMethod("Ewallet");
+                    } else if (row.key === "USDT") {
+                      setBuyPaymentMethod("USDT");
+                    } else if (row.key === "USDC") {
+                      setBuyPaymentMethod("USDC");
                     } else if (row.key === "Pi Payment") {
                       setBuyPaymentMethod("Pi Payment");
                     } else if (row.key === "PayPal") {
@@ -2319,6 +2381,12 @@ const Dashboard = () => {
                         {row.key === "PayPal" && (
                           <img src={PAYPAL_ICON_URL} alt="PayPal" className="h-6 w-auto object-contain" />
                         )}
+                        {row.key === "USDT" && (
+                          <img src={USDT_ICON_URL} alt="USDT" className="h-6 w-auto object-contain" />
+                        )}
+                        {row.key === "USDC" && (
+                          <img src={USDC_ICON_URL} alt="USDC" className="h-6 w-auto object-contain" />
+                        )}
                         {row.key === "Apple Pay" && (
                           <img src={APPLE_PAY_ICON_URL} alt="Apple Pay" className="h-6 w-auto object-contain" />
                         )}
@@ -2336,6 +2404,36 @@ const Dashboard = () => {
                         )}
                         {row.key === "Venmo" && (
                           <img src={VENMO_ICON_URL} alt="Venmo" className="h-5 w-auto object-contain" />
+                        )}
+                        {row.key === "TransFi" && (
+                          <img
+                            src={TRANSFI_ICON_URL}
+                            alt="TransFi"
+                            className="h-5 w-auto object-contain"
+                            onError={(e) => {
+                              e.currentTarget.style.display = "none";
+                            }}
+                          />
+                        )}
+                        {row.key === "Onramp Money" && (
+                          <img
+                            src={ONRAMP_MONEY_ICON_URL}
+                            alt="Onramp Money"
+                            className="h-5 w-auto object-contain"
+                            onError={(e) => {
+                              e.currentTarget.style.display = "none";
+                            }}
+                          />
+                        )}
+                        {row.key === "Banxa" && (
+                          <img
+                            src={BANXA_ICON_URL}
+                            alt="Banxa"
+                            className="h-5 w-auto object-contain"
+                            onError={(e) => {
+                              e.currentTarget.style.display = "none";
+                            }}
+                          />
                         )}
                         {row.key}
                       </p>
@@ -2381,6 +2479,10 @@ const Dashboard = () => {
                     setBuyPaymentMethod(row.key);
                     if (row.key === "Ewallet") {
                       setBuyOnrampProvider("Ewallet QR PH");
+                    } else if (row.key === "USDT") {
+                      setBuyOnrampProvider("USDT");
+                    } else if (row.key === "USDC") {
+                      setBuyOnrampProvider("USDC");
                     } else if (row.key === "Pi Payment") {
                       setBuyOnrampProvider("Pi Payment");
                     } else if (row.key === "PayPal") {
@@ -2415,6 +2517,12 @@ const Dashboard = () => {
                     )}
                     {row.key === "PayPal" && (
                       <img src={PAYPAL_ICON_URL} alt="PayPal" className="h-5 w-auto object-contain" />
+                    )}
+                    {row.key === "USDT" && (
+                      <img src={USDT_ICON_URL} alt="USDT" className="h-5 w-auto object-contain" />
+                    )}
+                    {row.key === "USDC" && (
+                      <img src={USDC_ICON_URL} alt="USDC" className="h-5 w-auto object-contain" />
                     )}
                     {row.key === "Apple Pay" && (
                       <img src={APPLE_PAY_ICON_URL} alt="Apple Pay" className="h-5 w-auto object-contain" />

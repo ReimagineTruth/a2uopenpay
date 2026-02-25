@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { useLocation } from "react-router-dom";
-import { HelpCircle, Image as ImageIcon, MessageCircle, Search, Send, X } from "lucide-react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { ArrowLeft, HelpCircle, Image as ImageIcon, MessageCircle, Search, Send, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,6 +54,7 @@ const fileToDataUrl = (file: File) =>
 
 const SupportWidget = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const hiddenScrollbarClass = "[scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden";
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"home" | "messages" | "help">("home");
@@ -76,6 +77,7 @@ const SupportWidget = () => {
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [supportTicketId, setSupportTicketId] = useState<string | null>(null);
   const [imageViewerUrl, setImageViewerUrl] = useState<string | null>(null);
+  const isSupportPage = location.pathname === "/support";
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -184,54 +186,77 @@ const SupportWidget = () => {
   useEffect(() => {
     const handler = (event: Event) => {
       const detail = (event as CustomEvent<{ tab?: "home" | "messages" | "help" }>).detail;
-      setOpen(true);
-      setActiveTab(detail?.tab ?? "messages");
+      const tab = detail?.tab === "home" || detail?.tab === "help" ? detail.tab : "messages";
+      setActiveTab(tab);
+      navigate(`/support?tab=${tab}`);
     };
     window.addEventListener("open-support-widget", handler as EventListener);
     return () => window.removeEventListener("open-support-widget", handler as EventListener);
-  }, []);
+  }, [navigate]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || isSupportPage) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = previousOverflow;
     };
-  }, [open]);
+  }, [open, isSupportPage]);
+
+  useEffect(() => {
+    if (!isSupportPage) return;
+    const params = new URLSearchParams(location.search);
+    const tab = params.get("tab");
+    if (tab === "home" || tab === "messages" || tab === "help") {
+      setActiveTab(tab);
+      return;
+    }
+    setActiveTab("messages");
+  }, [isSupportPage, location.search]);
 
   useEffect(() => {
     if (!isAgent) return;
     const loadInbox = async () => {
-      const { data } = await supabase
-        .from("support_conversations")
-        .select("id, user_id, status, last_message_at, created_at")
-        .order("last_message_at", { ascending: false })
-        .limit(30);
-      const convoRows = (data || []) as SupportConversation[];
-      const userIds = Array.from(new Set(convoRows.map((row) => row.user_id).filter(Boolean)));
-      const { data: profiles } = userIds.length
-        ? await supabase.from("profiles").select("id, full_name, username").in("id", userIds)
-        : { data: [] as Array<{ id: string; full_name: string | null; username: string | null }> };
-      const { data: accounts } = userIds.length
-        ? await supabase.from("user_accounts").select("user_id, account_number").in("user_id", userIds)
-        : { data: [] as Array<{ user_id: string; account_number: string | null }> };
+      try {
+        const { data, error } = await supabase
+          .from("support_conversations")
+          .select("id, user_id, status, last_message_at, created_at")
+          .order("last_message_at", { ascending: false })
+          .limit(30);
+        if (error) throw error;
 
-      const profileMap = new Map(
-        (profiles || []).map((row) => [
-          row.id,
-          { full_name: row.full_name || null, username: row.username || null, account_number: null as string | null },
-        ]),
-      );
-      for (const account of accounts || []) {
-        const existing = profileMap.get(account.user_id) || { full_name: null, username: null, account_number: null as string | null };
-        profileMap.set(account.user_id, { ...existing, account_number: account.account_number || null });
+        const convoRows = (data || []) as SupportConversation[];
+        const userIds = Array.from(new Set(convoRows.map((row) => row.user_id).filter(Boolean)));
+
+        const profilesResponse = userIds.length
+          ? await supabase.from("profiles").select("id, full_name, username").in("id", userIds)
+          : { data: [] as Array<{ id: string; full_name: string | null; username: string | null }>, error: null };
+        const accountsResponse = userIds.length
+          ? await supabase.from("user_accounts").select("user_id, account_number").in("user_id", userIds)
+          : { data: [] as Array<{ user_id: string; account_number: string | null }>, error: null };
+
+        const profiles = profilesResponse.data || [];
+        const accounts = accountsResponse.error ? [] : accountsResponse.data || [];
+
+        const profileMap = new Map(
+          profiles.map((row) => [
+            row.id,
+            { full_name: row.full_name || null, username: row.username || null, account_number: null as string | null },
+          ]),
+        );
+        for (const account of accounts) {
+          const existing = profileMap.get(account.user_id) || { full_name: null, username: null, account_number: null as string | null };
+          profileMap.set(account.user_id, { ...existing, account_number: account.account_number || null });
+        }
+        const merged = convoRows.map((row) => ({
+          ...row,
+          profile: profileMap.get(row.user_id) || null,
+        }));
+        setAllConversations(merged);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Failed to load support conversations";
+        toast.error(message);
       }
-      const merged = convoRows.map((row) => ({
-        ...row,
-        profile: profileMap.get(row.user_id) || null,
-      }));
-      setAllConversations(merged);
     };
     void loadInbox();
   }, [isAgent]);
@@ -466,7 +491,7 @@ const SupportWidget = () => {
     <>
       {allowSupportButton && (
         <button
-          onClick={() => setOpen(true)}
+          onClick={() => navigate("/support?tab=messages")}
           className="fixed bottom-24 right-4 z-[90] flex h-12 w-12 items-center justify-center rounded-full bg-paypal-blue text-white shadow-lg shadow-black/20 md:bottom-6 md:right-6"
           aria-label="Open support"
         >
@@ -474,24 +499,37 @@ const SupportWidget = () => {
         </button>
       )}
 
-      {open && (
-        <div className="fixed inset-0 z-[100]">
-          <div className="absolute inset-0 bg-black/30 md:hidden" onClick={() => setOpen(false)} />
-          <div className="absolute inset-0 flex flex-col rounded-none bg-white shadow-2xl md:inset-auto md:bottom-6 md:right-6 md:h-[min(760px,calc(100vh-8rem))] md:w-[380px] md:max-w-[90vw] md:rounded-2xl md:border md:border-border">
+      {(open || isSupportPage) && (
+        <div className={isSupportPage ? "min-h-screen bg-background px-4 py-4 pb-10" : "fixed inset-0 z-[100]"}>
+          {!isSupportPage ? <div className="absolute inset-0 bg-black/30 md:hidden" onClick={() => setOpen(false)} /> : null}
+          <div
+            className={
+              isSupportPage
+                ? "mx-auto flex w-full max-w-3xl flex-col rounded-2xl border border-border bg-white shadow-sm"
+                : "absolute inset-0 flex flex-col rounded-none bg-white shadow-2xl md:inset-auto md:bottom-6 md:right-6 md:h-[min(760px,calc(100vh-8rem))] md:w-[380px] md:max-w-[90vw] md:rounded-2xl md:border md:border-border"
+            }
+          >
             <div className="flex items-center justify-between border-b border-border px-4 py-3">
               <div className="flex items-center gap-2">
+                {isSupportPage ? (
+                  <button onClick={() => navigate(-1)} className="flex h-8 w-8 items-center justify-center rounded-full border border-border">
+                    <ArrowLeft className="h-4 w-4" />
+                  </button>
+                ) : null}
                 <BrandLogo className="h-7 w-7" />
                 <div>
                   <p className="text-sm font-semibold text-foreground">OpenPay Support</p>
                   <p className="text-xs text-muted-foreground">How can we help?</p>
                 </div>
               </div>
-              <button onClick={() => setOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-full border border-border">
-                <X className="h-4 w-4" />
-              </button>
+              {!isSupportPage ? (
+                <button onClick={() => setOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-full border border-border">
+                  <X className="h-4 w-4" />
+                </button>
+              ) : null}
             </div>
 
-            <div className="flex-1 min-h-0 px-4 pt-3">
+            <div className={`flex-1 min-h-0 px-4 pt-3 ${isSupportPage ? "pb-3" : ""}`}>
               {activeTab === "home" && (
                 <div className="space-y-3">
                   <button onClick={() => setActiveTab("messages")} className="w-full rounded-xl border border-border p-3 text-left">

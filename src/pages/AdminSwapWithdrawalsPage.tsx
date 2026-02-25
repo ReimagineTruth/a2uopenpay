@@ -111,9 +111,9 @@ const AdminSwapWithdrawalsPage = () => {
     setReviewingId(withdrawalId);
     try {
       const { error } = await (supabase as any).rpc("admin_review_swap_withdrawal", {
-        p_withdrawal_id: withdrawalId,
-        p_decision: decision,
         p_admin_note: `Reviewed by @${viewerUsername || "admin"}`,
+        p_decision: decision,
+        p_withdrawal_id: withdrawalId,
       });
       if (error) throw new Error(error.message || "Withdrawal review failed");
       toast.success(decision === "approve" ? "Withdrawal approved" : "Withdrawal rejected");
