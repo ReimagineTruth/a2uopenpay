@@ -268,7 +268,7 @@ const TopUp = () => {
   const topUpButtonLabel = loading
     ? "Processing Pi payment..."
     : safeAmount > 0
-      ? `Pay with Pi and add ${usdCurrency.symbol}${safeAmount.toFixed(2)} OPEN USD`
+      ? "Pay with Pi"
       : "Enter amount to top up";
 
   return (
@@ -355,7 +355,7 @@ const TopUp = () => {
           disabled={loading || safeAmount <= 0}
         >
           <img src={PI_PAYMENT_ICON_URL} alt="Pi Payment" className="mr-2 h-8 w-auto object-contain" />
-          Pay with Pi Payment
+          Pay with Pi
         </Button>
 
         <Button

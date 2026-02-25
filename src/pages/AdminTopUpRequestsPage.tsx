@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 
 type TopUpRequestRow = {
   id: string;
@@ -44,6 +45,8 @@ const AdminTopUpRequestsPage = () => {
   const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [topUpRequests, setTopUpRequests] = useState<TopUpRequestRow[]>([]);
   const [statusFilter, setStatusFilter] = useState<"pending" | "approved" | "rejected" | "all">("pending");
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewRow, setPreviewRow] = useState<TopUpRequestRow | null>(null);
 
   const pendingCount = useMemo(() => topUpRequests.length, [topUpRequests]);
 
@@ -230,7 +233,10 @@ const AdminTopUpRequestsPage = () => {
                       <button
                         type="button"
                         className="font-semibold text-paypal-blue underline"
-                        onClick={() => window.open(row.proof_url, "_blank", "noopener,noreferrer")}
+                        onClick={() => {
+                          setPreviewUrl(row.proof_url);
+                          setPreviewRow(row);
+                        }}
                       >
                         View payment proof
                       </button>
@@ -266,6 +272,48 @@ const AdminTopUpRequestsPage = () => {
           </div>
         )}
       </div>
+
+      <Dialog
+        open={!!previewUrl}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPreviewUrl(null);
+            setPreviewRow(null);
+          }
+        }}
+      >
+        <DialogContent className="rounded-3xl sm:max-w-3xl">
+          <DialogTitle className="text-lg font-bold text-foreground">Payment Proof</DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground">
+            Preview the uploaded payment screenshot without leaving this page.
+          </DialogDescription>
+          {previewRow && (
+            <div className="mt-2 rounded-2xl border border-border bg-secondary/30 p-3 text-sm text-foreground">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-xs text-muted-foreground">Applicant</p>
+                  <p className="font-semibold">{previewRow.applicant_display_name}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-muted-foreground">Amount</p>
+                  <p className="font-semibold text-paypal-blue">{previewRow.amount.toFixed(2)} OPEN USD</p>
+                </div>
+              </div>
+              <div className="mt-2 grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
+                <p>OpenPay name: {previewRow.openpay_account_name}</p>
+                <p>OpenPay username: @{previewRow.openpay_account_username}</p>
+                <p>Account number: {previewRow.openpay_account_number}</p>
+                <p>Reference: {previewRow.reference_code}</p>
+              </div>
+            </div>
+          )}
+          {previewUrl ? (
+            <img src={previewUrl} alt="Payment proof preview" className="mt-2 w-full rounded-2xl object-contain" />
+          ) : (
+            <p className="text-sm text-muted-foreground">No image available.</p>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

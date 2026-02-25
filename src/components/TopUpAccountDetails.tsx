@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 
 type TopUpAccountDetailsProps = {
   providerName: string;
@@ -37,6 +38,8 @@ const TopUpAccountDetails = ({
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [showImageModal, setShowImageModal] = useState(false);
   const [history, setHistory] = useState<TopUpHistoryRow[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
 
@@ -102,24 +105,28 @@ const TopUpAccountDetails = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const submitTopUpRequest = async () => {
+  const validateTopUp = () => {
     setSubmitted(false);
     if (!Number.isFinite(safeAmount) || safeAmount <= 0) {
       toast.error("Enter a valid top up amount first");
-      return;
+      return false;
     }
     if (!openpayName.trim() || !normalizedUsername || !openpayAccountNumber.trim()) {
       toast.error("OpenPay account details are required");
-      return;
+      return false;
     }
     if (!referenceCode.trim()) {
       toast.error("Payment reference is required");
-      return;
+      return false;
     }
     if (!proofFile) {
       toast.error("Payment proof screenshot is required");
-      return;
+      return false;
     }
+    return true;
+  };
+
+  const submitTopUpRequest = async () => {
     setSubmitting(true);
     try {
       setUploading(true);
@@ -171,6 +178,11 @@ const TopUpAccountDetails = ({
     }
   };
 
+  const handleConfirmSubmit = async () => {
+    setShowConfirmModal(false);
+    await submitTopUpRequest();
+  };
+
   return (
     <div className={className}>
       <label className="block space-y-1 text-xs text-muted-foreground">
@@ -185,7 +197,16 @@ const TopUpAccountDetails = ({
 
       {proofPreview ? (
         <div className="mt-2 overflow-hidden rounded-xl border border-border bg-secondary/20">
-          <img src={proofPreview} alt="Payment proof preview" className="h-40 w-full object-cover" />
+          <button type="button" className="block w-full" onClick={() => setShowImageModal(true)}>
+            <img src={proofPreview} alt="Payment proof preview" className="h-40 w-full object-cover" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowImageModal(true)}
+            className="w-full px-3 py-2 text-xs font-semibold text-paypal-blue"
+          >
+            View full image
+          </button>
         </div>
       ) : null}
 
@@ -244,7 +265,10 @@ const TopUpAccountDetails = ({
       <Button
         type="button"
         className="mt-3 h-11 w-full rounded-xl bg-paypal-blue text-sm font-semibold text-white hover:bg-[#004dc5]"
-        onClick={submitTopUpRequest}
+        onClick={() => {
+          if (!validateTopUp()) return;
+          setShowConfirmModal(true);
+        }}
         disabled={submitting || uploading || safeAmount <= 0}
       >
         {uploading ? "Uploading..." : submitting ? "Submitting..." : submitLabel}
@@ -287,6 +311,65 @@ const TopUpAccountDetails = ({
           </div>
         )}
       </div>
+
+      <Dialog open={showConfirmModal} onOpenChange={setShowConfirmModal}>
+        <DialogContent className="rounded-3xl sm:max-w-md">
+          <DialogTitle className="text-lg font-bold text-foreground">Confirm Top Up Request</DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground">
+            Review your details before submitting this top up request.
+          </DialogDescription>
+          <div className="mt-2 rounded-2xl border border-border p-3 text-sm text-foreground space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Amount</span>
+              <span className="font-semibold">{safeAmount.toFixed(2)} OPEN USD</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Provider</span>
+              <span className="font-semibold">{providerName}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Account</span>
+              <span className="font-semibold">{openpayAccountNumber || "N/A"}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Reference</span>
+              <span className="font-semibold">{referenceCode || "N/A"}</span>
+            </div>
+          </div>
+          <div className="mt-3 flex gap-2">
+            <Button
+              type="button"
+              className="flex-1 h-11 rounded-2xl bg-paypal-blue text-white hover:bg-[#004dc5]"
+              onClick={handleConfirmSubmit}
+              disabled={submitting || uploading}
+            >
+              Confirm & Submit
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11 rounded-2xl"
+              onClick={() => setShowConfirmModal(false)}
+            >
+              Cancel
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showImageModal} onOpenChange={setShowImageModal}>
+        <DialogContent className="rounded-3xl sm:max-w-3xl">
+          <DialogTitle className="text-lg font-bold text-foreground">Payment Proof</DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground">
+            Full-size preview of your uploaded screenshot.
+          </DialogDescription>
+          {proofPreview ? (
+            <img src={proofPreview} alt="Payment proof full size" className="mt-2 w-full rounded-2xl object-contain" />
+          ) : (
+            <p className="text-sm text-muted-foreground">No image available.</p>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

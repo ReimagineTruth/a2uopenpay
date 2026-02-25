@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import SplashScreen from "@/components/SplashScreen";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -62,6 +63,7 @@ const PaymentLinksCreatePage = () => {
   const [paymentLinks, setPaymentLinks] = useState<PaymentLinkRow[]>([]);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [showMenuSelection, setShowMenuSelection] = useState(false);
+  const [showCreateChoice, setShowCreateChoice] = useState(false);
 
   const [mode, setMode] = useState<Mode>("sandbox");
   const [type, setType] = useState<LinkType>("products");
@@ -733,6 +735,15 @@ const PaymentLinksCreatePage = () => {
                     className="w-full rounded-lg px-3 py-2 text-left text-sm text-foreground hover:bg-secondary"
                     onClick={() => {
                       setShowMenuSelection(false);
+                      navigate("/merchant-products");
+                    }}
+                  >
+                    Product catalog
+                  </button>
+                  <button
+                    className="w-full rounded-lg px-3 py-2 text-left text-sm text-foreground hover:bg-secondary"
+                    onClick={() => {
+                      setShowMenuSelection(false);
                       navigate("/openpay-api-docs");
                     }}
                   >
@@ -796,7 +807,7 @@ const PaymentLinksCreatePage = () => {
           </div>
           <button
             type="button"
-            onClick={() => setShowCreateForm(true)}
+            onClick={() => setShowCreateChoice(true)}
             className="inline-flex h-12 items-center gap-2 rounded-full bg-paypal-blue px-5 text-lg font-semibold text-white hover:bg-[#004dc5]"
           >
             <Plus className="h-5 w-5" />
@@ -1082,6 +1093,36 @@ const PaymentLinksCreatePage = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={showCreateChoice} onOpenChange={setShowCreateChoice}>
+        <DialogContent className="rounded-3xl sm:max-w-md">
+          <DialogTitle className="text-lg font-bold text-foreground">Create Payment Link</DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground">
+            Choose how you want to create your payment link.
+          </DialogDescription>
+          <div className="mt-4 grid gap-3">
+            <Button
+              variant="outline"
+              className="h-11 w-full rounded-2xl"
+              onClick={() => {
+                setShowCreateChoice(false);
+                navigate("/merchant-products");
+              }}
+            >
+              Product catalog
+            </Button>
+            <Button
+              className="h-11 w-full rounded-2xl bg-paypal-blue text-white hover:bg-[#004dc5]"
+              onClick={() => {
+                setShowCreateChoice(false);
+                setShowCreateForm(true);
+              }}
+            >
+              Create payment link
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

@@ -42,6 +42,7 @@ const SwapWithdrawalPage = () => {
   const [agreementAccepted, setAgreementAccepted] = useState(false);
   const [showAgreementModal, setShowAgreementModal] = useState(false);
   const [agreementChecked, setAgreementChecked] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [history, setHistory] = useState<SwapWithdrawalRow[]>([]);
   const [piPriceUsd, setPiPriceUsd] = useState<number | null>(null);
@@ -176,7 +177,7 @@ const SwapWithdrawalPage = () => {
       return;
     }
 
-    await submitWithdrawalRequest();
+    setShowConfirmModal(true);
   };
 
   const submitWithdrawalRequest = async () => {
@@ -211,7 +212,7 @@ const SwapWithdrawalPage = () => {
     if (!agreementChecked) return;
     setAgreementAccepted(true);
     setShowAgreementModal(false);
-    await submitWithdrawalRequest();
+    setShowConfirmModal(true);
   };
 
   return (
@@ -441,6 +442,53 @@ const SwapWithdrawalPage = () => {
           >
             Accept & Continue
           </Button>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showConfirmModal} onOpenChange={setShowConfirmModal}>
+        <DialogContent className="rounded-3xl sm:max-w-md">
+          <DialogTitle className="text-lg font-bold text-foreground">Confirm Withdrawal</DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground">
+            Please confirm the withdrawal details before submitting.
+          </DialogDescription>
+          <div className="mt-2 rounded-2xl border border-border p-3 text-sm text-foreground space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Amount</span>
+              <span className="font-semibold">{safeAmount.toFixed(2)} OPEN USD</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Fee (2%)</span>
+              <span className="font-semibold">-{feeAmount.toFixed(2)} OPEN USD</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">You will receive</span>
+              <span className="font-semibold">{payoutAmount.toFixed(2)} PI</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">PI wallet</span>
+              <span className="font-semibold">{piWalletAddress || "N/A"}</span>
+            </div>
+          </div>
+          <div className="mt-3 flex gap-2">
+            <Button
+              className="flex-1 h-11 rounded-2xl bg-paypal-blue text-white hover:bg-[#004dc5]"
+              onClick={async () => {
+                setShowConfirmModal(false);
+                await submitWithdrawalRequest();
+              }}
+              disabled={loading}
+            >
+              Confirm & Submit
+            </Button>
+            <Button
+              variant="outline"
+              className="h-11 rounded-2xl"
+              onClick={() => setShowConfirmModal(false)}
+              disabled={loading}
+            >
+              Cancel
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

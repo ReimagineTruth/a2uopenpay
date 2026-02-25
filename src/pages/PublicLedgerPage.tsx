@@ -29,6 +29,7 @@ const PublicLedgerPage = () => {
   const transactionId = (searchParams.get("tx") || "").trim();
   const { format: formatCurrency } = useCurrency();
   const [entries, setEntries] = useState<PublicLedgerEntry[]>([]);
+  const [privateView, setPrivateView] = useState(false);
   const [loading, setLoading] = useState(true);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
@@ -57,17 +58,20 @@ const PublicLedgerPage = () => {
   const loadTransaction = async (txId: string) => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.rpc("get_public_ledger_transaction", {
-        p_transaction_id: txId,
-      });
+      const { data: userData } = await supabase.auth.getUser();
+      const isSignedIn = Boolean(userData?.user);
+      const rpcName = isSignedIn ? "get_private_ledger_transaction" : "get_public_ledger_transaction";
+      const { data, error } = await supabase.rpc(rpcName, { p_transaction_id: txId });
       if (error) throw new Error(error.message || "Failed to load ledger transaction.");
       const row = Array.isArray(data) ? data[0] : data;
       setEntries(row ? [row as PublicLedgerEntry] : []);
+      setPrivateView(Boolean(row) && isSignedIn && rpcName === "get_private_ledger_transaction");
       setOffset(0);
       setHasMore(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to load ledger transaction.");
       setEntries([]);
+      setPrivateView(false);
       setOffset(0);
       setHasMore(false);
     } finally {
@@ -120,7 +124,11 @@ const PublicLedgerPage = () => {
                 <p className="text-xs text-muted-foreground">
                   {format(new Date(row.occurred_at), "MMM d, yyyy HH:mm")} • {row.event_type}
                 </p>
-                {row.note && <p className="text-xs text-muted-foreground">{redactLedgerNote(row.note)}</p>}
+                {row.note && (
+                  <p className="text-xs text-muted-foreground">
+                    {privateView ? row.note : redactLedgerNote(row.note)}
+                  </p>
+                )}
                 <p className="text-xs text-muted-foreground">Status: {row.status || "unknown"}</p>
               </div>
               <div className="text-right">
