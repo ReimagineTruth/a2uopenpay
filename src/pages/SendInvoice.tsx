@@ -53,6 +53,7 @@ const SendInvoice = () => {
   const [confirmAction, setConfirmAction] = useState<
     | { type: "create"; recipient: Profile; amount: number; description: string; dueDate: string | null }
     | { type: "pay"; invoice: Invoice; sender: Profile | null }
+    | { type: "reject"; invoice: Invoice; sender: Profile | null }
     | null
   >(null);
 
@@ -249,13 +250,47 @@ const SendInvoice = () => {
     setConfirmModalOpen(true);
   };
 
+  const submitReject = async (invoice: Invoice) => {
+    if (!userId) {
+      toast.error("Sign in required");
+      return;
+    }
+
+    setLoading(true);
+    const { error } = await supabase
+      .from("invoices")
+      .update({ status: "rejected", updated_at: new Date().toISOString() })
+      .eq("id", invoice.id)
+      .eq("recipient_id", userId);
+    setLoading(false);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    toast.success("Invoice rejected");
+    await loadData();
+  };
+
+  const handleReject = (invoice: Invoice) => {
+    setConfirmAction({
+      type: "reject",
+      invoice,
+      sender: profileMap.get(invoice.sender_id) || null,
+    });
+    setConfirmModalOpen(true);
+  };
+
   const handleConfirmAction = async () => {
     if (!confirmAction || loading) return;
 
     if (confirmAction.type === "create") {
       await submitCreate();
-    } else {
+    } else if (confirmAction.type === "pay") {
       await submitPay(confirmAction.invoice, confirmAction.sender);
+    } else {
+      await submitReject(confirmAction.invoice);
     }
 
     setConfirmModalOpen(false);
@@ -414,9 +449,20 @@ const SendInvoice = () => {
                 {invoice.due_date && <p className="text-sm text-muted-foreground mt-1">Due: {invoice.due_date}</p>}
                 <p className="text-sm mt-1 capitalize">Status: {invoice.status}</p>
                 {invoice.status === "pending" && (
-                  <Button className="w-full mt-3" disabled={loading} onClick={() => handlePay(invoice)}>
-                    Pay Invoice
-                  </Button>
+                  <div className="mt-3 flex gap-2">
+                    <Button className="flex-1" disabled={loading} onClick={() => handlePay(invoice)}>
+                      Pay Invoice
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="flex-1 border-red-300 text-red-700 hover:bg-red-50"
+                      disabled={loading}
+                      onClick={() => handleReject(invoice)}
+                    >
+                      Reject
+                    </Button>
+                  </div>
                 )}
               </div>
             );
@@ -461,13 +507,17 @@ const SendInvoice = () => {
       >
         <DialogContent className="rounded-3xl">
           <DialogTitle className="text-xl font-bold text-foreground">
-            {confirmAction?.type === "create" ? "Confirm invoice" : "Confirm payment"}
+            {confirmAction?.type === "create"
+              ? "Confirm invoice"
+              : confirmAction?.type === "pay"
+                ? "Confirm payment"
+                : "Confirm rejection"}
           </DialogTitle>
           <DialogDescription className="text-sm text-muted-foreground">
-            Review the details before sending.
+            Review the details before continuing.
           </DialogDescription>
 
-          {(confirmAction?.type === "create" || confirmAction?.type === "pay") && (
+          {(confirmAction?.type === "create" || confirmAction?.type === "pay" || confirmAction?.type === "reject") && (
             <div className="mt-3 flex items-center gap-3 rounded-2xl bg-secondary/70 px-3 py-2.5">
               {(confirmAction.type === "create" ? confirmAction.recipient.avatar_url : confirmAction.sender?.avatar_url) ? (
                 <img
@@ -501,7 +551,7 @@ const SendInvoice = () => {
               <span className="font-semibold text-foreground">
                 {confirmAction?.type === "create"
                   ? formatCurrency(confirmAction.amount)
-                  : confirmAction?.type === "pay"
+                  : confirmAction?.type === "pay" || confirmAction?.type === "reject"
                     ? formatCurrency(confirmAction.invoice.amount)
                     : "-"}
               </span>
@@ -511,7 +561,7 @@ const SendInvoice = () => {
               <span className="font-semibold text-foreground">
                 ${confirmAction?.type === "create"
                   ? confirmAction.amount.toFixed(2)
-                  : confirmAction?.type === "pay"
+                  : confirmAction?.type === "pay" || confirmAction?.type === "reject"
                     ? Number(confirmAction.invoice.amount || 0).toFixed(2)
                     : "0.00"}
               </span>
@@ -521,7 +571,7 @@ const SendInvoice = () => {
               <span className="max-w-[70%] break-all text-right text-foreground">
                 {confirmAction?.type === "create"
                   ? confirmAction.description || "No description"
-                  : confirmAction?.type === "pay"
+                  : confirmAction?.type === "pay" || confirmAction?.type === "reject"
                     ? confirmAction.invoice.description || "Invoice payment"
                     : "No description"}
               </span>
@@ -531,7 +581,7 @@ const SendInvoice = () => {
               <span className="font-semibold text-foreground">
                 {confirmAction?.type === "create"
                   ? confirmAction.dueDate || "No due date"
-                  : confirmAction?.type === "pay"
+                  : confirmAction?.type === "pay" || confirmAction?.type === "reject"
                     ? confirmAction.invoice.due_date || "No due date"
                     : "No due date"}
               </span>
@@ -555,11 +605,21 @@ const SendInvoice = () => {
               Cancel
             </Button>
             <Button
-              className="h-11 flex-1 rounded-2xl bg-paypal-blue text-white hover:bg-[#004dc5]"
+              className={`h-11 flex-1 rounded-2xl text-white ${
+                confirmAction?.type === "reject"
+                  ? "bg-red-600 hover:bg-red-700"
+                  : "bg-paypal-blue hover:bg-[#004dc5]"
+              }`}
               disabled={loading}
               onClick={handleConfirmAction}
             >
-              {loading ? "Processing..." : confirmAction?.type === "create" ? "Confirm & Send" : "Confirm & Pay"}
+              {loading
+                ? "Processing..."
+                : confirmAction?.type === "create"
+                  ? "Confirm & Send"
+                  : confirmAction?.type === "pay"
+                    ? "Confirm & Pay"
+                    : "Confirm & Reject"}
             </Button>
           </div>
         </DialogContent>

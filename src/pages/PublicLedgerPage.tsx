@@ -15,6 +15,11 @@ type PublicLedgerEntry = {
 };
 
 const PAGE_SIZE = 30;
+const isMissingPrivateLedgerRpcError = (message: string | undefined) =>
+  Boolean(message) &&
+  (message.includes("public.get_private_ledger_transaction")
+    || message.includes("Could not find the function public.get_private_ledger_transaction"));
+
 const redactLedgerNote = (note: string) =>
   note
     .replace(/@[\w.-]+/g, "@hidden")
@@ -60,8 +65,14 @@ const PublicLedgerPage = () => {
     try {
       const { data: userData } = await supabase.auth.getUser();
       const isSignedIn = Boolean(userData?.user);
-      const rpcName = isSignedIn ? "get_private_ledger_transaction" : "get_public_ledger_transaction";
-      const { data, error } = await supabase.rpc(rpcName, { p_transaction_id: txId });
+      let rpcName = isSignedIn ? "get_private_ledger_transaction" : "get_public_ledger_transaction";
+      let { data, error } = await supabase.rpc(rpcName, { p_transaction_id: txId });
+
+      if (isSignedIn && error && isMissingPrivateLedgerRpcError(error.message)) {
+        rpcName = "get_public_ledger_transaction";
+        ({ data, error } = await supabase.rpc(rpcName, { p_transaction_id: txId }));
+      }
+
       if (error) throw new Error(error.message || "Failed to load ledger transaction.");
       const row = Array.isArray(data) ? data[0] : data;
       setEntries(row ? [row as PublicLedgerEntry] : []);

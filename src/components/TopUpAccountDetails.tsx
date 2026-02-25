@@ -22,6 +22,8 @@ type TopUpHistoryRow = {
 };
 
 const normalizeUsername = (value: string) => value.trim().replace(/^@+/, "").toLowerCase();
+const isSchemaCacheMissingError = (message: string | undefined, target: string) =>
+  Boolean(message) && message.includes("schema cache") && message.includes(target);
 
 const TopUpAccountDetails = ({
   providerName,
@@ -84,7 +86,13 @@ const TopUpAccountDetails = ({
         })),
       );
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load top ups");
+      const message = error instanceof Error ? error.message : "Failed to load top ups";
+      if (isSchemaCacheMissingError(message, "public.user_topup_requests")) {
+        setHistory([]);
+        toast.error("Top up history is initializing. Please refresh in a moment.");
+        return;
+      }
+      toast.error(message);
     } finally {
       setHistoryLoading(false);
     }
@@ -171,7 +179,12 @@ const TopUpAccountDetails = ({
       setSubmitted(true);
       await loadHistory();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Top up request failed");
+      const message = error instanceof Error ? error.message : "Top up request failed";
+      if (isSchemaCacheMissingError(message, "public.submit_topup_request")) {
+        toast.error("Top up submission is initializing. Please refresh and try again.");
+        return;
+      }
+      toast.error(message);
     } finally {
       setUploading(false);
       setSubmitting(false);
