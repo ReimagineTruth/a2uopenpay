@@ -5,6 +5,8 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { QRCodeSVG } from "qrcode.react";
 
 type SwapWithdrawalRow = {
   id: string;
@@ -22,6 +24,9 @@ type SwapWithdrawalRow = {
 };
 
 const ADMIN_PROFILE_USERNAMES = new Set(["openpay", "wainfoundation"]);
+const PI_LOGO_URL =
+  "https://i.ibb.co/jk8XtTPj/pi-network-pi-icons-pi-logo-design-illustration-trendy-and-modern-crypto-currency-pi-symbol-for-logo.png";
+const WITHDRAWAL_FEE_RATE = 0.02;
 
 const AdminSwapWithdrawalsPage = () => {
   const navigate = useNavigate();
@@ -30,6 +35,8 @@ const AdminSwapWithdrawalsPage = () => {
   const [viewerUsername, setViewerUsername] = useState("");
   const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [swapWithdrawals, setSwapWithdrawals] = useState<SwapWithdrawalRow[]>([]);
+  const [statusFilter, setStatusFilter] = useState<"pending" | "approved" | "rejected" | "all">("pending");
+  const [qrWalletAddress, setQrWalletAddress] = useState<string | null>(null);
 
   const pendingCount = useMemo(() => swapWithdrawals.length, [swapWithdrawals]);
 
@@ -65,13 +72,13 @@ const AdminSwapWithdrawalsPage = () => {
     }
   };
 
-  const loadSwapWithdrawals = async () => {
+  const loadSwapWithdrawals = async (nextStatus = statusFilter) => {
     setRefreshing(true);
     try {
       const user = await ensureAdminAccess();
       if (!user) return;
       const { data: swapRows, error: swapError } = await (supabase as any).rpc("admin_list_swap_withdrawals", {
-        p_status: "pending",
+        p_status: nextStatus,
         p_limit: 50,
         p_offset: 0,
       });
@@ -141,21 +148,43 @@ const AdminSwapWithdrawalsPage = () => {
               <p className="text-xs text-muted-foreground">Pending requests for OpenUSD to PI payouts</p>
             </div>
           </div>
-          <Button variant="outline" onClick={loadSwapWithdrawals} disabled={refreshing || loading}>
+          <Button variant="outline" onClick={() => loadSwapWithdrawals()} disabled={refreshing || loading}>
             <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
             Refresh
           </Button>
         </div>
 
+        <div className="mb-4 flex flex-wrap gap-2">
+          {([
+            { key: "pending", label: "Pending" },
+            { key: "approved", label: "Approved" },
+            { key: "rejected", label: "Rejected" },
+            { key: "all", label: "All" },
+          ] as const).map((tab) => (
+            <Button
+              key={tab.key}
+              variant={statusFilter === tab.key ? "default" : "outline"}
+              onClick={() => {
+                setStatusFilter(tab.key);
+                void loadSwapWithdrawals(tab.key);
+              }}
+            >
+              {tab.label}
+            </Button>
+          ))}
+        </div>
+
         <div className="mb-4 rounded-2xl border border-border bg-card p-4">
           <p className="text-xs text-muted-foreground">Signed in as</p>
           <p className="text-base font-semibold text-foreground">@{viewerUsername || "-"}</p>
-          <p className="mt-2 text-xs text-muted-foreground">{pendingCount} pending swap withdrawals</p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            {pendingCount} {statusFilter === "all" ? "total" : statusFilter} swap withdrawals
+          </p>
         </div>
 
         {swapWithdrawals.length === 0 ? (
           <div className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground">
-            No pending swap withdrawals.
+            No {statusFilter === "all" ? "swap" : statusFilter} swap withdrawals.
           </div>
         ) : (
           <div className="space-y-3">
@@ -168,37 +197,112 @@ const AdminSwapWithdrawalsPage = () => {
                       {format(new Date(row.created_at), "MMM d, yyyy h:mm a")}
                     </p>
                   </div>
-                  <p className="text-sm font-semibold text-paypal-blue">{row.amount.toFixed(2)} OPEN USD</p>
+                  <div className="text-right">
+                    <p className="text-sm font-semibold text-paypal-blue">{row.amount.toFixed(2)} OPEN USD</p>
+                    <div className="mt-1 inline-flex items-center justify-end gap-2 text-xs text-muted-foreground">
+                      <img src={PI_LOGO_URL} alt="Pi Network" className="h-5 w-auto object-contain" />
+                      <span>PI payout</span>
+                    </div>
+                  </div>
                 </div>
                 <div className="mt-3 grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
                   <p>OpenPay name: {row.openpay_account_name}</p>
                   <p>OpenPay username: @{row.openpay_account_username}</p>
                   <p>Account number: {row.openpay_account_number}</p>
-                  <p className="sm:col-span-2">PI wallet: {row.pi_wallet_address}</p>
+                  <p className="sm:col-span-2">
+                    PI to send: {(row.amount * (1 - WITHDRAWAL_FEE_RATE)).toFixed(2)} PI (after 2% fee)
+                  </p>
+                  <div className="sm:col-span-2 flex flex-wrap items-center gap-2">
+                    <span>PI wallet: {row.pi_wallet_address}</span>
+                    {row.pi_wallet_address ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={async () => {
+                          try {
+                            await navigator.clipboard.writeText(row.pi_wallet_address);
+                            toast.success("PI wallet address copied");
+                          } catch {
+                            toast.error("Copy failed");
+                          }
+                        }}
+                      >
+                        Copy
+                      </Button>
+                    ) : null}
+                    {row.pi_wallet_address ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setQrWalletAddress(row.pi_wallet_address)}
+                      >
+                        QR
+                      </Button>
+                    ) : null}
+                  </div>
                   {row.admin_note && <p className="sm:col-span-2">Admin note: {row.admin_note}</p>}
                 </div>
                 <div className="mt-3 flex gap-2">
-                  <Button
-                    size="sm"
-                    onClick={() => handleSwapWithdrawalReview(row.id, "approve")}
-                    disabled={reviewingId === row.id}
-                  >
-                    Approve
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleSwapWithdrawalReview(row.id, "reject")}
-                    disabled={reviewingId === row.id}
-                  >
-                    Reject
-                  </Button>
+                  {statusFilter === "pending" ? (
+                    <>
+                      <Button
+                        size="sm"
+                        onClick={() => handleSwapWithdrawalReview(row.id, "approve")}
+                        disabled={reviewingId === row.id}
+                      >
+                        Approve
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleSwapWithdrawalReview(row.id, "reject")}
+                        disabled={reviewingId === row.id}
+                      >
+                        Reject
+                      </Button>
+                    </>
+                  ) : (
+                    <span className="text-xs font-semibold uppercase text-muted-foreground">{row.status}</span>
+                  )}
                 </div>
               </div>
             ))}
           </div>
         )}
       </div>
+
+      <Dialog open={Boolean(qrWalletAddress)} onOpenChange={(open) => (!open ? setQrWalletAddress(null) : null)}>
+        <DialogContent className="max-w-sm rounded-3xl">
+          <DialogTitle className="text-xl font-bold text-foreground">PI Wallet QR</DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground">
+            Scan to copy the recipient wallet address.
+          </DialogDescription>
+          <div className="mt-3 flex items-center justify-center rounded-2xl border border-border bg-white p-4">
+            {qrWalletAddress ? (
+              <QRCodeSVG value={qrWalletAddress} size={220} includeMargin />
+            ) : null}
+          </div>
+          {qrWalletAddress ? (
+            <p className="mt-3 break-all text-xs text-muted-foreground">{qrWalletAddress}</p>
+          ) : null}
+          <Button
+            type="button"
+            variant="outline"
+            className="mt-3 h-10 w-full rounded-xl"
+            onClick={async () => {
+              if (!qrWalletAddress) return;
+              try {
+                await navigator.clipboard.writeText(qrWalletAddress);
+                toast.success("PI wallet address copied");
+              } catch {
+                toast.error("Copy failed");
+              }
+            }}
+          >
+            Copy address
+          </Button>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

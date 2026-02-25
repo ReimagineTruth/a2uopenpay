@@ -15,6 +15,13 @@ type PublicLedgerEntry = {
 };
 
 const PAGE_SIZE = 30;
+const redactLedgerNote = (note: string) =>
+  note
+    .replace(/@[\w.-]+/g, "@hidden")
+    .replace(/OpenPay\s+[A-Za-z0-9_.-]+/g, "OpenPay [hidden]")
+    .replace(/\bWallet\s+[A-Za-z0-9-]{6,}\b/g, "Wallet [hidden]")
+    .replace(/\bOPEA[0-9A-Z]{6,}\b/g, "OPEA****")
+    .replace(/\bOP[A-Z0-9]{6,}\b/g, (match) => `${match.slice(0, 4)}****`);
 
 const PublicLedgerPage = () => {
   const navigate = useNavigate();
@@ -113,7 +120,7 @@ const PublicLedgerPage = () => {
                 <p className="text-xs text-muted-foreground">
                   {format(new Date(row.occurred_at), "MMM d, yyyy HH:mm")} • {row.event_type}
                 </p>
-                {row.note && <p className="text-xs text-muted-foreground">{row.note}</p>}
+                {row.note && <p className="text-xs text-muted-foreground">{redactLedgerNote(row.note)}</p>}
                 <p className="text-xs text-muted-foreground">Status: {row.status || "unknown"}</p>
               </div>
               <div className="text-right">

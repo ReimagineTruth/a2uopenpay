@@ -56,6 +56,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 import AdminSwapWithdrawalsPage from "./pages/AdminSwapWithdrawalsPage";
 import AdminLoanApplicationsPage from "./pages/AdminLoanApplicationsPage";
 import AdminTopUpRequestsPage from "./pages/AdminTopUpRequestsPage";
+import AdminMasterTopUp from "./pages/AdminMasterTopUp";
 import MerchantOnboardingPage from "./pages/MerchantOnboardingPage";
 import OpenPayOfficialPage from "./pages/OpenPayOfficialPage";
 import RemittanceMerchantPage from "./pages/RemittanceMerchantPage";
@@ -120,6 +121,7 @@ const AppRoutes = () => {
         <Route path="/admin-swap-withrawals" element={<AdminSwapWithdrawalsPage />} />
         <Route path="/admin-loan-applications" element={<AdminLoanApplicationsPage />} />
         <Route path="/admin-topup-requests" element={<AdminTopUpRequestsPage />} />
+        <Route path="/master-topup" element={<AdminMasterTopUp />} />
         <Route path="/signin" element={<Navigate to="/sign-in?mode=signin" replace />} />
         <Route path="/signup" element={<Navigate to="/sign-in?mode=signup" replace />} />
         <Route path="/dashboard" element={<Dashboard />} />
@@ -148,6 +150,7 @@ const AppRoutes = () => {
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/affiliate" element={<AffiliatePage />} />
         <Route path="/ledger" element={<PublicLedgerPage />} />
+        <Route path="/openledger" element={<Navigate to="/ledger" replace />} />
         <Route path="/announcements" element={<AnnouncementsPage />} />
         <Route path="/openpay-guide" element={<OpenPayGuidePage />} />
         <Route path="/terms" element={<TermsPage />} />

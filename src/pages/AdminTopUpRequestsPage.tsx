@@ -24,6 +24,17 @@ type TopUpRequestRow = {
 };
 
 const ADMIN_PROFILE_USERNAMES = new Set(["openpay", "wainfoundation"]);
+const PROVIDER_LOGOS: Record<string, string> = {
+  "Pi Payment": "https://i.ibb.co/jk8XtTPj/pi-network-pi-icons-pi-logo-design-illustration-trendy-and-modern-crypto-currency-pi-symbol-for-logo.png",
+  PayPal: "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/PayPal.svg/1920px-PayPal.svg.png",
+  "Ewallet QR PH": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/35/QR_Ph_Logo.svg/960px-QR_Ph_Logo.svg.png?20250310160234",
+  "Apple Pay": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b0/Apple_Pay_logo.svg/1920px-Apple_Pay_logo.svg.png",
+  "Google Pay": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5c/Google_Pay_Logo.svg/1920px-Google_Pay_Logo.svg.png",
+  "Debit Card": "https://i.ibb.co/G3FGwngR/Visa-Inc-logo-2021-present-svg.png",
+  "Credit Card": "https://i.ibb.co/9kkZmFDq/Mastercard-2019-logo-svg.png",
+  Stripe: "https://upload.wikimedia.org/wikipedia/commons/thumb/b/ba/Stripe_Logo%2C_revised_2016.svg/1920px-Stripe_Logo%2C_revised_2016.svg.png",
+  Venmo: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Venmo_Logo.svg/1920px-Venmo_Logo.svg.png",
+};
 
 const AdminTopUpRequestsPage = () => {
   const navigate = useNavigate();
@@ -32,6 +43,7 @@ const AdminTopUpRequestsPage = () => {
   const [viewerUsername, setViewerUsername] = useState("");
   const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [topUpRequests, setTopUpRequests] = useState<TopUpRequestRow[]>([]);
+  const [statusFilter, setStatusFilter] = useState<"pending" | "approved" | "rejected" | "all">("pending");
 
   const pendingCount = useMemo(() => topUpRequests.length, [topUpRequests]);
 
@@ -67,13 +79,13 @@ const AdminTopUpRequestsPage = () => {
     }
   };
 
-  const loadTopUpRequests = async () => {
+  const loadTopUpRequests = async (nextStatus = statusFilter) => {
     setRefreshing(true);
     try {
       const user = await ensureAdminAccess();
       if (!user) return;
       const { data: rows, error } = await (supabase as any).rpc("admin_list_topup_requests", {
-        p_status: "pending",
+        p_status: nextStatus,
         p_limit: 50,
         p_offset: 0,
       });
@@ -145,21 +157,43 @@ const AdminTopUpRequestsPage = () => {
               <p className="text-xs text-muted-foreground">Pending top ups awaiting approval</p>
             </div>
           </div>
-          <Button variant="outline" onClick={loadTopUpRequests} disabled={refreshing || loading}>
+          <Button variant="outline" onClick={() => loadTopUpRequests()} disabled={refreshing || loading}>
             <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
             Refresh
           </Button>
         </div>
 
+        <div className="mb-4 flex flex-wrap gap-2">
+          {([
+            { key: "pending", label: "Pending" },
+            { key: "approved", label: "Approved" },
+            { key: "rejected", label: "Rejected" },
+            { key: "all", label: "All" },
+          ] as const).map((tab) => (
+            <Button
+              key={tab.key}
+              variant={statusFilter === tab.key ? "default" : "outline"}
+              onClick={() => {
+                setStatusFilter(tab.key);
+                void loadTopUpRequests(tab.key);
+              }}
+            >
+              {tab.label}
+            </Button>
+          ))}
+        </div>
+
         <div className="mb-4 rounded-2xl border border-border bg-card p-4">
           <p className="text-xs text-muted-foreground">Signed in as</p>
           <p className="text-base font-semibold text-foreground">@{viewerUsername || "-"}</p>
-          <p className="mt-2 text-xs text-muted-foreground">{pendingCount} pending top up requests</p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            {pendingCount} {statusFilter === "all" ? "total" : statusFilter} top up requests
+          </p>
         </div>
 
         {topUpRequests.length === 0 ? (
           <div className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground">
-            No pending top up requests.
+            No {statusFilter === "all" ? "top up" : statusFilter} top up requests.
           </div>
         ) : (
           <div className="space-y-3">
@@ -174,7 +208,16 @@ const AdminTopUpRequestsPage = () => {
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-semibold text-paypal-blue">{row.amount.toFixed(2)} OPEN USD</p>
-                    <p className="text-xs text-muted-foreground">{row.provider}</p>
+                    <div className="mt-1 inline-flex items-center justify-end gap-2 text-xs text-muted-foreground">
+                      {PROVIDER_LOGOS[row.provider] ? (
+                        <img
+                          src={PROVIDER_LOGOS[row.provider]}
+                          alt={row.provider}
+                          className="h-5 w-auto object-contain"
+                        />
+                      ) : null}
+                      <span>{row.provider}</span>
+                    </div>
                   </div>
                 </div>
                 <div className="mt-3 grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
@@ -196,21 +239,27 @@ const AdminTopUpRequestsPage = () => {
                   {row.admin_note && <p className="sm:col-span-2">Admin note: {row.admin_note}</p>}
                 </div>
                 <div className="mt-3 flex gap-2">
-                  <Button
-                    size="sm"
-                    onClick={() => handleTopUpReview(row.id, "approve")}
-                    disabled={reviewingId === row.id}
-                  >
-                    Approve
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleTopUpReview(row.id, "reject")}
-                    disabled={reviewingId === row.id}
-                  >
-                    Reject
-                  </Button>
+                  {statusFilter === "pending" ? (
+                    <>
+                      <Button
+                        size="sm"
+                        onClick={() => handleTopUpReview(row.id, "approve")}
+                        disabled={reviewingId === row.id}
+                      >
+                        Approve
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleTopUpReview(row.id, "reject")}
+                        disabled={reviewingId === row.id}
+                      >
+                        Reject
+                      </Button>
+                    </>
+                  ) : (
+                    <span className="text-xs font-semibold uppercase text-muted-foreground">{row.status}</span>
+                  )}
                 </div>
               </div>
             ))}

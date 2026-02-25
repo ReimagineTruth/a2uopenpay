@@ -22,6 +22,7 @@ const PUBLIC_PATHS = new Set([
   "/signin",
   "/signup",
   "/ledger",
+  "/openledger",
   "/admin-mrwain",
   "/terms",
   "/privacy",

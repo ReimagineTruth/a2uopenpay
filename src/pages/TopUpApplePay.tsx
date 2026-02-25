@@ -38,6 +38,9 @@ const TopUpApplePay = () => {
     setSafetyAgreementChecked(false);
     setShowSafetyAgreement(true);
   };
+  const openSupportWidget = () => {
+    window.dispatchEvent(new CustomEvent("open-support-widget", { detail: { tab: "messages" } }));
+  };
 
   const confirmOpenApplePay = () => {
     setSafetyAccepted(true);
@@ -156,7 +159,7 @@ const TopUpApplePay = () => {
           type="button"
           variant="outline"
           className="mt-2 h-11 w-full rounded-2xl"
-          onClick={() => navigate("/live-customer-service")}
+          onClick={openSupportWidget}
         >
           Live Customer Service
         </Button>
@@ -232,6 +235,39 @@ const TopUpApplePay = () => {
             <p className="font-semibold">1. Nature of Service</p>
             <p className="mt-1">
               OpenPay is a technology platform that facilitates digital payments and transaction processing. OpenPay is not a bank, financial institution, investment platform, remittance company, or licensed money service business unless otherwise stated under applicable law.
+            </p>
+            <p className="mt-3 font-semibold">2. Payment Authorization</p>
+            <p className="mt-1">By proceeding with this top-up, you:</p>
+            <p className="mt-1">Authorize OpenPay to process the transaction using your selected payment method.</p>
+            <p className="mt-1">Confirm that you are the authorized holder of the payment method used.</p>
+            <p className="mt-1">Understand that payment processing is handled through third-party providers.</p>
+            <p className="mt-3 font-semibold">3. Fees, Rates, and Processing</p>
+            <p className="mt-1">You acknowledge and agree that:</p>
+            <p className="mt-1">Exchange rates (if applicable), service fees, and third-party processing fees may apply.</p>
+            <p className="mt-1">Processing times may vary depending on your payment provider, banking institution, or network conditions.</p>
+            <p className="mt-1">OpenPay is not responsible for delays caused by third-party payment processors.</p>
+            <p className="mt-3 font-semibold">4. User Responsibility</p>
+            <p className="mt-1">Before completing your transaction, you agree to:</p>
+            <p className="mt-1">Verify the top-up amount.</p>
+            <p className="mt-1">Confirm the recipient account or wallet details.</p>
+            <p className="mt-1">Review all payment information carefully.</p>
+            <p className="mt-1">Transactions completed with incorrect details may not be reversible.</p>
+            <p className="mt-3 font-semibold">5. No Deposit Insurance</p>
+            <p className="mt-1">
+              Funds topped up into your OpenPay balance are not bank deposits and are not insured by any government deposit insurance corporation.
+            </p>
+            <p className="mt-3 font-semibold">6. License & Compliance</p>
+            <p className="mt-1">
+              OpenPay operates as a payment technology platform and partners with regulated third-party payment providers where required by law. OpenPay complies with applicable digital commerce and platform regulations in the jurisdictions where it operates.
+            </p>
+            <p className="mt-1">
+              OpenPay does not directly hold customer deposits as a bank and does not provide investment or financial advisory services.
+            </p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              OpenPay License:{" "}
+              <a href="/legal" className="font-semibold text-paypal-blue underline">
+                View License
+              </a>
             </p>
           </div>
           <label className="flex items-start gap-2 text-sm text-foreground">

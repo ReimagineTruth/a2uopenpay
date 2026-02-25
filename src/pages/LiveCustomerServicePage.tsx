@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, CircleHelp, FileText, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -5,6 +6,14 @@ import { Badge } from "@/components/ui/badge";
 
 const LiveCustomerServicePage = () => {
   const navigate = useNavigate();
+
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("open-support-widget", { detail: { tab: "messages" } }));
+  }, []);
+
+  const openSupportWidget = () => {
+    window.dispatchEvent(new CustomEvent("open-support-widget", { detail: { tab: "messages" } }));
+  };
 
   return (
     <div className="min-h-screen bg-background px-4 pt-4 pb-8">
@@ -32,9 +41,9 @@ const LiveCustomerServicePage = () => {
           <Button
             type="button"
             className="mt-2 h-11 w-full rounded-2xl bg-paypal-blue text-white hover:bg-[#004dc5]"
-            onClick={() => navigate("/help-center?topic=live-customer-service")}
+            onClick={openSupportWidget}
           >
-            Open Help Center
+            Open Live Support
           </Button>
         </div>
 

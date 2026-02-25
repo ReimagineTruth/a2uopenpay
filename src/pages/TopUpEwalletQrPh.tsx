@@ -46,6 +46,9 @@ const TopUpEwalletQrPh = () => {
     setSafetyAgreementChecked(false);
     setShowSafetyAgreement(true);
   };
+  const openSupportWidget = () => {
+    window.dispatchEvent(new CustomEvent("open-support-widget", { detail: { tab: "messages" } }));
+  };
 
   const confirmOpenPayQrPh = () => {
     setShowSafetyAgreement(false);
@@ -146,7 +149,7 @@ const TopUpEwalletQrPh = () => {
           type="button"
           variant="outline"
           className="mt-2 h-11 w-full rounded-2xl"
-          onClick={() => navigate("/live-customer-service")}
+          onClick={openSupportWidget}
         >
           Live Customer Service
         </Button>

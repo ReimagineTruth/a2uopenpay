@@ -42,6 +42,7 @@ const SwapWithdrawalPage = () => {
   const [agreementAccepted, setAgreementAccepted] = useState(false);
   const [showAgreementModal, setShowAgreementModal] = useState(false);
   const [agreementChecked, setAgreementChecked] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
   const [history, setHistory] = useState<SwapWithdrawalRow[]>([]);
   const [piPriceUsd, setPiPriceUsd] = useState<number | null>(null);
   const [piPriceUpdatedAt, setPiPriceUpdatedAt] = useState<number | null>(null);
@@ -179,6 +180,7 @@ const SwapWithdrawalPage = () => {
   };
 
   const submitWithdrawalRequest = async () => {
+    setSubmitted(false);
     setLoading(true);
     try {
       const { data, error } = await supabase.rpc("submit_swap_withdrawal", {
@@ -190,10 +192,12 @@ const SwapWithdrawalPage = () => {
       });
       if (error) throw new Error(error.message || "Withdrawal submission failed");
       if (data) {
-        toast.success("Withdrawal request submitted");
+        toast.success("Thank you! Withdrawal request submitted.");
       } else {
-        toast.message("Withdrawal request submitted");
+        toast.message("Thank you! Withdrawal request submitted.");
       }
+      toast.message("Please wait for admin confirmation. You will receive updates in your dashboard activity history.");
+      setSubmitted(true);
       setAmount("");
       await loadHistory();
     } catch (error) {
@@ -356,6 +360,12 @@ const SwapWithdrawalPage = () => {
           >
             {loading ? "Submitting..." : "Submit Withdrawal"}
           </Button>
+          {submitted ? (
+            <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+              Thank you! Your withdrawal request is complete. Please wait for admin confirmation. You will receive updates
+              in your dashboard activity history.
+            </div>
+          ) : null}
           <p className="mt-2 text-xs text-muted-foreground">
             By submitting, you authorize the transfer of your OpenUSD to {SETTLEMENT_USERNAME} ({SETTLEMENT_ACCOUNT_NUMBER}).
           </p>

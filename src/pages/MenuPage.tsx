@@ -27,6 +27,7 @@ const MenuPage = () => {
   const [claimingWelcome, setClaimingWelcome] = useState(false);
   const [hasRemittanceAccess, setHasRemittanceAccess] = useState(false);
   const [canOpenAdminDashboard, setCanOpenAdminDashboard] = useState(false);
+  const [canOpenMasterTopUp, setCanOpenMasterTopUp] = useState(false);
 
   useEffect(() => {
     const handler = (event: Event) => {
@@ -54,7 +55,9 @@ const MenuPage = () => {
         .trim()
         .toLowerCase()
         .replace(/^@/, "");
-      setCanOpenAdminDashboard(normalizedUsername === "openpay" || normalizedUsername === "wainfoundation");
+      const isWainFoundation = normalizedUsername === "wainfoundation";
+      setCanOpenAdminDashboard(normalizedUsername === "openpay" || isWainFoundation);
+      setCanOpenMasterTopUp(isWainFoundation);
       if (remittanceUiEnabled) {
         setHasRemittanceAccess(canAccessRemittanceMerchant(user.id, profile?.username || null));
       }
@@ -257,6 +260,9 @@ const MenuPage = () => {
             { icon: ShieldCheck, label: "Swap Withdrawals", action: () => navigate("/admin-swap-withrawals") },
             { icon: ShieldCheck, label: "Loan Applications", action: () => navigate("/admin-loan-applications") },
             { icon: ShieldCheck, label: "Top Up Requests", action: () => navigate("/admin-topup-requests") },
+            ...(canOpenMasterTopUp
+              ? [{ icon: ShieldCheck, label: "Master Top Up", action: () => navigate("/master-topup") }]
+              : []),
           ],
         }]
       : []),

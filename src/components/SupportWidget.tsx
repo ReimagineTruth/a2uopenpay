@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { HelpCircle, MessageCircle, Search, Send, X } from "lucide-react";
+import { HelpCircle, Image as ImageIcon, MessageCircle, Search, Send, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +21,7 @@ type SupportMessage = {
   sender_id: string;
   sender_role: "user" | "agent";
   message: string;
+  attachment_url?: string | null;
   created_at: string;
 };
 
@@ -49,6 +50,9 @@ const SupportWidget = () => {
   const [conversation, setConversation] = useState<SupportConversation | null>(null);
   const [messages, setMessages] = useState<SupportMessage[]>([]);
   const [messageDraft, setMessageDraft] = useState("");
+  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
+  const [attachmentPreview, setAttachmentPreview] = useState<string | null>(null);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const [aiReplying, setAiReplying] = useState(false);
   const [faqCategories, setFaqCategories] = useState<SupportFaqCategory[]>([]);
   const [faqItems, setFaqItems] = useState<SupportFaqItem[]>([]);
@@ -148,13 +152,23 @@ const SupportWidget = () => {
     const loadMessages = async (conversationId: string) => {
       const { data } = await supabase
         .from("support_messages")
-        .select("id, conversation_id, sender_id, sender_role, message, created_at")
+        .select("id, conversation_id, sender_id, sender_role, message, attachment_url, created_at")
         .eq("conversation_id", conversationId)
         .order("created_at", { ascending: true });
       setMessages((data || []) as SupportMessage[]);
     };
     if (selectedConversationId) void loadMessages(selectedConversationId);
   }, [selectedConversationId]);
+
+  useEffect(() => {
+    if (!attachmentFile) {
+      setAttachmentPreview(null);
+      return;
+    }
+    const previewUrl = URL.createObjectURL(attachmentFile);
+    setAttachmentPreview(previewUrl);
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [attachmentFile]);
 
   const filteredFaqs = useMemo(() => {
     const query = helpQuery.trim().toLowerCase();
@@ -180,26 +194,55 @@ const SupportWidget = () => {
 
   const sendMessage = async () => {
     const text = messageDraft.trim();
-    if (!text || !userId) return;
+    if (!userId) return;
+    if (!text && !attachmentFile) return;
     const convo = isAgent ? null : await ensureConversation();
     const conversationId = isAgent ? selectedConversationId : convo?.id;
     if (!conversationId) {
       toast.error("Select a conversation to reply.");
       return;
     }
+    let attachmentUrl = "";
+    if (attachmentFile) {
+      setUploadingAttachment(true);
+      try {
+        const safeName = attachmentFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const filePath = `${userId}/${Date.now()}-${safeName}`;
+        const { error: uploadError } = await supabase.storage
+          .from("support-attachments")
+          .upload(filePath, attachmentFile, { upsert: true, contentType: attachmentFile.type });
+        if (uploadError) {
+          throw new Error(uploadError.message || "Upload failed");
+        }
+        const { data: publicData } = supabase.storage.from("support-attachments").getPublicUrl(filePath);
+        attachmentUrl = publicData?.publicUrl || "";
+        if (!attachmentUrl) {
+          throw new Error("Failed to get attachment URL");
+        }
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Failed to upload image");
+        setUploadingAttachment(false);
+        return;
+      } finally {
+        setUploadingAttachment(false);
+      }
+    }
+
     const { error } = await supabase
       .from("support_messages")
       .insert({
         conversation_id: conversationId,
         sender_id: userId,
         sender_role: isAgent ? "agent" : "user",
-        message: text,
+        message: text || (attachmentUrl ? "Image attached" : ""),
+        attachment_url: attachmentUrl || null,
       });
     if (error) {
       toast.error(error.message || "Failed to send message");
       return;
     }
     setMessageDraft("");
+    setAttachmentFile(null);
     setMessages((prev) => [
       ...prev,
       {
@@ -207,7 +250,8 @@ const SupportWidget = () => {
         conversation_id: conversationId,
         sender_id: userId,
         sender_role: isAgent ? "agent" : "user",
-        message: text,
+        message: text || (attachmentUrl ? "Image attached" : ""),
+        attachment_url: attachmentUrl || null,
         created_at: new Date().toISOString(),
       },
     ]);
@@ -326,6 +370,11 @@ const SupportWidget = () => {
                         <div key={msg.id} className={`mb-2 flex ${msg.sender_role === "agent" ? "justify-start" : "justify-end"}`}>
                           <div className={`max-w-[80%] rounded-xl px-3 py-2 text-xs ${msg.sender_role === "agent" ? "bg-secondary text-foreground" : "bg-paypal-blue text-white"}`}>
                             {msg.message}
+                            {msg.attachment_url ? (
+                              <div className="mt-2 overflow-hidden rounded-lg border border-white/20 bg-white/10">
+                                <img src={msg.attachment_url} alt="Support attachment" className="max-h-48 w-full object-cover" />
+                              </div>
+                            ) : null}
                           </div>
                         </div>
                       ))
@@ -333,10 +382,38 @@ const SupportWidget = () => {
                   </div>
                   <div className="mt-2 flex items-center gap-2">
                     <Input value={messageDraft} onChange={(e) => setMessageDraft(e.target.value)} placeholder="Send us a message" className="h-9 rounded-full" />
-                    <Button onClick={sendMessage} disabled={aiReplying} className="h-9 rounded-full bg-paypal-blue text-white hover:bg-[#004dc5]">
+                    <label className="flex h-9 w-9 items-center justify-center rounded-full border border-border text-foreground">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(event) => setAttachmentFile(event.target.files?.[0] ?? null)}
+                      />
+                      <ImageIcon className="h-4 w-4" />
+                    </label>
+                    <Button
+                      onClick={sendMessage}
+                      disabled={aiReplying || uploadingAttachment || (!messageDraft.trim() && !attachmentFile)}
+                      className="h-9 rounded-full bg-paypal-blue text-white hover:bg-[#004dc5]"
+                    >
                       <Send className="h-4 w-4" />
                     </Button>
                   </div>
+                  {attachmentPreview ? (
+                    <div className="mt-2 rounded-lg border border-border p-2">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs text-muted-foreground">Image attached</p>
+                        <button
+                          type="button"
+                          onClick={() => setAttachmentFile(null)}
+                          className="text-xs font-semibold text-paypal-blue"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                      <img src={attachmentPreview} alt="Attachment preview" className="mt-2 max-h-40 w-full rounded-md object-cover" />
+                    </div>
+                  ) : null}
                 </div>
               )}
 
