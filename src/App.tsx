@@ -184,12 +184,12 @@ const AppRoutes = () => {
         <Route path="/openapp" element={<OpenAppPage />} />
         <Route path="/openpay-desktop" element={<OpenPayDesktopPage />} />
         <Route path="/live-customer-service" element={<LiveCustomerServicePage />} />
-        <Route path="/support" element={<div className="min-h-screen bg-background" />} />
+        <Route path="/support" element={<></>} />
         <Route path="/swap-withdrawal" element={<SwapWithdrawalPage />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
       <AppSecurityGate />
-      <AppFooter />
+      {location.pathname !== "/support" ? <AppFooter /> : null}
       <SupportWidget />
 
       {showRouteSplash && (

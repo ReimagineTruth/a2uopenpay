@@ -979,12 +979,16 @@ const Dashboard = () => {
         ? "1 USDC = 1 OPEN USD"
         : isUsdFiatBuyFlow
           ? "1 USD = 1 OPEN USD"
-          : "1 OPEN USD to PI";
+          : "1 PI = 1 OPEN USD";
   const buyOpenUsdRateText = isUsdtBuyFlow
     ? "1 USDT = 1 OPEN USD"
     : isUsdcBuyFlow
       ? "1 USDC = 1 OPEN USD"
-      : "1 OPEN USD = 1 PI";
+      : isEwalletBuyFlow
+        ? `${E_WALLET_PHP_PER_OUSD.toFixed(2)} PHP = 1 OPEN USD`
+        : isUsdFiatBuyFlow
+          ? "1 USD = 1 OPEN USD"
+          : "1 PI = 1 OPEN USD";
   const onrampRates: Record<BuyOnrampProvider, number> = {
     "Pi Payment": 1,
     "Ewallet QR PH": 1,
@@ -1683,10 +1687,10 @@ const Dashboard = () => {
               </div>
 
               <div className="rounded-2xl bg-secondary/50 p-4">
-                <p className="text-sm text-muted-foreground">You get (PI amount)</p>
+                <p className="text-sm text-muted-foreground">You get (OPEN USD amount)</p>
                 <div className="mt-2 flex items-center justify-between gap-3">
                   <p className="text-4xl font-semibold text-foreground">{buyOpenUsdDisplay}</p>
-                  <span className="inline-flex h-11 items-center rounded-xl bg-white px-3 text-sm font-semibold text-foreground">PI</span>
+                  <span className="inline-flex h-11 items-center rounded-xl bg-white px-3 text-sm font-semibold text-foreground">OPEN USD</span>
                 </div>
                 <p className="mt-2 text-xs font-medium text-foreground">{buyOpenUsdRateText}</p>
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-border/50 pt-3 text-sm text-muted-foreground">

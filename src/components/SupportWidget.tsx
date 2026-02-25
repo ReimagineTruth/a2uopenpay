@@ -500,12 +500,12 @@ const SupportWidget = () => {
       )}
 
       {(open || isSupportPage) && (
-        <div className={isSupportPage ? "min-h-screen bg-background px-4 py-4 pb-10" : "fixed inset-0 z-[100]"}>
+        <div className={isSupportPage ? "min-h-screen bg-gradient-to-b from-[#f1f6ff] to-background px-0 pt-0 pb-0 sm:px-4 sm:pt-4 sm:pb-6" : "fixed inset-0 z-[100]"}>
           {!isSupportPage ? <div className="absolute inset-0 bg-black/30 md:hidden" onClick={() => setOpen(false)} /> : null}
           <div
             className={
               isSupportPage
-                ? "mx-auto flex w-full max-w-3xl flex-col rounded-2xl border border-border bg-white shadow-sm"
+                ? "mx-auto flex min-h-screen w-full flex-col rounded-none border-0 bg-white shadow-none sm:min-h-[calc(100vh-2.5rem)] sm:max-w-6xl sm:rounded-3xl sm:border sm:border-border sm:shadow-sm"
                 : "absolute inset-0 flex flex-col rounded-none bg-white shadow-2xl md:inset-auto md:bottom-6 md:right-6 md:h-[min(760px,calc(100vh-8rem))] md:w-[380px] md:max-w-[90vw] md:rounded-2xl md:border md:border-border"
             }
           >
@@ -529,9 +529,34 @@ const SupportWidget = () => {
               ) : null}
             </div>
 
-            <div className={`flex-1 min-h-0 px-4 pt-3 ${isSupportPage ? "pb-3" : ""}`}>
+            {isSupportPage ? (
+              <div className="border-b border-border px-4 py-2">
+                <div className="inline-flex rounded-full bg-secondary/60 p-1">
+                  <button
+                    onClick={() => setActiveTab("home")}
+                    className={`rounded-full px-4 py-1.5 text-xs font-semibold ${activeTab === "home" ? "bg-white text-foreground shadow-sm" : "text-muted-foreground"}`}
+                  >
+                    Home
+                  </button>
+                  <button
+                    onClick={() => setActiveTab("messages")}
+                    className={`rounded-full px-4 py-1.5 text-xs font-semibold ${activeTab === "messages" ? "bg-white text-foreground shadow-sm" : "text-muted-foreground"}`}
+                  >
+                    Messages
+                  </button>
+                  <button
+                    onClick={() => setActiveTab("help")}
+                    className={`rounded-full px-4 py-1.5 text-xs font-semibold ${activeTab === "help" ? "bg-white text-foreground shadow-sm" : "text-muted-foreground"}`}
+                  >
+                    Help
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            <div className={`flex-1 min-h-0 px-4 pt-3 ${isSupportPage ? "pb-4" : ""}`}>
               {activeTab === "home" && (
-                <div className="space-y-3">
+                <div className={`space-y-3 ${isSupportPage ? "mx-auto w-full max-w-3xl pt-3" : ""}`}>
                   <button onClick={() => setActiveTab("messages")} className="w-full rounded-xl border border-border p-3 text-left">
                     <p className="text-sm font-semibold text-foreground">Send us a message</p>
                     <p className="text-xs text-muted-foreground">We'll be back online later today</p>
@@ -544,9 +569,9 @@ const SupportWidget = () => {
               )}
 
               {activeTab === "messages" && (
-                <div className="mt-2 flex h-full flex-col">
+                <div className="mt-2 flex h-full min-h-0 flex-1 flex-col">
                   {isAgent && (
-                    <div className={`mb-2 max-h-32 overflow-y-auto rounded-lg border border-border ${hiddenScrollbarClass}`}>
+                    <div className={`mb-2 ${isSupportPage ? "max-h-40 md:max-h-48" : "max-h-32"} overflow-y-auto rounded-lg border border-border bg-white ${hiddenScrollbarClass}`}>
                       {allConversations.map((row) => (
                         <button
                           key={row.id}
@@ -573,13 +598,13 @@ const SupportWidget = () => {
                       </p>
                     </div>
                   ) : null}
-                  <div className={`min-h-0 flex-1 overflow-y-auto rounded-lg border border-border bg-white p-3 text-sm ${hiddenScrollbarClass}`}>
+                  <div className={`min-h-0 flex-1 overflow-y-auto rounded-lg border border-border ${isSupportPage ? "bg-[#f8fbff]" : "bg-white"} p-3 text-sm ${hiddenScrollbarClass}`}>
                     {messages.length === 0 ? (
                       <p className="text-xs text-muted-foreground">No messages yet.</p>
                     ) : (
                       messages.map((msg) => (
                         <div key={msg.id} className={`mb-2 flex ${msg.sender_role === "agent" ? "justify-start" : "justify-end"}`}>
-                          <div className={`max-w-[80%] rounded-xl px-3 py-2 text-xs ${msg.sender_role === "agent" ? "bg-secondary text-foreground" : "bg-paypal-blue text-white"}`}>
+                          <div className={`max-w-[82%] rounded-2xl px-3 py-2 text-xs shadow-sm ${msg.sender_role === "agent" ? "bg-white text-foreground border border-border/70" : "bg-paypal-blue text-white"}`}>
                             {msg.message}
                             {msg.attachment_url ? (
                               <div className="mt-2 overflow-hidden rounded-lg border border-white/20 bg-white/10">
@@ -589,6 +614,13 @@ const SupportWidget = () => {
                                   onClick={() => setImageViewerUrl(msg.attachment_url || null)}
                                 >
                                   <img src={msg.attachment_url} alt="Support attachment" className="max-h-48 w-full object-cover" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setImageViewerUrl(msg.attachment_url || null)}
+                                  className="w-full border-t border-white/20 px-2 py-1.5 text-left text-[11px] font-semibold text-white/90"
+                                >
+                                  View image
                                 </button>
                               </div>
                             ) : null}
@@ -667,7 +699,7 @@ const SupportWidget = () => {
               )}
 
               {activeTab === "help" && (
-                <div className="mt-2 flex h-full flex-col">
+                <div className={`mt-2 flex h-full min-h-0 flex-1 flex-col ${isSupportPage ? "mx-auto w-full max-w-4xl" : ""}`}>
                   <div className="relative">
                     <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input value={helpQuery} onChange={(e) => setHelpQuery(e.target.value)} placeholder="Search for help" className="h-9 rounded-full pl-9" />
@@ -693,30 +725,34 @@ const SupportWidget = () => {
               )}
             </div>
 
-            <div className="mt-3 border-t border-border px-4 py-2">
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <button onClick={() => setActiveTab("home")} className={`flex items-center gap-1 ${activeTab === "home" ? "text-foreground" : ""}`}>
-                  <HelpCircle className="h-4 w-4" /> Home
-                </button>
-                <button onClick={() => setActiveTab("messages")} className={`flex items-center gap-1 ${activeTab === "messages" ? "text-foreground" : ""}`}>
-                  <MessageCircle className="h-4 w-4" /> Messages
-                </button>
-                <button onClick={() => setActiveTab("help")} className={`flex items-center gap-1 ${activeTab === "help" ? "text-foreground" : ""}`}>
-                  <Search className="h-4 w-4" /> Help
-                </button>
+            {!isSupportPage ? (
+              <div className="mt-3 border-t border-border px-4 py-2">
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <button onClick={() => setActiveTab("home")} className={`flex items-center gap-1 ${activeTab === "home" ? "text-foreground" : ""}`}>
+                    <HelpCircle className="h-4 w-4" /> Home
+                  </button>
+                  <button onClick={() => setActiveTab("messages")} className={`flex items-center gap-1 ${activeTab === "messages" ? "text-foreground" : ""}`}>
+                    <MessageCircle className="h-4 w-4" /> Messages
+                  </button>
+                  <button onClick={() => setActiveTab("help")} className={`flex items-center gap-1 ${activeTab === "help" ? "text-foreground" : ""}`}>
+                    <Search className="h-4 w-4" /> Help
+                  </button>
+                </div>
               </div>
-            </div>
+            ) : null}
           </div>
         </div>
       )}
       <Dialog open={Boolean(imageViewerUrl)} onOpenChange={(openState) => { if (!openState) setImageViewerUrl(null); }}>
-        <DialogContent className="rounded-3xl sm:max-w-3xl">
+        <DialogContent className="w-[95vw] max-w-5xl rounded-3xl p-4 sm:p-6">
           <DialogTitle className="text-lg font-bold text-foreground">Support image</DialogTitle>
           <DialogDescription className="text-sm text-muted-foreground">
             Full-size preview of the attached image.
           </DialogDescription>
           {imageViewerUrl ? (
-            <img src={imageViewerUrl} alt="Support attachment full size" className="mt-2 w-full rounded-2xl object-contain" />
+            <div className="mt-2 overflow-hidden rounded-2xl border border-border bg-black/90">
+              <img src={imageViewerUrl} alt="Support attachment full size" className="max-h-[78vh] w-full object-contain" />
+            </div>
           ) : (
             <p className="text-sm text-muted-foreground">No image available.</p>
           )}
