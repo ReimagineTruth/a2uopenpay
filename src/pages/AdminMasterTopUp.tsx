@@ -4,6 +4,7 @@ import { ArrowLeft, ShieldCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { playGoogleWalletSuccessSound } from "@/lib/soundEffects";
 
 const AdminMasterTopUp = () => {
   const navigate = useNavigate();
@@ -46,6 +47,7 @@ const AdminMasterTopUp = () => {
       toast.error("Enter account number or username");
       return;
     }
+    playGoogleWalletSuccessSound();
     setLoading(true);
     try {
       const { data, error } = await (supabase as any).rpc("master_topup_internal", {

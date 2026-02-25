@@ -190,7 +190,7 @@ const AppRoutes = () => {
       </Routes>
       <AppSecurityGate />
       {location.pathname !== "/support" ? <AppFooter /> : null}
-      <SupportWidget />
+      {!showRouteSplash ? <SupportWidget /> : null}
 
       {showRouteSplash && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-gradient-to-b from-paypal-blue to-[#072a7a]">

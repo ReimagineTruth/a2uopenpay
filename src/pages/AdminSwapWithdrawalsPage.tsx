@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { QRCodeSVG } from "qrcode.react";
+import { playGoogleWalletSuccessSound } from "@/lib/soundEffects";
 
 type SwapWithdrawalRow = {
   id: string;
@@ -108,6 +109,9 @@ const AdminSwapWithdrawalsPage = () => {
   };
 
   const handleSwapWithdrawalReview = async (withdrawalId: string, decision: "approve" | "reject") => {
+    if (decision === "approve") {
+      playGoogleWalletSuccessSound();
+    }
     setReviewingId(withdrawalId);
     try {
       const { error } = await (supabase as any).rpc("admin_review_swap_withdrawal", {

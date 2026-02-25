@@ -5,6 +5,7 @@ import { ArrowLeft, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import { playGoogleWalletSuccessSound } from "@/lib/soundEffects";
 
 type AdminHistoryRow = {
   id: string;
@@ -248,6 +249,9 @@ const AdminDashboard = () => {
   const canViewAdminProfile = ADMIN_PROFILE_USERNAMES.has(viewerUsername);
 
   const handleSelfSendReview = async (row: AdminHistoryRow, decision: "approve" | "reject") => {
+    if (decision === "approve") {
+      playGoogleWalletSuccessSound();
+    }
     setReviewingId(row.id);
     try {
       const { data, error } = await supabase.functions.invoke("admin-dashboard", {
@@ -275,6 +279,9 @@ const AdminDashboard = () => {
   };
 
   const handleLoanReview = async (applicationId: string, decision: "approve" | "reject") => {
+    if (decision === "approve") {
+      playGoogleWalletSuccessSound();
+    }
     setReviewingId(applicationId);
     try {
       const { data, error } = await (supabase as any).rpc("admin_review_loan_application", {
@@ -297,6 +304,9 @@ const AdminDashboard = () => {
   };
 
   const handleSwapWithdrawalReview = async (withdrawalId: string, decision: "approve" | "reject") => {
+    if (decision === "approve") {
+      playGoogleWalletSuccessSound();
+    }
     setReviewingId(withdrawalId);
     try {
       const { error } = await (supabase as any).rpc("admin_review_swap_withdrawal", {

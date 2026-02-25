@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { playGoogleWalletSuccessSound } from "@/lib/soundEffects";
 
 type LoanApplicationRow = {
   id: string;
@@ -113,6 +114,9 @@ const AdminLoanApplicationsPage = () => {
   };
 
   const handleLoanReview = async (applicationId: string, decision: "approve" | "reject") => {
+    if (decision === "approve") {
+      playGoogleWalletSuccessSound();
+    }
     setReviewingId(applicationId);
     try {
       const { data, error } = await (supabase as any).rpc("admin_review_loan_application", {

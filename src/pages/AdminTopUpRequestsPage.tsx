@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { playGoogleWalletSuccessSound } from "@/lib/soundEffects";
 
 type TopUpRequestRow = {
   id: string;
@@ -120,6 +121,9 @@ const AdminTopUpRequestsPage = () => {
   };
 
   const handleTopUpReview = async (requestId: string, decision: "approve" | "reject") => {
+    if (decision === "approve") {
+      playGoogleWalletSuccessSound();
+    }
     setReviewingId(requestId);
     try {
       const { error } = await (supabase as any).rpc("admin_review_topup_request", {

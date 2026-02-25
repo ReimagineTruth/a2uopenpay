@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { X } from "lucide-react";
+import { ChevronDown, Download, X } from "lucide-react";
 import { toast } from "sonner";
+import { QRCodeSVG } from "qrcode.react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCurrency } from "@/contexts/CurrencyContext";
 
 const defaultTagsPlaceholder = "Search for relevant skills, tools, and industries";
+const MOCK_REFERENCE_NUMBER = "ExgX9ss";
 
 const sanitizeCode = (name: string) => {
   const base = name.trim().toUpperCase().replace(/[^A-Z0-9]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
@@ -34,6 +36,8 @@ const MerchantProductCreatePage = () => {
   const [repeatEvery, setRepeatEvery] = useState("1");
   const [repeatUnit, setRepeatUnit] = useState("month");
   const [saving, setSaving] = useState(false);
+  const [previewTab, setPreviewTab] = useState<"product" | "checkout">("product");
+  const [showCheckoutQr, setShowCheckoutQr] = useState(false);
 
   useEffect(() => {
     const boot = async () => {
@@ -61,6 +65,11 @@ const MerchantProductCreatePage = () => {
     const parsed = Number(amount);
     return Number.isFinite(parsed) ? parsed : 0;
   }, [amount]);
+
+  const checkoutQrValue = useMemo(() => {
+    const safeName = (productName || "Untitled Product").trim();
+    return `openpay-checkout:${MOCK_REFERENCE_NUMBER}:${safeName}:${currency.toUpperCase()}:${previewAmount.toFixed(2)}`;
+  }, [currency, previewAmount, productName]);
 
   const handleSave = async (publish: boolean) => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -275,25 +284,142 @@ const MerchantProductCreatePage = () => {
         </div>
 
         <div className="rounded-2xl border border-border bg-white p-6">
-          <div className="flex items-center gap-6 text-sm font-semibold text-foreground">
-            <span>Product page</span>
-            <span className="text-muted-foreground">Checkout</span>
+          <div className="flex items-center gap-6 text-sm font-semibold">
+            <button
+              type="button"
+              onClick={() => setPreviewTab("product")}
+              className={previewTab === "product" ? "text-foreground" : "text-muted-foreground"}
+            >
+              Product page
+            </button>
+            <button
+              type="button"
+              onClick={() => setPreviewTab("checkout")}
+              className={previewTab === "checkout" ? "text-foreground" : "text-muted-foreground"}
+            >
+              Checkout
+            </button>
           </div>
-          <div className="mt-4 rounded-2xl border border-border bg-secondary/20 p-4">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-secondary" />
-              <div>
-                <p className="text-sm font-semibold">{productName || "Untitled Product"}</p>
-                <p className="text-xs text-muted-foreground">{merchantName}</p>
+
+          {previewTab === "product" ? (
+            <div className="mt-4 rounded-2xl border border-border bg-secondary/20 p-4">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-secondary" />
+                <div>
+                  <p className="text-sm font-semibold">{productName || "Untitled Product"}</p>
+                  <p className="text-xs text-muted-foreground">{merchantName}</p>
+                </div>
               </div>
+              <div className="mt-4 rounded-xl border border-border bg-white p-4 text-center">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Get it for</p>
+                <p className="mt-1 text-2xl font-semibold">{currency} {previewAmount.toFixed(2)}{paymentType === "subscription" ? ` / ${repeatUnit}` : ""}</p>
+                <Button className="mt-4 w-full rounded-full bg-[#1f2530] text-white hover:bg-[#11151b]">Buy</Button>
+              </div>
+              <div className="mt-4 text-xs text-muted-foreground">Product created by {merchantName}</div>
             </div>
-            <div className="mt-4 rounded-xl border border-border bg-white p-4 text-center">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Get it for</p>
-              <p className="mt-1 text-2xl font-semibold">{currency} {previewAmount.toFixed(2)}{paymentType === "subscription" ? ` / ${repeatUnit}` : ""}</p>
-              <Button className="mt-4 w-full rounded-full bg-[#1f2530] text-white hover:bg-[#11151b]">Buy</Button>
+          ) : (
+            <div className="mt-4 rounded-2xl border border-border bg-secondary/20 p-4">
+              <div className="mb-4 flex items-start justify-between border-b border-border pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#1f2530] text-xs font-bold text-white">O</div>
+                  <p className="text-base font-medium text-foreground">OpenPay</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-muted-foreground">Reference Number</p>
+                  <p className="text-xl font-semibold text-foreground">{MOCK_REFERENCE_NUMBER}</p>
+                </div>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-[1.05fr_1fr]">
+                <div>
+                  <p className="text-2xl font-semibold text-foreground">Link reference number {MOCK_REFERENCE_NUMBER}</p>
+                  <p className="mt-1 text-4xl font-bold text-emerald-600">₱ {previewAmount.toFixed(2)}</p>
+                  <div className="mt-4 border-t border-dashed border-border pt-4 text-lg">
+                    <div className="flex items-center justify-between text-muted-foreground">
+                      <span>Subtotal</span>
+                      <span>₱ {previewAmount.toFixed(2)}</span>
+                    </div>
+                    <div className="mt-1 flex items-center justify-between text-muted-foreground">
+                      <span>Fees</span>
+                      <span>Free</span>
+                    </div>
+                    <div className="mt-4 flex items-center justify-between font-semibold text-foreground">
+                      <span>Total due</span>
+                      <span>₱ {previewAmount.toFixed(2)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-border bg-white p-4">
+                  <p className="text-3xl font-semibold text-foreground">Payment Method</p>
+
+                  {!showCheckoutQr ? (
+                    <>
+                      <div className="mt-4 rounded-xl border border-border bg-background px-4 py-3 text-center">
+                        <p className="text-xl font-semibold text-foreground">
+                          Scan <span className="text-[#d61f26]">QRPh</span> code to pay
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        className="mt-4 h-11 w-full rounded-xl bg-emerald-300 text-xl font-semibold text-white"
+                        onClick={() => setShowCheckoutQr(true)}
+                      >
+                        Continue
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="mt-4 rounded-xl border border-border bg-background px-4 py-3 text-center">
+                        <p className="text-xl font-semibold text-foreground">
+                          Scan <span className="text-[#d61f26]">QRPh</span> code to pay
+                        </p>
+                        <div className="mt-1 flex items-center justify-center gap-1 text-xs text-muted-foreground">
+                          <span>GCash</span>
+                          <span>maya</span>
+                          <span>BPI</span>
+                          <span>GoTyme</span>
+                          <span>HOME CREDIT</span>
+                        </div>
+                        <button type="button" className="mt-1 inline-flex items-center gap-1 text-sm text-foreground">
+                          See all supported banks and e-wallets
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        </button>
+                        <div className="mt-3 flex justify-center">
+                          <div className="rounded-lg border border-border bg-white p-3">
+                            <QRCodeSVG value={checkoutQrValue} size={160} includeMargin />
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-border bg-white text-sm font-semibold text-foreground"
+                          onClick={() => toast.success("QR download started")}
+                        >
+                          <Download className="h-4 w-4" />
+                          Download QR Code
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        className="mt-4 h-11 w-full rounded-xl border border-border bg-white text-base font-semibold text-foreground"
+                        onClick={() => setShowCheckoutQr(false)}
+                      >
+                        Use a different payment method
+                      </button>
+                    </>
+                  )}
+
+                  <p className="mt-4 text-center text-sm text-muted-foreground">
+                    By completing your purchase, you agree to PayMongo's <span className="text-emerald-600">Privacy Policy.</span>
+                  </p>
+                </div>
+              </div>
+
+              <p className="mt-4 text-center text-sm text-muted-foreground">
+                Secured by <span className="font-semibold">paymongo</span>
+              </p>
             </div>
-            <div className="mt-4 text-xs text-muted-foreground">Product created by {merchantName}</div>
-          </div>
+          )}
         </div>
       </div>
     </div>

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Code, Copy, ExternalLink, Link2, Plus, QrCode, Share2 } from "lucide-react";
+import { Bell, Code, Copy, ExternalLink, FileText, Link2, Menu, MessageCircle, Plus, QrCode, Share2, ShoppingCart, Store } from "lucide-react";
 import { toast } from "sonner";
 import { QRCodeCanvas, QRCodeSVG } from "qrcode.react";
 
@@ -32,6 +32,7 @@ const MerchantProductCatalogPage = () => {
   const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [products, setProducts] = useState<MerchantProductRow[]>([]);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [statsByProduct, setStatsByProduct] = useState<Record<string, MerchantProductStats>>({});
   const [activeProduct, setActiveProduct] = useState<MerchantProductRow | null>(null);
   const [showCreateLinkModal, setShowCreateLinkModal] = useState(false);
@@ -68,6 +69,11 @@ const MerchantProductCatalogPage = () => {
         .from("merchant_product_stats")
         .select("product_id, total_sales, total_revenue, total_purchases")
         .eq("merchant_user_id", user.id);
+      const { count: unreadCount } = await supabase
+        .from("app_notifications")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .is("read_at", null);
       const mapped: Record<string, MerchantProductStats> = {};
       (statsRows || []).forEach((row) => {
         if (!row?.product_id) return;
@@ -79,6 +85,7 @@ const MerchantProductCatalogPage = () => {
         };
       });
       setStatsByProduct(mapped);
+      setUnreadNotifications(Number(unreadCount || 0));
 
       setLoading(false);
 
@@ -103,6 +110,13 @@ const MerchantProductCatalogPage = () => {
 
   const formatLinkUrl = (token: string) =>
     typeof window === "undefined" ? "" : `${window.location.origin}/payment-link/${encodeURIComponent(token)}`;
+  const formatCreatedDate = (raw: string) => {
+    try {
+      return new Date(raw).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+    } catch {
+      return raw;
+    }
+  };
 
   const handleCopy = async (value: string, label: string) => {
     if (!value) return;
@@ -170,143 +184,129 @@ const MerchantProductCatalogPage = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="mx-auto w-full max-w-6xl px-6 py-8">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-semibold text-foreground">Product catalog</h1>
+      <div className="mx-auto w-full max-w-[1120px] px-4 py-4 sm:px-6 sm:py-6">
+        <div className="flex items-center justify-between gap-3">
+          <button
+            type="button"
+            className="paypal-surface rounded-full p-2 text-foreground"
+            aria-label="Open menu"
+            onClick={() => navigate("/menu")}
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+
+          <div className="flex items-center gap-2">
+            <ShoppingCart className="h-7 w-7 text-foreground" />
+            <p className="text-2xl font-black leading-none tracking-tight text-foreground sm:text-4xl">Product Catalog</p>
           </div>
-          <Button className="h-10 rounded-full bg-paypal-blue text-white hover:bg-[#004dc5]" onClick={() => navigate("/merchant-products/create")}>
-            <Plus className="mr-2 h-4 w-4" />
-            Create product
-          </Button>
+
+          <div className="flex items-center gap-2">
+            <button
+              className="paypal-surface rounded-full p-2 text-foreground"
+              aria-label="Open Merchant POS"
+              onClick={() => navigate("/merchant-pos")}
+            >
+              <Store className="h-5 w-5" />
+            </button>
+            <button
+              className="paypal-surface rounded-full p-2 text-foreground"
+              aria-label="API docs"
+              onClick={() => navigate("/openpay-api-docs")}
+            >
+              <FileText className="h-5 w-5" />
+            </button>
+            <button
+              className="paypal-surface rounded-full p-2 text-foreground"
+              aria-label="Messages"
+              onClick={() => navigate("/contacts")}
+            >
+              <MessageCircle className="h-5 w-5" />
+            </button>
+            <button
+              className="paypal-surface relative rounded-full p-2 text-foreground"
+              aria-label="Notifications"
+              onClick={() => navigate("/notifications")}
+            >
+              <Bell className="h-5 w-5" />
+              {unreadNotifications > 0 && (
+                <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-red-500" aria-hidden="true" />
+              )}
+            </button>
+          </div>
         </div>
 
-        <div className="mt-6 rounded-2xl border border-border bg-card">
-          <div className="border-b border-border px-5 py-3 text-sm text-muted-foreground">{productCountLabel}</div>
-          <div className="hidden w-full md:block">
-            <div className="grid grid-cols-[160px_1.6fr_120px_140px_150px_150px_140px_180px] gap-2 border-b border-border px-5 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              <span>Created</span>
-              <span>Title</span>
-              <span>Price</span>
-              <span>Total sales</span>
-              <span>Total revenue</span>
-              <span>Total purchases</span>
-              <span>Status</span>
-              <span>Actions</span>
-            </div>
-            {products.length === 0 ? (
-              <div className="px-5 py-6 text-sm text-muted-foreground">No products yet.</div>
-            ) : (
-              products.map((product) => (
-                <div key={product.id} className="grid grid-cols-[160px_1.6fr_120px_140px_150px_150px_140px_180px] items-center gap-2 border-b border-border px-5 py-4 text-sm last:border-b-0">
-                  <span className="text-muted-foreground">{new Date(product.created_at).toLocaleDateString()}</span>
-                  <div>
-                    <p className="font-medium text-foreground">{product.product_name}</p>
-                    <p className="text-xs text-muted-foreground">{product.product_code}</p>
-                  </div>
-                  <span className="font-medium text-foreground">{Number(product.unit_amount || 0).toFixed(2)} {product.currency.toUpperCase()}</span>
-                  <span className="text-foreground">{statsByProduct[product.id]?.total_sales ?? 0}</span>
-                  <span className="text-foreground">{Number(statsByProduct[product.id]?.total_revenue ?? 0).toFixed(2)}</span>
-                  <span className="text-foreground">{statsByProduct[product.id]?.total_purchases ?? 0}</span>
-                  <span className={`inline-flex w-fit rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase ${product.is_active ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"}`}>
-                    {product.is_active ? "Published" : "Unpublished"}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      className="h-8 rounded-full px-3 text-xs"
-                      onClick={() => openCreateModal(product, "direct")}
-                    >
-                      <Link2 className="mr-1 h-3.5 w-3.5" />
-                      Payment link
-                    </Button>
-                    <button
-                      type="button"
-                      className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground hover:text-foreground"
-                      onClick={() => openCreateModal(product, "direct")}
-                      aria-label="Share link"
-                    >
-                      <Share2 className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground hover:text-foreground"
-                      onClick={() => openCreateModal(product, "embed")}
-                      aria-label="Embed button"
-                    >
-                      <Code className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground hover:text-foreground"
-                      onClick={() => openCreateModal(product, "qr")}
-                      aria-label="QR code"
-                    >
-                      <QrCode className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
+        <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-4xl font-semibold text-foreground">Product catalog</h1>
+            <p className="mt-2 text-base text-muted-foreground">{productCountLabel}</p>
           </div>
+          <button
+            type="button"
+            onClick={() => navigate("/merchant-products/create")}
+            className="inline-flex h-11 items-center gap-2 rounded-full bg-paypal-blue px-5 text-base font-semibold text-white hover:bg-[#004dc5] sm:h-12 sm:text-lg"
+          >
+            <Plus className="h-5 w-5" />
+            Create
+          </button>
+        </div>
 
-          <div className="md:hidden">
-            {products.length === 0 ? (
-              <div className="px-5 py-6 text-sm text-muted-foreground">No products yet.</div>
-            ) : (
-              <div className="divide-y divide-border">
-                {products.map((product) => (
-                  <div key={product.id} className="px-5 py-4 text-sm">
-                    <p className="font-medium text-foreground">{product.product_name}</p>
-                    <p className="text-xs text-muted-foreground">{new Date(product.created_at).toLocaleDateString()} · {product.product_code}</p>
-                    <div className="mt-2 flex items-center justify-between">
-                      <span className="font-medium text-foreground">{Number(product.unit_amount || 0).toFixed(2)} {product.currency.toUpperCase()}</span>
-                      <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase ${product.is_active ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"}`}>
-                        {product.is_active ? "Published" : "Unpublished"}
-                      </span>
-                    </div>
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      Sales: {statsByProduct[product.id]?.total_sales ?? 0} · Revenue: {Number(statsByProduct[product.id]?.total_revenue ?? 0).toFixed(2)} · Purchases: {statsByProduct[product.id]?.total_purchases ?? 0}
-                    </p>
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                      <Button
-                        variant="outline"
-                        className="h-8 rounded-full px-3 text-xs"
-                        onClick={() => openCreateModal(product, "direct")}
-                      >
-                        <Link2 className="mr-1 h-3.5 w-3.5" />
-                        Payment link
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="h-8 rounded-full px-3 text-xs"
-                        onClick={() => openCreateModal(product, "direct")}
-                      >
-                        <Share2 className="mr-1 h-3.5 w-3.5" />
-                        Share
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="h-8 rounded-full px-3 text-xs"
-                        onClick={() => openCreateModal(product, "embed")}
-                      >
-                        <Code className="mr-1 h-3.5 w-3.5" />
-                        Embed
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="h-8 rounded-full px-3 text-xs"
-                        onClick={() => openCreateModal(product, "qr")}
-                      >
-                        <QrCode className="mr-1 h-3.5 w-3.5" />
-                        QR
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+        <div className="paypal-surface mt-6 overflow-hidden rounded-2xl">
+          {products.length === 0 && (
+            <p className="px-6 py-8 text-base text-muted-foreground">No products yet.</p>
+          )}
+
+          {products.map((product) => (
+            <div key={product.id} className="border-b border-border/70 px-6 py-5 last:border-b-0">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3 text-sm">
+                  <span className={`rounded px-2 py-1 text-xs font-semibold uppercase tracking-wide ${product.is_active ? "bg-paypal-success/15 text-paypal-success" : "bg-secondary text-muted-foreground"}`}>
+                    {product.is_active ? "Active" : "Inactive"}
+                  </span>
+                  <span className="text-muted-foreground">{formatCreatedDate(product.created_at)}</span>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => openCreateModal(product, "direct")}
+                    className="rounded p-1.5 text-muted-foreground hover:bg-secondary"
+                    aria-label="Create payment link"
+                  >
+                    <Link2 className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openCreateModal(product, "direct")}
+                    className="rounded p-1.5 text-muted-foreground hover:bg-secondary"
+                    aria-label="Share link"
+                  >
+                    <Share2 className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openCreateModal(product, "embed")}
+                    className="rounded p-1.5 text-muted-foreground hover:bg-secondary"
+                    aria-label="Embed button"
+                  >
+                    <Code className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openCreateModal(product, "qr")}
+                    className="rounded p-1.5 text-muted-foreground hover:bg-secondary"
+                    aria-label="QR code"
+                  >
+                    <QrCode className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
-            )}
-          </div>
+
+              <p className="mt-3 text-2xl font-semibold text-foreground">{product.product_name}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{product.product_code}</p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Price: {Number(product.unit_amount || 0).toFixed(2)} {product.currency.toUpperCase()} - Total sales: {statsByProduct[product.id]?.total_sales ?? 0} - Total revenue: {Number(statsByProduct[product.id]?.total_revenue ?? 0).toFixed(2)} - {statsByProduct[product.id]?.total_purchases ?? 0} purchases
+              </p>
+            </div>
+          ))}
         </div>
       </div>
 

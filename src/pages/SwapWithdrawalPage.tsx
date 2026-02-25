@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import BrandLogo from "@/components/BrandLogo";
+import { playGoogleWalletSuccessSound } from "@/lib/soundEffects";
 
 type SwapWithdrawalRow = {
   id: string;
@@ -486,6 +487,7 @@ const SwapWithdrawalPage = () => {
             <Button
               className="flex-1 h-11 rounded-2xl bg-paypal-blue text-white hover:bg-[#004dc5]"
               onClick={async () => {
+                playGoogleWalletSuccessSound();
                 setShowConfirmModal(false);
                 await submitWithdrawalRequest();
               }}

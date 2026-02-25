@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { playGoogleWalletSuccessSound } from "@/lib/soundEffects";
 
 type TopUpAccountDetailsProps = {
   providerName: string;
@@ -265,6 +266,7 @@ const TopUpAccountDetails = ({
 
   const handleConfirmSubmit = async () => {
     setShowConfirmModal(false);
+    playGoogleWalletSuccessSound();
     await submitTopUpRequest();
   };
 
