@@ -23,6 +23,8 @@ const PosThankYouPage = () => {
 
   const sessionToken = searchParams.get("session") || "";
   const initialTx = searchParams.get("tx") || "";
+  const origin = (searchParams.get("origin") || "").trim().toLowerCase();
+  const isMerchantOrigin = origin === "merchant-pos";
 
   const [loading, setLoading] = useState(false);
   const [receiptOpen, setReceiptOpen] = useState(false);
@@ -107,8 +109,11 @@ const PosThankYouPage = () => {
             <ReceiptText className="mr-2 h-4 w-4" />
             View receipt
           </Button>
-          <Button className="h-10 rounded-lg bg-paypal-blue text-white hover:bg-[#004dc5]" onClick={() => navigate("/merchant-pos")}>
-            Back to POS
+          <Button
+            className="h-10 rounded-lg bg-paypal-blue text-white hover:bg-[#004dc5]"
+            onClick={() => navigate(isMerchantOrigin ? "/merchant-pos" : "/dashboard")}
+          >
+            {isMerchantOrigin ? "Back to POS" : "Back to Home"}
           </Button>
           <Button variant="ghost" className="h-10 rounded-lg" onClick={() => navigate("/activity")}>
             Activity

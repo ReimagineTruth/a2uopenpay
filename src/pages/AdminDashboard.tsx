@@ -196,9 +196,9 @@ const AdminDashboard = () => {
       );
 
       const { data: swapRows, error: swapError } = await (supabase as any).rpc("admin_list_swap_withdrawals", {
-        p_status: "pending",
         p_limit: 50,
         p_offset: 0,
+        p_status: "pending",
       });
       if (swapError) throw new Error(swapError.message || "Failed to load swap withdrawals");
       const normalizedSwapRows = Array.isArray(swapRows) ? swapRows : [];

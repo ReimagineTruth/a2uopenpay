@@ -56,6 +56,7 @@ const RequestMoney = () => {
   const [confirmAction, setConfirmAction] = useState<
     | { type: "create"; payer: Profile; amount: number; note: string }
     | { type: "pay"; request: PaymentRequest; requester: Profile | null }
+    | { type: "reject"; request: PaymentRequest; requester: Profile | null }
     | null
   >(null);
 
@@ -423,13 +424,41 @@ const RequestMoney = () => {
     setConfirmModalOpen(true);
   };
 
+  const submitReject = async (request: PaymentRequest) => {
+    setLoading(true);
+    const { error } = await supabase
+      .from("payment_requests")
+      .update({ status: "rejected", updated_at: new Date().toISOString() })
+      .eq("id", request.id);
+    setLoading(false);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    toast.success("Request rejected");
+    await loadData();
+  };
+
+  const handleReject = (request: PaymentRequest) => {
+    setConfirmAction({
+      type: "reject",
+      request,
+      requester: profileMap.get(request.requester_id) || null,
+    });
+    setConfirmModalOpen(true);
+  };
+
   const handleConfirmAction = async () => {
     if (!confirmAction || loading) return;
 
     if (confirmAction.type === "create") {
       await submitCreate();
-    } else {
+    } else if (confirmAction.type === "pay") {
       await submitPay(confirmAction.request, confirmAction.requester);
+    } else {
+      await submitReject(confirmAction.request);
     }
 
     setConfirmModalOpen(false);
@@ -437,20 +466,6 @@ const RequestMoney = () => {
   };
 
   const getInitials = (name: string) => name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
-
-  const handleReject = async (id: string) => {
-    const { error } = await supabase
-      .from("payment_requests")
-      .update({ status: "rejected", updated_at: new Date().toISOString() })
-      .eq("id", id);
-
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    toast.success("Request rejected");
-    await loadData();
-  };
 
   return (
     <div className="min-h-screen bg-background pb-8">
@@ -642,7 +657,7 @@ const RequestMoney = () => {
                       variant="outline"
                       className="flex-1"
                       disabled={loading}
-                      onClick={() => handleReject(request.id)}
+                      onClick={() => handleReject(request)}
                     >
                       Reject
                     </Button>
@@ -723,13 +738,17 @@ const RequestMoney = () => {
       >
         <DialogContent className="rounded-3xl">
           <DialogTitle className="text-xl font-bold text-foreground">
-            {confirmAction?.type === "create" ? "Confirm request" : "Confirm payment"}
+            {confirmAction?.type === "create"
+              ? "Confirm request"
+              : confirmAction?.type === "pay"
+                ? "Confirm payment"
+                : "Confirm rejection"}
           </DialogTitle>
           <DialogDescription className="text-sm text-muted-foreground">
-            Review the details before sending.
+            Review the details before continuing.
           </DialogDescription>
 
-          {(confirmAction?.type === "create" || confirmAction?.type === "pay") && (
+          {(confirmAction?.type === "create" || confirmAction?.type === "pay" || confirmAction?.type === "reject") && (
             <div className="mt-3 flex items-center gap-3 rounded-2xl bg-secondary/70 px-3 py-2.5">
               {(confirmAction.type === "create" ? confirmAction.payer.avatar_url : confirmAction.requester?.avatar_url) ? (
                 <img
@@ -763,7 +782,7 @@ const RequestMoney = () => {
               <span className="font-semibold text-foreground">
                 {confirmAction?.type === "create"
                   ? formatCurrency(confirmAction.amount)
-                  : confirmAction?.type === "pay"
+                  : confirmAction?.type === "pay" || confirmAction?.type === "reject"
                     ? formatCurrency(confirmAction.request.amount)
                     : "-"}
               </span>
@@ -773,7 +792,7 @@ const RequestMoney = () => {
               <span className="font-semibold text-foreground">
                 ${confirmAction?.type === "create"
                   ? confirmAction.amount.toFixed(2)
-                  : confirmAction?.type === "pay"
+                  : confirmAction?.type === "pay" || confirmAction?.type === "reject"
                     ? Number(confirmAction.request.amount || 0).toFixed(2)
                     : "0.00"}
               </span>
@@ -783,7 +802,7 @@ const RequestMoney = () => {
               <span className="max-w-[70%] break-all text-right text-foreground">
                 {confirmAction?.type === "create"
                   ? confirmAction.note || "No note"
-                  : confirmAction?.type === "pay"
+                  : confirmAction?.type === "pay" || confirmAction?.type === "reject"
                     ? confirmAction.request.note || "Payment request"
                     : "No note"}
               </span>
@@ -807,11 +826,21 @@ const RequestMoney = () => {
               Cancel
             </Button>
             <Button
-              className="h-11 flex-1 rounded-2xl bg-paypal-blue text-white hover:bg-[#004dc5]"
+              className={`h-11 flex-1 rounded-2xl text-white ${
+                confirmAction?.type === "reject"
+                  ? "bg-red-600 hover:bg-red-700"
+                  : "bg-paypal-blue hover:bg-[#004dc5]"
+              }`}
               disabled={loading}
               onClick={handleConfirmAction}
             >
-              {loading ? "Processing..." : confirmAction?.type === "create" ? "Confirm & Send" : "Confirm & Pay"}
+              {loading
+                ? "Processing..."
+                : confirmAction?.type === "create"
+                  ? "Confirm & Send"
+                  : confirmAction?.type === "pay"
+                    ? "Confirm & Pay"
+                    : "Confirm & Reject"}
             </Button>
           </div>
         </DialogContent>

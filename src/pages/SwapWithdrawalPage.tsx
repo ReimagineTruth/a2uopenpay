@@ -28,6 +28,8 @@ const COINGECKO_PI_PRICE_URL = "https://api.coingecko.com/api/v3/simple/price?id
 const COINGECKO_API_KEY = String(import.meta.env.VITE_COINGECKO_API_KEY || "");
 
 const normalizeUsername = (value: string) => value.trim().replace(/^@+/, "").toLowerCase();
+const isSchemaCacheMissingError = (message: string | undefined, target: string) =>
+  Boolean(message) && message.includes("schema cache") && message.includes(target);
 
 const SwapWithdrawalPage = () => {
   const navigate = useNavigate();
@@ -103,7 +105,13 @@ const SwapWithdrawalPage = () => {
         })),
       );
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load withdrawals");
+      const message = error instanceof Error ? error.message : "Failed to load withdrawals";
+      if (isSchemaCacheMissingError(message, "public.user_swap_withdrawals")) {
+        setHistory([]);
+        toast.error("Withdrawal history is initializing. Please refresh in a moment.");
+        return;
+      }
+      toast.error(message);
     } finally {
       setRefreshing(false);
     }
@@ -202,7 +210,12 @@ const SwapWithdrawalPage = () => {
       setAmount("");
       await loadHistory();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Withdrawal submission failed");
+      const message = error instanceof Error ? error.message : "Withdrawal submission failed";
+      if (isSchemaCacheMissingError(message, "public.submit_swap_withdrawal")) {
+        toast.error("Withdrawal submission is initializing. Please refresh and try again.");
+        return;
+      }
+      toast.error(message);
     } finally {
       setLoading(false);
     }

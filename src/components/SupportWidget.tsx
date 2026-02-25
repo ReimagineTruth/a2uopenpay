@@ -59,6 +59,7 @@ const SupportWidget = () => {
   const [helpQuery, setHelpQuery] = useState("");
   const [allConversations, setAllConversations] = useState<SupportConversationRow[]>([]);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+  const [supportTicketId, setSupportTicketId] = useState<string | null>(null);
 
   useEffect(() => {
     const boot = async () => {
@@ -84,6 +85,17 @@ const SupportWidget = () => {
       if (existing) {
         setConversation(existing);
         setSelectedConversationId(existing.id);
+      }
+
+      const { data: ticketRows } = await supabase
+        .from("support_tickets")
+        .select("id, status, created_at")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(1);
+      const latestTicket = (ticketRows || [])[0] as { id?: string } | undefined;
+      if (latestTicket?.id) {
+        setSupportTicketId(String(latestTicket.id));
       }
 
       const { data: catRows } = await supabase
@@ -192,10 +204,56 @@ const SupportWidget = () => {
     return data as SupportConversation;
   };
 
+  const ensureSupportTicket = async (initialMessage: string) => {
+    if (!userId) return null;
+    const fallbackMessage = initialMessage.trim() || "Support request";
+
+    if (supportTicketId) {
+      const { error } = await supabase
+        .from("support_tickets")
+        .update({ status: "open", message: fallbackMessage })
+        .eq("id", supportTicketId)
+        .eq("user_id", userId);
+      if (error) {
+        toast.error(error.message || "Failed to update support ticket");
+        return null;
+      }
+      return supportTicketId;
+    }
+
+    const { data, error } = await supabase
+      .from("support_tickets")
+      .insert({
+        user_id: userId,
+        subject: "Support chat request",
+        message: fallbackMessage,
+        status: "open",
+      })
+      .select("id")
+      .single();
+    if (error) {
+      toast.error(error.message || "Failed to create support ticket");
+      return null;
+    }
+    const nextId = String((data as { id?: string } | null)?.id || "");
+    if (!nextId) {
+      toast.error("Failed to create support ticket");
+      return null;
+    }
+    setSupportTicketId(nextId);
+    return nextId;
+  };
+
   const sendMessage = async () => {
     const text = messageDraft.trim();
     if (!userId) return;
     if (!text && !attachmentFile) return;
+    const ticketMessage = text || (attachmentFile ? "Image attachment in support chat" : "Support request");
+    if (!isAgent) {
+      const ticketId = await ensureSupportTicket(ticketMessage);
+      if (!ticketId) return;
+    }
+
     const convo = isAgent ? null : await ensureConversation();
     const conversationId = isAgent ? selectedConversationId : convo?.id;
     if (!conversationId) {
@@ -255,7 +313,13 @@ const SupportWidget = () => {
         created_at: new Date().toISOString(),
       },
     ]);
-    await supabase.from("support_conversations").update({ last_message_at: new Date().toISOString() }).eq("id", conversationId);
+    const { error: convoUpdateError } = await supabase
+      .from("support_conversations")
+      .update({ last_message_at: new Date().toISOString() })
+      .eq("id", conversationId);
+    if (convoUpdateError) {
+      toast.error(convoUpdateError.message || "Message sent but failed to refresh conversation");
+    }
 
     if (isAgent) return;
 

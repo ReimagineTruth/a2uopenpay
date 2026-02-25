@@ -316,7 +316,7 @@ const MerchantPosPage = () => {
         setPaymentStatus("success");
         pushNotification("Payment successful", "success");
         void loadData();
-        navigate(`/pos-thank-you?session=${encodeURIComponent(currentSession.session_token)}`, { replace: true });
+        navigate(`/pos-thank-you?session=${encodeURIComponent(currentSession.session_token)}&origin=merchant-pos`, { replace: true });
       } else if (data.status === "expired" || data.status === "canceled") {
         setPaymentStatus("failed");
         pushNotification("Payment failed or expired", "error");

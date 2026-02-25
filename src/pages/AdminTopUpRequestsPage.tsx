@@ -88,9 +88,9 @@ const AdminTopUpRequestsPage = () => {
       const user = await ensureAdminAccess();
       if (!user) return;
       const { data: rows, error } = await (supabase as any).rpc("admin_list_topup_requests", {
-        p_status: nextStatus,
         p_limit: 50,
         p_offset: 0,
+        p_status: nextStatus,
       });
       if (error) throw new Error(error.message || "Failed to load top up requests");
       const normalizedRows = Array.isArray(rows) ? rows : [];

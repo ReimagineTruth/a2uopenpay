@@ -23,6 +23,7 @@ interface RecentRecipient extends UserProfile {
 }
 
 const sendSuccessSoundUrl = "https://www.myinstants.com/media/sounds/applepay.mp3";
+const OPENPAY_ICON_URL = "/openpay-o.svg";
 let sendSuccessAudio: HTMLAudioElement | null = null;
 let sendSoundUnlocked = false;
 
@@ -515,7 +516,16 @@ const SendMoney = () => {
         <div className="paypal-surface mt-8 rounded-3xl p-6">
           <div className="mb-8 text-center">
             <p className="text-5xl font-bold text-foreground">{currency.symbol}{amount || "0.00"}</p>
-            <p className="text-sm text-muted-foreground mt-1">{currency.flag} {currency.code}</p>
+            <div className="mt-1 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+              {currency.code === "OUSD" ? (
+                <>
+                  <img src={OPENPAY_ICON_URL} alt="Open USD" className="h-4 w-4 rounded-full object-cover" />
+                  <span>OPEN USD</span>
+                </>
+              ) : (
+                <span>{currency.flag} {currency.code}</span>
+              )}
+            </div>
             <p className="mt-2 text-sm font-medium text-paypal-blue">Available: {formatCurrency(balance)}</p>
           </div>
           <Input type="number" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)}
