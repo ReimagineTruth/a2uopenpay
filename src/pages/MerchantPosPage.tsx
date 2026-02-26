@@ -114,6 +114,8 @@ const MerchantPosPage = () => {
   const [showInstructions, setShowInstructions] = useState(false);
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
   const [posApiSecretInput, setPosApiSecretInput] = useState("");
+  const [showRefundConfirmModal, setShowRefundConfirmModal] = useState(false);
+  const [selectedRefundTx, setSelectedRefundTx] = useState<PosTx | null>(null);
   const [savingPosApiKey, setSavingPosApiKey] = useState(false);
   const [receiptIssuedAt, setReceiptIssuedAt] = useState<string | null>(null);
   const [hasActiveApiKey, setHasActiveApiKey] = useState(true);
@@ -463,15 +465,24 @@ const MerchantPosPage = () => {
   };
 
   const refundTransaction = async (tx: PosTx) => {
+    setSelectedRefundTx(tx);
+    setShowRefundConfirmModal(true);
+  };
+
+  const confirmRefund = async () => {
+    if (!selectedRefundTx) return;
+    
     setRefunding(true);
+    setShowRefundConfirmModal(false);
     try {
       const { data, error } = await (supabase as any).rpc("refund_my_pos_transaction", {
-        p_payment_id: tx.payment_id,
+        p_payment_id: selectedRefundTx.payment_id,
         p_reason: "POS refund",
       });
       if (error) throw new Error(error.message || "Refund failed");
       const row = Array.isArray(data) ? data[0] : data;
       toast.success(`Refunded successfully (${row?.refund_transaction_id || "done"})`);
+      setSelectedRefundTx(null);
       setSelectedTx(null);
       await loadData();
     } catch (error) {
@@ -974,6 +985,48 @@ const MerchantPosPage = () => {
               disabled={savingPosApiKey}
             >
               {savingPosApiKey ? "Saving..." : "Enter API Key"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showRefundConfirmModal} onOpenChange={setShowRefundConfirmModal}>
+        <DialogContent className="max-w-md rounded-2xl">
+          <DialogTitle className="text-lg font-bold text-foreground">Confirm Refund</DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground">
+            Are you sure you want to refund this transaction?
+          </DialogDescription>
+          {selectedRefundTx && (
+            <div className="space-y-3 rounded-lg border border-border p-3 bg-muted/50">
+              <div className="flex justify-between">
+                <span className="text-sm font-medium text-foreground">Amount:</span>
+                <span className="text-sm font-bold text-foreground">{selectedRefundTx.amount.toFixed(2)} {selectedRefundTx.currency}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm font-medium text-foreground">Customer:</span>
+                <span className="text-sm font-bold text-foreground">{selectedRefundTx.payer_name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm font-medium text-foreground">Date:</span>
+                <span className="text-sm font-bold text-foreground">{new Date(selectedRefundTx.payment_created_at).toLocaleDateString()}</span>
+              </div>
+            </div>
+          )}
+          <div className="flex gap-2 pt-2">
+            <Button
+              variant="outline"
+              className="flex-1 h-10 rounded-lg"
+              onClick={() => setShowRefundConfirmModal(false)}
+              disabled={refunding}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="flex-1 h-10 rounded-lg bg-orange-500 text-white hover:bg-orange-600"
+              onClick={confirmRefund}
+              disabled={refunding}
+            >
+              {refunding ? "Refunding..." : "Confirm Refund"}
             </Button>
           </div>
         </DialogContent>
