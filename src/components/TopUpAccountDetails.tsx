@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { playGoogleWalletSuccessSound } from "@/lib/soundEffects";
+import { loadAppSecuritySettings } from "@/lib/appSecurity";
+import PinReminderModal from "@/components/PinReminderModal";
 
 type TopUpAccountDetailsProps = {
   providerName: string;
@@ -41,6 +44,8 @@ const TopUpAccountDetails = ({
   className,
   submitLabel = "Submit Top Up Request",
 }: TopUpAccountDetailsProps) => {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [openpayName, setOpenpayName] = useState("");
   const [openpayUsername, setOpenpayUsername] = useState("");
   const [openpayAccountNumber, setOpenpayAccountNumber] = useState("");
@@ -55,6 +60,8 @@ const TopUpAccountDetails = ({
   const [submitted, setSubmitted] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [pinNextAction, setPinNextAction] = useState<(() => Promise<void>) | null>(null);
   const [history, setHistory] = useState<TopUpHistoryRow[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
 
@@ -266,9 +273,39 @@ const TopUpAccountDetails = ({
 
   const handleConfirmSubmit = async () => {
     setShowConfirmModal(false);
-    playGoogleWalletSuccessSound();
-    await submitTopUpRequest();
+    const { data: { user } } = await supabase.auth.getUser();
+    const settings = user ? loadAppSecuritySettings(user.id) : null;
+    setPinNextAction(() => {
+      if (settings?.pinHash) {
+        return async () => {
+          navigate("/confirm-pin", {
+            state: {
+              returnTo: location.pathname + location.search,
+              actionData: { kind: "topup_submit" },
+              title: "Confirm your OpenPay PIN",
+            },
+          });
+        };
+      }
+      return async () => {
+        playGoogleWalletSuccessSound();
+        await submitTopUpRequest();
+      };
+    });
+    setShowPinModal(true);
   };
+
+  useEffect(() => {
+    const state = location.state as any;
+    if (state?.pinVerified && state?.actionData?.kind === "topup_submit") {
+      void (async () => {
+        playGoogleWalletSuccessSound();
+        await submitTopUpRequest();
+        navigate(location.pathname + location.search, { replace: true, state: {} });
+      })();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state]);
 
   return (
     <div className={className}>
@@ -475,6 +512,17 @@ const TopUpAccountDetails = ({
           )}
         </DialogContent>
       </Dialog>
+
+      <PinReminderModal
+        open={showPinModal}
+        onOpenChange={setShowPinModal}
+        onProceed={async () => {
+          const fn = pinNextAction;
+          setShowPinModal(false);
+          setPinNextAction(null);
+          if (fn) await fn();
+        }}
+      />
     </div>
   );
 };

@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import BrandLogo from "@/components/BrandLogo";
 import { playGoogleWalletSuccessSound } from "@/lib/soundEffects";
+import { loadAppSecuritySettings } from "@/lib/appSecurity";
+import PinReminderModal from "@/components/PinReminderModal";
 
 type SwapWithdrawalRow = {
   id: string;
@@ -27,6 +29,7 @@ const PI_LOGO_URL = "https://i.ibb.co/jk8XtTPj/pi-network-pi-icons-pi-logo-desig
 const WITHDRAWAL_FEE_RATE = 0.02;
 const COINGECKO_PI_PRICE_URL = "https://api.coingecko.com/api/v3/simple/price?ids=pi-network&vs_currencies=usd&include_last_updated_at=true";
 const COINGECKO_API_KEY = String(import.meta.env.VITE_COINGECKO_API_KEY || "");
+const PIN_ACTION_KEY = "openpay_pin_action_swap_v1";
 
 const normalizeUsername = (value: string) => value.trim().replace(/^@+/, "").toLowerCase();
 const isSchemaCacheMissingError = (message: string | undefined, target: string) =>
@@ -38,7 +41,36 @@ const SwapWithdrawalPage = () => {
   const [searchParams] = useSearchParams();
 
   const handleProtectedAction = async (action: () => Promise<void>) => {
-    await action();
+    const { data: { user } } = await supabase.auth.getUser();
+    const settings = user ? loadAppSecuritySettings(user.id) : null;
+    setNextAction(() => {
+      if (settings?.pinHash) {
+        return async () => {
+          const actionData = {
+            kind: "swap_withdrawal_submit",
+            amount: safeAmount,
+            openpayName,
+            openpayUsername: normalizedUsername,
+            openpayAccountNumber,
+            piWalletAddress,
+          };
+          if (typeof window !== "undefined") {
+            window.sessionStorage.setItem(PIN_ACTION_KEY, JSON.stringify(actionData));
+          }
+          navigate("/confirm-pin", {
+            state: {
+              returnTo: location.pathname + location.search,
+              actionData,
+              title: "Confirm your OpenPay PIN",
+            },
+          });
+        };
+      }
+      return async () => {
+        await action();
+      };
+    });
+    setShowPinModal(true);
   };
 
   useEffect(() => {
@@ -61,6 +93,8 @@ const SwapWithdrawalPage = () => {
   const [history, setHistory] = useState<SwapWithdrawalRow[]>([]);
   const [piPriceUsd, setPiPriceUsd] = useState<number | null>(null);
   const [piPriceUpdatedAt, setPiPriceUpdatedAt] = useState<number | null>(null);
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [nextAction, setNextAction] = useState<(() => Promise<void>) | null>(null);
 
   const parsedAmount = Number(amount);
   const safeAmount = Number.isFinite(parsedAmount) && parsedAmount > 0 ? parsedAmount : 0;
@@ -172,6 +206,37 @@ const SwapWithdrawalPage = () => {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    const state = location.state as any;
+    let data = state?.actionData || null;
+    if (!data) {
+      try {
+        const raw = typeof window !== "undefined" ? window.sessionStorage.getItem(PIN_ACTION_KEY) : null;
+        if (raw) data = JSON.parse(raw);
+      } catch {
+        // no-op
+      }
+    }
+    if (state?.pinVerified && data?.kind === "swap_withdrawal_submit") {
+      void (async () => {
+        await submitWithdrawalRequest({
+          amount: String(data.amount),
+          openpayName: String(data.openpayName || ""),
+          openpayUsername: String(data.openpayUsername || ""),
+          openpayAccountNumber: String(data.openpayAccountNumber || ""),
+          piWalletAddress: String(data.piWalletAddress || ""),
+        });
+        try {
+          if (typeof window !== "undefined") window.sessionStorage.removeItem(PIN_ACTION_KEY);
+        } catch {
+          // no-op
+        }
+        navigate(location.pathname + location.search, { replace: true, state: {} });
+      })();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state]);
 
   useEffect(() => {
     const amountParam = searchParams.get("amount");
@@ -482,6 +547,17 @@ const SwapWithdrawalPage = () => {
           </Button>
         </DialogContent>
       </Dialog>
+
+      <PinReminderModal
+        open={showPinModal}
+        onOpenChange={setShowPinModal}
+        onProceed={async () => {
+          const fn = nextAction;
+          setShowPinModal(false);
+          setNextAction(null);
+          if (fn) await fn();
+        }}
+      />
 
       <Dialog open={showConfirmModal} onOpenChange={setShowConfirmModal}>
         <DialogContent className="rounded-3xl sm:max-w-md">

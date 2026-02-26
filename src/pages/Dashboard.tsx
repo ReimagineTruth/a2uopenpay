@@ -264,6 +264,8 @@ const Dashboard = () => {
   const [movingMerchantToWallet, setMovingMerchantToWallet] = useState(false);
   const [showMerchantFeatures, setShowMerchantFeatures] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [pendingRequestCount, setPendingRequestCount] = useState(0);
+  const [pendingInvoiceCount, setPendingInvoiceCount] = useState(0);
   const [virtualCardNumber, setVirtualCardNumber] = useState("**** **** **** 4242");
   const [virtualCardActive, setVirtualCardActive] = useState(false);
   const [hideCardPreviewDetails, setHideCardPreviewDetails] = useState(false);
@@ -309,16 +311,25 @@ const Dashboard = () => {
     const settings = user ? loadAppSecuritySettings(user.id) : null;
     
     if (settings?.pinHash && actionName !== "handleSwapOpenUsd") {
+      if (
+        (actionName === "handleMoveWalletToSavings" && (!Number.isFinite(Number(savingsAmount)) || Number(savingsAmount) <= 0)) ||
+        (actionName === "handleMoveSavingsToWallet" && (!Number.isFinite(Number(withdrawAmount)) || Number(withdrawAmount) <= 0)) ||
+        (actionName === "handleMoveMerchantToSavings" && (!Number.isFinite(Number(merchantSavingsAmount)) || Number(merchantSavingsAmount) <= 0)) ||
+        (actionName === "handleMoveMerchantToWallet" && (!Number.isFinite(Number(merchantWithdrawAmount)) || Number(merchantWithdrawAmount) <= 0))
+      ) {
+        toast.error("Enter a valid amount");
+        return;
+      }
       // Pass all necessary state for the action if needed
       const actionData: any = { actionName };
       
       // Add specific data for actions that need it
-      if (actionName === "handleMoveWalletToSavings") actionData.savingsAmount = savingsAmount;
-      if (actionName === "handleMoveSavingsToWallet") actionData.withdrawAmount = withdrawAmount;
-      if (actionName === "handlePayLoan") actionData.loanPaymentAmount = loanPaymentAmount;
-      if (actionName === "handleMoveMerchantToSavings") actionData.merchantSavingsAmount = merchantSavingsAmount;
-      if (actionName === "handleMoveMerchantToWallet") actionData.merchantWithdrawAmount = merchantWithdrawAmount;
-      if (actionName === "handleSwapOpenUsd") actionData.swapSpendAmount = swapSpendAmount;
+      if (actionName === "handleMoveWalletToSavings") actionData.savingsAmount = Number(savingsAmount);
+      if (actionName === "handleMoveSavingsToWallet") actionData.withdrawAmount = Number(withdrawAmount);
+      if (actionName === "handlePayLoan") actionData.loanPaymentAmount = Number(loanPaymentAmount);
+      if (actionName === "handleMoveMerchantToSavings") actionData.merchantSavingsAmount = Number(merchantSavingsAmount);
+      if (actionName === "handleMoveMerchantToWallet") actionData.merchantWithdrawAmount = Number(merchantWithdrawAmount);
+      if (actionName === "handleSwapOpenUsd") actionData.swapSpendAmount = Number(swapSpendAmount);
 
       navigate("/confirm-pin", { 
         state: { 
@@ -533,6 +544,22 @@ const Dashboard = () => {
         .eq("user_id", user.id)
         .single();
       setBalance(wallet?.balance || 0);
+      {
+        const { count } = await supabase
+          .from("payment_requests" as any)
+          .select("id", { count: "exact", head: true })
+          .eq("payer_id", user.id)
+          .eq("status", "pending");
+        setPendingRequestCount(Number(count || 0));
+      }
+      {
+        const { count } = await supabase
+          .from("invoices" as any)
+          .select("id", { count: "exact", head: true })
+          .eq("recipient_id", user.id)
+          .eq("status", "pending");
+        setPendingInvoiceCount(Number(count || 0));
+      }
 
       const { data: virtualCardRow } = await supabase
         .from("virtual_cards")
@@ -1222,7 +1249,11 @@ const Dashboard = () => {
           </button>
           <button onClick={() => navigate("/notifications")} aria-label="Open notifications" className="paypal-surface relative flex h-10 w-10 items-center justify-center rounded-full">
             <Bell className="h-5 w-5 text-foreground" />
-            {unreadNotifications > 0 && <span className="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-red-500" aria-hidden="true" />}
+            {unreadNotifications > 0 && (
+              <span className="absolute right-0 top-0 min-w-[18px] rounded-full bg-red-500 px-1 text-[10px] font-bold leading-4 text-white">
+                {Math.min(unreadNotifications, 99)}
+              </span>
+            )}
           </button>
           <button onClick={() => navigate("/settings")} aria-label="Open settings" className="paypal-surface flex h-10 w-10 items-center justify-center rounded-full">
             <Settings className="h-5 w-5 text-foreground" />
@@ -2274,8 +2305,13 @@ const Dashboard = () => {
               }}
               className="rounded-2xl border border-border/70 bg-secondary/50 p-3 text-center transition hover:bg-secondary"
             >
-              <div className="mx-auto mb-2 flex h-11 w-11 items-center justify-center rounded-full bg-white">
+              <div className="relative mx-auto mb-2 flex h-11 w-11 items-center justify-center rounded-full bg-white">
                 <CircleDollarSign className="h-5 w-5 text-paypal-blue" />
+                {pendingRequestCount > 0 && (
+                  <span className="absolute -right-1 -top-1 min-w-[16px] rounded-full bg-red-500 px-1 text-[10px] font-bold leading-4 text-white">
+                    {Math.min(pendingRequestCount, 99)}
+                  </span>
+                )}
               </div>
               <p className="text-sm font-semibold text-foreground">Request</p>
             </button>
@@ -2286,8 +2322,13 @@ const Dashboard = () => {
               }}
               className="rounded-2xl border border-border/70 bg-secondary/50 p-3 text-center transition hover:bg-secondary"
             >
-              <div className="mx-auto mb-2 flex h-11 w-11 items-center justify-center rounded-full bg-white">
+              <div className="relative mx-auto mb-2 flex h-11 w-11 items-center justify-center rounded-full bg-white">
                 <FileText className="h-5 w-5 text-paypal-blue" />
+                {pendingInvoiceCount > 0 && (
+                  <span className="absolute -right-1 -top-1 min-w-[16px] rounded-full bg-red-500 px-1 text-[10px] font-bold leading-4 text-white">
+                    {Math.min(pendingInvoiceCount, 99)}
+                  </span>
+                )}
               </div>
               <p className="text-sm font-semibold text-foreground">Invoice</p>
             </button>

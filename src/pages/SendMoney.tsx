@@ -13,6 +13,7 @@ import TransactionReceipt, { type ReceiptData } from "@/components/TransactionRe
 import NumberPad from "@/components/NumberPad";
 import { loadAppSecuritySettings } from "@/lib/appSecurity";
 import SplashScreen from "@/components/SplashScreen";
+import PinReminderModal from "@/components/PinReminderModal";
  
 type PinReturnState = {
   pinVerified?: boolean;
@@ -116,6 +117,8 @@ const SendMoney = () => {
   const [myFullName, setMyFullName] = useState("");
   const [accountLookupResult, setAccountLookupResult] = useState<UserProfile | null>(null);
   const [accountLookupLoading, setAccountLookupLoading] = useState(false);
+  const [showPinReminder, setShowPinReminder] = useState(false);
+  const [pinNextAction, setPinNextAction] = useState<(() => Promise<void>) | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -686,20 +689,23 @@ const SendMoney = () => {
                 onClick={async () => {
                   const { data: { user } } = await supabase.auth.getUser();
                   const settings = user ? loadAppSecuritySettings(user.id) : null;
-                  
-                  if (settings?.pinHash) {
-                    setShowSendConfirm(false);
-                    navigate("/confirm-pin", { 
-                      state: { 
-                        returnTo: location.pathname + location.search,
-                        actionData: { selectedUser, amount, note, step: "amount" },
-                        title: "Confirm your OpenPay PIN"
-                      } 
-                    });
-                  } else {
-                    setShowSendConfirm(false);
-                    await handleSend();
-                  }
+                  setShowSendConfirm(false);
+                  setPinNextAction(() => {
+                    if (settings?.pinHash) {
+                      return async () =>
+                        navigate("/confirm-pin", {
+                          state: {
+                            returnTo: location.pathname + location.search,
+                            actionData: { selectedUser, amount, note, step: "amount" },
+                            title: "Confirm your OpenPay PIN",
+                          },
+                        });
+                    }
+                    return async () => {
+                      await handleSend();
+                    };
+                  });
+                  setShowPinReminder(true);
                 }}
               >
                 {loading ? (
@@ -714,6 +720,16 @@ const SendMoney = () => {
             </div>
           </DialogContent>
         </Dialog>
+        <PinReminderModal
+          open={showPinReminder}
+          onOpenChange={setShowPinReminder}
+          onProceed={async () => {
+            const fn = pinNextAction;
+            setShowPinReminder(false);
+            setPinNextAction(null);
+            if (fn) await fn();
+          }}
+        />
       </div>
     );
   }
@@ -875,6 +891,17 @@ const SendMoney = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      <PinReminderModal
+        open={showPinReminder}
+        onOpenChange={setShowPinReminder}
+        onProceed={async () => {
+          const fn = pinNextAction;
+          setShowPinReminder(false);
+          setPinNextAction(null);
+          if (fn) await fn();
+        }}
+      />
 
     </div>
   );

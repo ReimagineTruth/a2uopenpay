@@ -18,6 +18,8 @@ import SplashScreen from "@/components/SplashScreen";
 import PinReminderModal from "@/components/PinReminderModal";
 import { loadAppSecuritySettings } from "@/lib/appSecurity";
 
+const PIN_ACTION_KEY = "openpay_pin_action_v1";
+
 interface Profile {
   id: string;
   full_name: string;
@@ -65,6 +67,7 @@ const RequestMoney = () => {
     | null
   >(null);
   const [showPinReminder, setShowPinReminder] = useState(false);
+  const [pinNextAction, setPinNextAction] = useState<(() => Promise<void>) | null>(null);
   const pinActionExecutedRef = useRef(false);
 
   const profileMap = useMemo(() => {
@@ -112,18 +115,16 @@ const RequestMoney = () => {
   useEffect(() => {
     const state = location.state as any;
     if (pinActionExecutedRef.current) return;
-    if (state?.pinVerified && state?.actionData) {
-      const data = state.actionData;
+    let data = state?.actionData || null;
+    if (!data) {
+      try {
+        const raw = typeof window !== "undefined" ? window.sessionStorage.getItem(PIN_ACTION_KEY) : null;
+        if (raw) data = JSON.parse(raw);
+      } catch {}
+    }
+    if (state?.pinVerified && data) {
       let executed = false;
-      if (data?.kind === "request_create") {
-        const p = profileMap.get(data.payerId) || null;
-        setPayerId(data.payerId);
-        setSelectedPayer(p);
-        setAmount(String(data.amount));
-        setNote(String(data.note || ""));
-        void submitCreate();
-        executed = true;
-      } else if (data?.kind === "request_pay") {
+      if (data?.kind === "request_pay") {
         const req = requests.find((r) => r.id === data.requestId);
         if (req) {
           void submitPay(req, profileMap.get(req.requester_id) || null);
@@ -134,6 +135,9 @@ const RequestMoney = () => {
       }
       if (executed) {
         pinActionExecutedRef.current = true;
+        try {
+          if (typeof window !== "undefined") window.sessionStorage.removeItem(PIN_ACTION_KEY);
+        } catch {}
         navigate(location.pathname + location.search, { replace: true, state: {} });
       }
     }
@@ -143,8 +147,14 @@ const RequestMoney = () => {
     if (pageLoading) return;
     const state = location.state as any;
     if (pinActionExecutedRef.current) return;
-    if (state?.pinVerified && state?.actionData) {
-      const data = state.actionData;
+    let data = state?.actionData || null;
+    if (!data) {
+      try {
+        const raw = typeof window !== "undefined" ? window.sessionStorage.getItem(PIN_ACTION_KEY) : null;
+        if (raw) data = JSON.parse(raw);
+      } catch {}
+    }
+    if (state?.pinVerified && data) {
       let executed = false;
       if (data?.kind === "request_pay") {
         const req = requests.find((r) => r.id === data.requestId);
@@ -155,6 +165,9 @@ const RequestMoney = () => {
       }
       if (executed) {
         pinActionExecutedRef.current = true;
+        try {
+          if (typeof window !== "undefined") window.sessionStorage.removeItem(PIN_ACTION_KEY);
+        } catch {}
         navigate(location.pathname + location.search, { replace: true, state: {} });
       }
     }
@@ -517,15 +530,39 @@ const RequestMoney = () => {
     const { data: { user } } = await supabase.auth.getUser();
     const settings = user ? loadAppSecuritySettings(user.id) : null;
 
+    if (confirmAction.type === "pay") {
+      setConfirmModalOpen(false);
+      setPinNextAction(() => {
+        if (settings?.pinHash) {
+          return async () => {
+            const actionData = { kind: "request_pay", requestId: confirmAction.request.id };
+            try {
+              if (typeof window !== "undefined") window.sessionStorage.setItem(PIN_ACTION_KEY, JSON.stringify(actionData));
+            } catch {}
+            navigate("/confirm-pin", {
+              state: {
+                returnTo: location.pathname + location.search,
+                actionData,
+                title: "Confirm your OpenPay PIN",
+              },
+            });
+          };
+        }
+        return async () => {
+          await submitPay(confirmAction.request, confirmAction.requester);
+        };
+      });
+      setShowPinReminder(true);
+      return;
+    }
+
     if (confirmAction.type === "create") {
       await submitCreate();
       setConfirmModalOpen(false);
       setConfirmAction(null);
-    } else if (confirmAction.type === "pay") {
-      await submitPay(confirmAction.request, confirmAction.requester);
-      setConfirmModalOpen(false);
-      setConfirmAction(null);
-    } else {
+      return;
+    }
+    if (confirmAction.type === "reject") {
       await submitReject(confirmAction.request);
       setConfirmModalOpen(false);
       setConfirmAction(null);
@@ -924,12 +961,10 @@ const RequestMoney = () => {
           if (!open) setConfirmAction(null);
         }}
         onProceed={async () => {
-          if (!confirmAction) return;
-          if (confirmAction.type === "create") {
-            await submitCreate();
-          } else if (confirmAction.type === "pay") {
-            await submitPay(confirmAction.request, confirmAction.requester);
-          }
+          const fn = pinNextAction;
+          setShowPinReminder(false);
+          setPinNextAction(null);
+          if (fn) await fn();
         }}
       />
 
