@@ -38,6 +38,17 @@ const extractQrPayload = (rawValue: string) => {
                                parsed.hostname.toLowerCase() === "payment-link" ||
                                parsed.hostname.toLowerCase().includes("localhost"));
     
+    // Debug logging
+    console.log("QR Detection Debug:", {
+      protocol: parsed.protocol,
+      hostname: parsed.hostname,
+      pathname: parsed.pathname,
+      searchParams: Object.fromEntries(parsed.searchParams),
+      isPublicPayment,
+      isPosPayment,
+      isCheckoutLink
+    });
+    
     // Extract session tokens differently for POS vs checkout
     let checkoutSession = null;
     let apiKeyType = null;
@@ -46,16 +57,19 @@ const extractQrPayload = (rawValue: string) => {
       // POS QR codes have session token in pathname
       checkoutSession = parsed.pathname.replace(/^\/+/, "");
       apiKeyType = "pos";
+      console.log("POS Payment detected:", { checkoutSession, apiKeyType });
     } else if (isCheckoutLink) {
       // Checkout links have session in query params
       checkoutSession = parsed.searchParams.get("session") || parsed.searchParams.get("checkout_session");
       apiKeyType = "checkout";
+      console.log("Checkout Link detected:", { checkoutSession, apiKeyType });
     } else {
       // Regular checkout session
       checkoutSession = parsed.searchParams.get("session") || parsed.searchParams.get("checkout_session");
       // If it has a session parameter, treat it as a checkout link
       if (checkoutSession) {
         apiKeyType = "checkout";
+        console.log("Session detected as checkout:", { checkoutSession, apiKeyType });
       }
     }
     
@@ -86,6 +100,14 @@ const extractQrPayload = (rawValue: string) => {
     let isPosPayment = false;
     let apiKeyType = null;
     
+    console.log("Fallback QR Detection Debug:", {
+      value,
+      posSessionMatch,
+      hasOpsess: value.includes("opsess_"),
+      hasCheckout: value.includes("checkout"),
+      hasSession: value.includes("session=")
+    });
+    
     if (posSessionMatch) {
       if (Array.isArray(posSessionMatch)) {
         checkoutSession = posSessionMatch[1];
@@ -94,6 +116,7 @@ const extractQrPayload = (rawValue: string) => {
       }
       isPosPayment = true;
       apiKeyType = "pos";
+      console.log("Fallback POS Payment detected:", { checkoutSession, apiKeyType });
     } else {
       // Regular checkout session
       checkoutSession = value.split("session=")[1]?.split("&")[0] ||
@@ -101,6 +124,7 @@ const extractQrPayload = (rawValue: string) => {
       // If it has a session parameter, treat it as a checkout link
       if (checkoutSession) {
         apiKeyType = "checkout";
+        console.log("Fallback Session detected as checkout:", { checkoutSession, apiKeyType });
       }
     }
     
@@ -394,8 +418,11 @@ const QrScannerPage = () => {
       setScanHint("OpenPay QR detected. Validating...");
       const payload = extractQrPayload(decodedText);
       
+      console.log("Extracted QR Payload:", payload);
+      
       // Handle POS payment QR codes (different from checkout links) - redirect to send payment
       if (payload.posPayment && payload.checkoutSession) {
+        console.log("Handling POS payment QR code");
         setScanHint("POS payment QR detected. Opening payment page...");
         playScanBeep();
         await stopScanner();
@@ -413,6 +440,7 @@ const QrScannerPage = () => {
       
       // Handle checkout link QR codes - redirect to public payment
       if (payload.apiKeyType === "checkout" && payload.checkoutSession) {
+        console.log("Handling checkout link QR code");
         setScanHint("Checkout link QR detected. Opening payment page...");
         playScanBeep();
         await stopScanner();
