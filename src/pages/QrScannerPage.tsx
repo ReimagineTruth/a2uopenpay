@@ -83,9 +83,10 @@ const isOpenPayQrCode = (rawValue: string) => {
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   if (uuidRegex.test(value)) return true;
 
-  // Check for base64 encoded data
-  if (value.startsWith('data:image/') || value.startsWith('data:')) {
-    return false; // Not a text QR code
+  // Check for base64 encoded data (PDF QR codes, images)
+  if (value.startsWith('data:image/') || value.startsWith('data:application/pdf') || value.startsWith('data:')) {
+    // For PDF QR codes and image QR codes, we need to extract text content
+    return true; // Accept these for processing
   }
 
   try {
@@ -97,15 +98,23 @@ const isOpenPayQrCode = (rawValue: string) => {
     const hasSession = Boolean(parsed.searchParams.get("session") || parsed.searchParams.get("checkout_session"));
     const hasAmount = Boolean(parsed.searchParams.get("amount"));
     const hasNote = Boolean(parsed.searchParams.get("note"));
+    const hasLinkToken = Boolean(parsed.searchParams.get("link_token") || parsed.searchParams.get("token"));
+    const hasTxId = Boolean(parsed.searchParams.get("tx") || parsed.searchParams.get("transaction_id"));
 
     if (protocol === "openpay:") {
       // Support for public payment QR codes
       if (host === "public-payment") return true;
-      // Support for regular payment QR codes
-      return hasRecipient && (host === "pay" || host === "send");
+      // Support for regular payment QR codes (send/receive)
+      if (host === "pay" || host === "send" || host === "receive") return hasRecipient;
+      // Support for checkout link QR codes
+      if (host === "checkout" || host === "payment-link") return hasLinkToken || hasSession;
+      // Support for receipt QR codes
+      if (host === "receipt" || host === "transaction") return hasTxId || hasSession;
+      return hasRecipient;
     }
 
     if (protocol === "openpay-pos:") {
+      // Support for POS checkout QR codes
       const sessionToken = parsed.pathname.replace(/^\/+/, "");
       return host === "checkout" && (sessionToken.startsWith("opsess_") || sessionToken.length > 10);
     }
@@ -113,25 +122,61 @@ const isOpenPayQrCode = (rawValue: string) => {
     if (protocol === "http:" || protocol === "https:") {
       const isOpenPayDomain = host.includes("openpay") || host.includes("localhost");
       const isPayPath = path.startsWith("/send") || path.startsWith("/pay") || path.startsWith("/public-payment");
+      const isReceivePath = path.startsWith("/receive") || path.startsWith("/request");
+      const isCheckoutPath = path.startsWith("/checkout") || path.startsWith("/payment-link") || path.startsWith("/merchant-checkout");
+      const isReceiptPath = path.startsWith("/receipt") || path.startsWith("/transaction") || path.startsWith("/thank-you");
+      const isPosPath = path.startsWith("/pos") || path.startsWith("/merchant-pos");
       const hasCheckoutSession = Boolean(parsed.searchParams.get("checkout_session") || parsed.searchParams.get("session"));
-      return isOpenPayDomain && ((hasRecipient && isPayPath) || hasCheckoutSession || hasSession || hasAmount);
+      
+      return isOpenPayDomain && (
+        (hasRecipient && (isPayPath || isReceivePath)) || 
+        hasCheckoutSession || 
+        hasSession || 
+        hasAmount ||
+        hasLinkToken ||
+        hasTxId ||
+        isCheckoutPath ||
+        isReceiptPath ||
+        isPosPath
+      );
     }
   } catch {
     // If URL parsing fails, try to parse as plain text
     // Check for common OpenPay patterns
     const lowerValue = value.toLowerCase();
     
-    // Check for openpay:// patterns
+    // Check for all openpay:// patterns
     if (lowerValue.startsWith('openpay://')) return true;
     
-    // Check for session tokens
+    // Check for openpay-pos:// patterns
+    if (lowerValue.startsWith('openpay-pos://')) return true;
+    
+    // Check for session tokens (POS, checkout)
     if (lowerValue.includes('opsess_') || lowerValue.includes('session=')) return true;
     
-    // Check for UUID patterns in text
+    // Check for payment link tokens
+    if (lowerValue.includes('oplink_') || lowerValue.includes('link_token=')) return true;
+    
+    // Check for transaction IDs (receipts)
+    if (lowerValue.includes('tx=') || lowerValue.includes('transaction_id=')) return true;
+    
+    // Check for UUID patterns in text (receive/send)
     if (uuidRegex.test(value)) return true;
     
     // Check for common payment parameters
     if (lowerValue.includes('uid=') || lowerValue.includes('to=') || lowerValue.includes('amount=')) return true;
+    
+    // Check for receive parameters
+    if (lowerValue.includes('from=') || lowerValue.includes('request=')) return true;
+    
+    // Check for checkout parameters
+    if (lowerValue.includes('checkout=') || lowerValue.includes('payment=')) return true;
+    
+    // Check for receipt parameters
+    if (lowerValue.includes('receipt=') || lowerValue.includes('confirm=')) return true;
+    
+    // Check for account numbers (receive)
+    if (lowerValue.includes('account=') || lowerValue.includes('wallet=')) return true;
     
     return false;
   }
@@ -573,18 +618,7 @@ const QrScannerPage = () => {
         await fileScannerRef.current.stop();
       }
       
-      // Enhanced file scanner configuration for multiple formats
-      const fileScanConfig = {
-        formatsToSupport: [
-          Html5QrcodeSupportedFormats.QR_CODE,
-          Html5QrcodeSupportedFormats.AZTEC,
-          Html5QrcodeSupportedFormats.CODABAR,
-          Html5QrcodeSupportedFormats.DATA_MATRIX,
-          Html5QrcodeSupportedFormats.PDF_417,
-        ],
-      } as any;
-      
-      const decoded = await fileScannerRef.current.scanFile(file, false, fileScanConfig);
+      const decoded = await fileScannerRef.current.scanFile(file);
       await handleDecoded(decoded);
     } catch (error) {
       setScanHint("Could not detect a clear OpenPay QR from this image.");
