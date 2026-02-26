@@ -703,38 +703,45 @@ const SendMoney = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background px-4 pt-4">
+    <div className="min-h-screen bg-paypal-blue px-4 pt-4 text-white">
       <div className="flex items-center gap-3">
         {myAvatarUrl ? (
           <img
             src={myAvatarUrl}
             alt={myFullName || "Profile"}
-            className="h-10 w-10 rounded-full border border-border object-cover"
+            className="h-10 w-10 rounded-full border border-white/20 object-cover"
           />
         ) : (
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-paypal-dark">
-            <span className="text-xs font-bold text-primary-foreground">{getInitials(myFullName || "OpenPay User")}</span>
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20">
+            <span className="text-xs font-bold text-white">{getInitials(myFullName || "OpenPay User")}</span>
           </div>
         )}
-        <button onClick={() => navigate("/dashboard")}><ArrowLeft className="w-6 h-6 text-foreground" /></button>
+        <button onClick={() => navigate("/dashboard")} className="active:opacity-60 transition-opacity">
+          <ArrowLeft className="w-6 h-6 text-white" />
+        </button>
         <div className="flex-1">
-          <Input placeholder="Name, username, email, or account number" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-12 rounded-full border border-white/70 bg-white pl-4" autoFocus />
+          <Input 
+            placeholder="Name, username, email, or account number" 
+            value={searchQuery} 
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="h-12 rounded-full border-none bg-white/10 text-white placeholder:text-white/55 pl-4 focus-visible:ring-1 focus-visible:ring-white/30" 
+            autoFocus 
+          />
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => navigate("/scan-qr?returnTo=/send")}
-            className="paypal-surface flex h-12 w-12 items-center justify-center rounded-full"
+            className="flex h-12 w-12 items-center justify-center rounded-full bg-white/10 active:bg-white/20 transition-colors"
             aria-label="Scan QR code"
           >
-            <ScanLine className="h-5 w-5 text-foreground" />
+            <ScanLine className="h-5 w-5 text-white" />
           </button>
           <button
             onClick={() => navigate("/send-invoice")}
-            className="paypal-surface flex h-12 w-12 items-center justify-center rounded-full"
+            className="flex h-12 w-12 items-center justify-center rounded-full bg-white/10 active:bg-white/20 transition-colors"
             aria-label="Send Invoice"
           >
-            <FileText className="h-5 w-5 text-foreground" />
+            <FileText className="h-5 w-5 text-white" />
           </button>
         </div>
       </div>
@@ -742,8 +749,8 @@ const SendMoney = () => {
       <div className="mt-6">
         {!searchQuery && recentRecipients.length > 0 && (
           <>
-            <h2 className="mb-3 font-bold text-foreground">Recent</h2>
-            <div className="paypal-surface overflow-hidden rounded-2xl mb-5">
+            <h2 className="mb-3 font-bold text-white">Recent</h2>
+            <div className="overflow-hidden rounded-2xl mb-5 border border-white/60 bg-card">
               {recentRecipients.map((user, i) => (
                 <div
                   key={`${user.id}-${user.last_sent_at}`}
@@ -762,7 +769,7 @@ const SendMoney = () => {
                       e.stopPropagation();
                       void toggleBookmark(user);
                     }}
-                    className="rounded-full p-2 hover:bg-secondary"
+                    className="rounded-full p-2 hover:bg-secondary/50 transition-colors"
                     aria-label={contactIds.includes(user.id) ? "Remove bookmark" : "Save bookmark"}
                   >
                     {contactIds.includes(user.id) ? <BookmarkCheck className="h-5 w-5 text-paypal-blue" /> : <Bookmark className="h-5 w-5 text-muted-foreground" />}
@@ -773,8 +780,8 @@ const SendMoney = () => {
           </>
         )}
 
-        <h2 className="mb-4 font-bold text-foreground">{searchQuery ? "Search results" : "Your contacts"}</h2>
-        <div className="paypal-surface overflow-hidden rounded-2xl">
+        <h2 className="mb-4 font-bold text-white">{searchQuery ? "Search results" : "Your contacts"}</h2>
+        <div className="overflow-hidden rounded-2xl border border-white/60 bg-card">
           {isAccountNumberSearch && (
             <>
               {accountLookupLoading && (
@@ -813,7 +820,7 @@ const SendMoney = () => {
                   e.stopPropagation();
                   void toggleBookmark(user);
                 }}
-                className="rounded-full p-2 hover:bg-secondary"
+                className="rounded-full p-2 hover:bg-secondary/50 transition-colors"
                 aria-label={contactIds.includes(user.id) ? "Remove bookmark" : "Save bookmark"}
               >
                 {contactIds.includes(user.id) ? <BookmarkCheck className="h-5 w-5 text-paypal-blue" /> : <Bookmark className="h-5 w-5 text-muted-foreground" />}

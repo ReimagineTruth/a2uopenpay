@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
@@ -12,6 +12,7 @@ import { getFunctionErrorMessage } from "@/lib/supabaseFunctionError";
 import { Info } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import TransactionReceipt, { type ReceiptData } from "@/components/TransactionReceipt";
+import { loadAppSecuritySettings } from "@/lib/appSecurity";
 
 interface Profile {
   id: string;
@@ -33,6 +34,7 @@ interface Invoice {
 
 const SendInvoice = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { format: formatCurrency } = useCurrency();
   const [userId, setUserId] = useState<string | null>(null);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -89,6 +91,28 @@ const SendInvoice = () => {
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    const state = location.state as any;
+    if (state?.pinVerified && state?.actionData) {
+      const data = state.actionData;
+      if (data?.kind === "invoice_create") {
+        const rec = profileMap.get(data.recipientId) || null;
+        setRecipientId(data.recipientId);
+        setSelectedRecipient(rec);
+        setAmount(String(data.amount));
+        setDescription(String(data.description || ""));
+        setDueDate(String(data.dueDate || ""));
+        void submitCreate();
+      } else if (data?.kind === "invoice_pay") {
+        const inv = invoices.find((i) => i.id === data.invoiceId);
+        if (inv) {
+          void submitPay(inv, profileMap.get(inv.sender_id) || null);
+        }
+      }
+      navigate(location.pathname + location.search, { replace: true, state: {} });
+    }
+  }, [location.state, invoices, profileMap, navigate, location.pathname, location.search]);
 
   const normalizedSearch = search.trim().toLowerCase();
   const normalizedSearchRaw = search.trim();
@@ -285,16 +309,42 @@ const SendInvoice = () => {
   const handleConfirmAction = async () => {
     if (!confirmAction || loading) return;
 
-    if (confirmAction.type === "create") {
-      await submitCreate();
-    } else if (confirmAction.type === "pay") {
-      await submitPay(confirmAction.invoice, confirmAction.sender);
-    } else {
-      await submitReject(confirmAction.invoice);
-    }
+    const { data: { user } } = await supabase.auth.getUser();
+    const settings = user ? loadAppSecuritySettings(user.id) : null;
 
-    setConfirmModalOpen(false);
-    setConfirmAction(null);
+    if (settings?.pinHash && (confirmAction.type === "create" || confirmAction.type === "pay")) {
+      setConfirmModalOpen(false);
+      const actionData =
+        confirmAction.type === "create"
+          ? {
+              kind: "invoice_create",
+              recipientId,
+              amount: confirmAction.amount,
+              description: confirmAction.description,
+              dueDate: confirmAction.dueDate,
+            }
+          : {
+              kind: "invoice_pay",
+              invoiceId: confirmAction.invoice.id,
+            };
+      navigate("/confirm-pin", {
+        state: {
+          returnTo: location.pathname + location.search,
+          actionData,
+          title: "Confirm your OpenPay PIN",
+        },
+      });
+    } else {
+      if (confirmAction.type === "create") {
+        await submitCreate();
+      } else if (confirmAction.type === "pay") {
+        await submitPay(confirmAction.invoice, confirmAction.sender);
+      } else {
+        await submitReject(confirmAction.invoice);
+      }
+      setConfirmModalOpen(false);
+      setConfirmAction(null);
+    }
   };
 
   const getInitials = (name: string) => name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();

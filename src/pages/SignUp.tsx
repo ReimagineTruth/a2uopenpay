@@ -42,7 +42,9 @@ const SignUp = () => {
     <div className="min-h-screen bg-gradient-to-b from-paypal-blue to-[#072a7a] px-6 py-10">
       <div className="mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-sm flex-col justify-center">
         <div className="mb-8 text-center">
-          <BrandLogo className="mx-auto mb-4 h-16 w-16" />
+          <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-3xl bg-white/10 backdrop-blur-sm">
+            <BrandLogo className="h-14 w-14 text-white" />
+          </div>
           <p className="mb-1 text-lg font-semibold text-white">OpenPay</p>
           <p className="text-sm font-medium text-white/85">Create your wallet</p>
         </div>

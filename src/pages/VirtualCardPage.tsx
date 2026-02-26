@@ -251,7 +251,7 @@ const VirtualCardPage = () => {
   };
 
   return (
-    <div className="virtual-card-page min-h-screen bg-background pb-28">
+    <div className="virtual-card-page min-h-screen bg-gradient-to-b from-paypal-blue to-[#072a7a] pb-28">
       <style>{`
         @media print {
           @page {
@@ -305,7 +305,7 @@ const VirtualCardPage = () => {
           <button onClick={() => navigate(-1)} className="paypal-surface flex h-10 w-10 items-center justify-center rounded-full" aria-label="Back">
             <ArrowLeft className="h-5 w-5 text-foreground" />
           </button>
-          <h1 className="paypal-heading flex-1">OpenPay Virtual Card</h1>
+          <h1 className="paypal-heading flex-1 !text-white">OpenPay Virtual Card</h1>
           <button
             onClick={() => navigate("/notifications")}
             className="relative paypal-surface flex h-10 w-10 items-center justify-center rounded-full"
@@ -318,7 +318,7 @@ const VirtualCardPage = () => {
           </button>
         </div>
 
-        <div className="rounded-2xl border border-border/70 bg-card/95 p-3 text-sm text-muted-foreground">
+        <div className="rounded-2xl border border-border/70 bg-card p-3 text-sm text-muted-foreground">
           Your virtual card is linked to your OpenPay balance: <span className="font-semibold text-foreground">{formatCurrency(balance)}</span>
         </div>
 
@@ -450,7 +450,7 @@ const VirtualCardPage = () => {
         </div>
 
         {showSettings && (
-          <div className="paypal-surface mt-3 rounded-2xl p-4">
+          <div className="mt-3 rounded-2xl border border-white/60 bg-card p-4">
             <h3 className="text-sm font-semibold text-foreground">Virtual Card Settings</h3>
             <div className="mt-3 flex items-center justify-between gap-3">
               <div>
@@ -473,7 +473,7 @@ const VirtualCardPage = () => {
           </div>
         )}
 
-        <div className="paypal-surface mt-4 rounded-3xl p-4">
+        <div className="mt-4 rounded-3xl border border-white/60 bg-card p-4">
           <h2 className="text-base font-semibold text-foreground">Card Details</h2>
           <div className="mt-3 space-y-3">
             <Input
@@ -553,7 +553,7 @@ const VirtualCardPage = () => {
           </p>
         </div>
 
-        <div className="paypal-surface mt-4 rounded-3xl p-4">
+        <div className="mt-4 rounded-3xl border border-white/60 bg-card p-4">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-base font-semibold text-foreground">Virtual card activity</h2>
             <button onClick={() => navigate("/activity")} className="text-xs font-semibold text-paypal-blue">

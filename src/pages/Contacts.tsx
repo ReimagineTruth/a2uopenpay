@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import BottomNav from "@/components/BottomNav";
-import { Search, UserPlus, Info } from "lucide-react";
+import { Search, UserPlus, Info, ArrowLeft } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -102,10 +102,13 @@ const Contacts = () => {
   const colors = ["bg-paypal-dark", "bg-paypal-light-blue", "bg-primary", "bg-muted-foreground"];
 
   return (
-    <div className="min-h-screen bg-background pb-24">
+    <div className="min-h-screen bg-gradient-to-b from-paypal-blue to-[#072a7a] pb-24">
       <div className="px-4 pt-6">
-        <div className="mb-4 flex items-center justify-between">
-          <h1 className="paypal-heading">Contacts</h1>
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <button onClick={() => navigate(-1)} className="paypal-surface flex h-10 w-10 items-center justify-center rounded-full">
+            <ArrowLeft className="h-5 w-5 text-white" />
+          </button>
+          <h1 className="text-2xl font-bold tracking-tight text-white flex-1">Contacts</h1>
           <button onClick={() => setShowAdd(true)} className="paypal-surface flex h-10 w-10 items-center justify-center rounded-full">
             <UserPlus className="w-5 h-5 text-paypal-light-blue" />
           </button>
@@ -123,7 +126,7 @@ const Contacts = () => {
           </div>
         </div>
 
-        <div className="paypal-surface overflow-hidden rounded-2xl">
+        <div className="overflow-hidden rounded-2xl border border-white/60 bg-card shadow-sm">
           {filtered.map((contact, i) => (
             <button
               key={contact.id}

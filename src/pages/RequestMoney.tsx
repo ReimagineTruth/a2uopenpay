@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { ArrowLeft, QrCode, ScanLine } from "lucide-react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,6 +14,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { Html5Qrcode } from "html5-qrcode";
 import { Info } from "lucide-react";
 import TransactionReceipt, { type ReceiptData } from "@/components/TransactionReceipt";
+import { loadAppSecuritySettings } from "@/lib/appSecurity";
 
 interface Profile {
   id: string;
@@ -34,6 +35,7 @@ interface PaymentRequest {
 
 const RequestMoney = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { format: formatCurrency } = useCurrency();
   const [userId, setUserId] = useState<string | null>(null);
   const [selfProfile, setSelfProfile] = useState<Profile | null>(null);
@@ -99,6 +101,27 @@ const RequestMoney = () => {
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    const state = location.state as any;
+    if (state?.pinVerified && state?.actionData) {
+      const data = state.actionData;
+      if (data?.kind === "request_create") {
+        const p = profileMap.get(data.payerId) || null;
+        setPayerId(data.payerId);
+        setSelectedPayer(p);
+        setAmount(String(data.amount));
+        setNote(String(data.note || ""));
+        void submitCreate();
+      } else if (data?.kind === "request_pay") {
+        const req = requests.find((r) => r.id === data.requestId);
+        if (req) {
+          void submitPay(req, profileMap.get(req.requester_id) || null);
+        }
+      }
+      navigate(location.pathname + location.search, { replace: true, state: {} });
+    }
+  }, [location.state, requests, profileMap, navigate, location.pathname, location.search]);
 
   const normalizedSearch = search.trim().toLowerCase();
   const normalizedSearchRaw = search.trim();
@@ -453,16 +476,41 @@ const RequestMoney = () => {
   const handleConfirmAction = async () => {
     if (!confirmAction || loading) return;
 
-    if (confirmAction.type === "create") {
-      await submitCreate();
-    } else if (confirmAction.type === "pay") {
-      await submitPay(confirmAction.request, confirmAction.requester);
-    } else {
-      await submitReject(confirmAction.request);
-    }
+    const { data: { user } } = await supabase.auth.getUser();
+    const settings = user ? loadAppSecuritySettings(user.id) : null;
 
-    setConfirmModalOpen(false);
-    setConfirmAction(null);
+    if (settings?.pinHash && (confirmAction.type === "create" || confirmAction.type === "pay")) {
+      setConfirmModalOpen(false);
+      const actionData =
+        confirmAction.type === "create"
+          ? {
+              kind: "request_create",
+              payerId,
+              amount: confirmAction.amount,
+              note: confirmAction.note,
+            }
+          : {
+              kind: "request_pay",
+              requestId: confirmAction.request.id,
+            };
+      navigate("/confirm-pin", {
+        state: {
+          returnTo: location.pathname + location.search,
+          actionData,
+          title: "Confirm your OpenPay PIN",
+        },
+      });
+    } else {
+      if (confirmAction.type === "create") {
+        await submitCreate();
+      } else if (confirmAction.type === "pay") {
+        await submitPay(confirmAction.request, confirmAction.requester);
+      } else {
+        await submitReject(confirmAction.request);
+      }
+      setConfirmModalOpen(false);
+      setConfirmAction(null);
+    }
   };
 
   const getInitials = (name: string) => name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
