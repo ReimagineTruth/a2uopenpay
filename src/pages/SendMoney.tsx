@@ -13,6 +13,7 @@ import TransactionReceipt, { type ReceiptData } from "@/components/TransactionRe
 import NumberPad from "@/components/NumberPad";
 import TransactionPinModal from "@/components/TransactionPinModal";
 import { loadAppSecuritySettings } from "@/lib/appSecurity";
+import SplashScreen from "@/components/SplashScreen";
 
 interface UserProfile {
   id: string;
@@ -524,6 +525,10 @@ const SendMoney = () => {
       </div>
     )
   );
+
+  if (!isInitialLoadDone) {
+    return <SplashScreen message="Loading send..." />;
+  }
 
   if (step === "amount") {
     return (

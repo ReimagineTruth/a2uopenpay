@@ -12,6 +12,7 @@ import { getFunctionErrorMessage } from "@/lib/supabaseFunctionError";
 import { Info } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import TransactionReceipt, { type ReceiptData } from "@/components/TransactionReceipt";
+import SplashScreen from "@/components/SplashScreen";
 import { loadAppSecuritySettings } from "@/lib/appSecurity";
 
 interface Profile {
@@ -58,6 +59,7 @@ const SendInvoice = () => {
     | { type: "reject"; invoice: Invoice; sender: Profile | null }
     | null
   >(null);
+  const [pageLoading, setPageLoading] = useState(true);
 
   const profileMap = useMemo(() => {
     const map = new Map<string, Profile>();
@@ -66,6 +68,7 @@ const SendInvoice = () => {
   }, [profiles]);
 
   const loadData = async () => {
+    setPageLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       navigate("/signin");
@@ -86,6 +89,7 @@ const SendInvoice = () => {
 
     setProfiles(profileRows || []);
     setInvoices(invoiceRows || []);
+    setPageLoading(false);
   };
 
   useEffect(() => {
@@ -348,6 +352,10 @@ const SendInvoice = () => {
   };
 
   const getInitials = (name: string) => name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
+
+  if (pageLoading) {
+    return <SplashScreen message="Loading invoices..." />;
+  }
 
   return (
     <div className="min-h-screen bg-background pb-8">

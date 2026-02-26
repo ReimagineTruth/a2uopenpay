@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import SplashScreen from "@/components/SplashScreen";
 
 interface Contact {
   id: string;
@@ -23,8 +24,10 @@ const Contacts = () => {
   const [addEmail, setAddEmail] = useState("");
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const navigate = useNavigate();
+  const [pageLoading, setPageLoading] = useState(true);
 
   const loadContacts = async () => {
+    setPageLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { navigate("/signin"); return; }
 
@@ -49,6 +52,7 @@ const Contacts = () => {
       }));
       setContacts(enriched);
     }
+    setPageLoading(false);
   };
 
   useEffect(() => { loadContacts(); }, []);
@@ -100,6 +104,10 @@ const Contacts = () => {
   };
 
   const colors = ["bg-paypal-dark", "bg-paypal-light-blue", "bg-primary", "bg-muted-foreground"];
+
+  if (pageLoading) {
+    return <SplashScreen message="Loading contacts..." />;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-paypal-blue to-[#072a7a] pb-24">

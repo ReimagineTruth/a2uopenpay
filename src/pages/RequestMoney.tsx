@@ -14,6 +14,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { Html5Qrcode } from "html5-qrcode";
 import { Info } from "lucide-react";
 import TransactionReceipt, { type ReceiptData } from "@/components/TransactionReceipt";
+import SplashScreen from "@/components/SplashScreen";
 import { loadAppSecuritySettings } from "@/lib/appSecurity";
 
 interface Profile {
@@ -55,6 +56,7 @@ const RequestMoney = () => {
   const [confirmModalOpen, setConfirmModalOpen] = useState(false);
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
+  const [pageLoading, setPageLoading] = useState(true);
   const [confirmAction, setConfirmAction] = useState<
     | { type: "create"; payer: Profile; amount: number; note: string }
     | { type: "pay"; request: PaymentRequest; requester: Profile | null }
@@ -69,6 +71,7 @@ const RequestMoney = () => {
   }, [profiles]);
 
   const loadData = async () => {
+    setPageLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       navigate("/signin");
@@ -96,6 +99,7 @@ const RequestMoney = () => {
     setProfiles(profileRows || []);
     setSelfProfile(selfProfileRow || null);
     setRequests(requestRows || []);
+    setPageLoading(false);
   };
 
   useEffect(() => {
@@ -514,6 +518,10 @@ const RequestMoney = () => {
   };
 
   const getInitials = (name: string) => name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
+
+  if (pageLoading) {
+    return <SplashScreen message="Loading requests..." />;
+  }
 
   return (
     <div className="min-h-screen bg-background pb-8">

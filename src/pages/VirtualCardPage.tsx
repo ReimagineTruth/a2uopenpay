@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import BrandLogo from "@/components/BrandLogo";
 import BottomNav from "@/components/BottomNav";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import SplashScreen from "@/components/SplashScreen";
 
 interface VirtualCardRecord {
   id: string;
@@ -251,6 +252,9 @@ const VirtualCardPage = () => {
   };
 
   return (
+    loading ? (
+      <SplashScreen message="Loading virtual card..." />
+    ) : (
     <div className="virtual-card-page min-h-screen bg-gradient-to-b from-paypal-blue to-[#072a7a] pb-28">
       <style>{`
         @media print {
@@ -714,6 +718,7 @@ const VirtualCardPage = () => {
         <BottomNav active="menu" />
       </div>
     </div>
+    )
   );
 };
 
