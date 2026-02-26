@@ -35,7 +35,8 @@ const extractQrPayload = (rawValue: string) => {
     // Check if this is a regular checkout link
     const isCheckoutLink = parsed.protocol.toLowerCase() === "openpay:" && 
                               (parsed.hostname.toLowerCase() === "checkout" || 
-                               parsed.hostname.toLowerCase() === "payment-link");
+                               parsed.hostname.toLowerCase() === "payment-link" ||
+                               parsed.hostname.toLowerCase().includes("localhost"));
     
     // Extract session tokens differently for POS vs checkout
     let checkoutSession = null;
@@ -52,7 +53,10 @@ const extractQrPayload = (rawValue: string) => {
     } else {
       // Regular checkout session
       checkoutSession = parsed.searchParams.get("session") || parsed.searchParams.get("checkout_session");
-      apiKeyType = null;
+      // If it has a session parameter, treat it as a checkout link
+      if (checkoutSession) {
+        apiKeyType = "checkout";
+      }
     }
     
     return {
@@ -94,7 +98,10 @@ const extractQrPayload = (rawValue: string) => {
       // Regular checkout session
       checkoutSession = value.split("session=")[1]?.split("&")[0] ||
         value.split("checkout_session=")[1]?.split("&")[0] || "";
-      apiKeyType = null;
+      // If it has a session parameter, treat it as a checkout link
+      if (checkoutSession) {
+        apiKeyType = "checkout";
+      }
     }
     
     const isPublicPayment = value.includes("public-payment") && !isPosPayment;
