@@ -365,11 +365,11 @@ BEGIN
 END;
 $$;
 
--- Grant permissions
-GRANT EXECUTE ON FUNCTION public.create_pos_payment_session TO authenticated, anon;
-GRANT EXECUTE ON FUNCTION public.get_pos_payment_session TO authenticated, anon;
-GRANT EXECUTE ON FUNCTION public.process_pos_payment_wallet TO authenticated, anon;
-GRANT EXECUTE ON FUNCTION public.get_pos_payment_qr_data TO authenticated, anon;
+-- Grant permissions (only for authenticated users)
+GRANT EXECUTE ON FUNCTION public.create_pos_payment_session TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_pos_payment_session TO authenticated;
+GRANT EXECUTE ON FUNCTION public.process_pos_payment_wallet TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_pos_payment_qr_data TO authenticated;
 
 -- Row Level Security for POS tables
 ALTER TABLE public.pos_payments ENABLE ROW LEVEL SECURITY;

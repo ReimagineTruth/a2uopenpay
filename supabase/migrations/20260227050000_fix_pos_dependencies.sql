@@ -221,5 +221,5 @@ BEGIN
 END;
 $$;
 
--- Grant permissions
-GRANT EXECUTE ON FUNCTION public.create_pos_payment_session TO authenticated, anon;
+-- Grant permissions (only for authenticated users)
+GRANT EXECUTE ON FUNCTION public.create_pos_payment_session TO authenticated;
