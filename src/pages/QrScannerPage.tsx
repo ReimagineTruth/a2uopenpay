@@ -78,8 +78,15 @@ const extractQrPayload = (rawValue: string) => {
 const isOpenPayQrCode = (rawValue: string) => {
   const value = rawValue.trim();
   if (!value) return false;
+  
+  // Check for direct UUID
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   if (uuidRegex.test(value)) return true;
+
+  // Check for base64 encoded data
+  if (value.startsWith('data:image/') || value.startsWith('data:')) {
+    return false; // Not a text QR code
+  }
 
   try {
     const parsed = new URL(value);
@@ -88,25 +95,44 @@ const isOpenPayQrCode = (rawValue: string) => {
     const path = parsed.pathname.toLowerCase();
     const hasRecipient = Boolean(parsed.searchParams.get("uid") || parsed.searchParams.get("to") || parsed.searchParams.get("username"));
     const hasSession = Boolean(parsed.searchParams.get("session") || parsed.searchParams.get("checkout_session"));
+    const hasAmount = Boolean(parsed.searchParams.get("amount"));
+    const hasNote = Boolean(parsed.searchParams.get("note"));
 
     if (protocol === "openpay:") {
       // Support for public payment QR codes
       if (host === "public-payment") return true;
+      // Support for regular payment QR codes
       return hasRecipient && (host === "pay" || host === "send");
     }
 
     if (protocol === "openpay-pos:") {
       const sessionToken = parsed.pathname.replace(/^\/+/, "");
-      return host === "checkout" && sessionToken.startsWith("opsess_");
+      return host === "checkout" && (sessionToken.startsWith("opsess_") || sessionToken.length > 10);
     }
 
     if (protocol === "http:" || protocol === "https:") {
-      const isOpenPayDomain = host.includes("openpay");
-      const isPayPath = path.startsWith("/send") || path.startsWith("/pay");
-      const isPublicPaymentPath = path.startsWith("/public-payment");
-      return isOpenPayDomain && ((hasRecipient && isPayPath) || hasSession || isPublicPaymentPath);
+      const isOpenPayDomain = host.includes("openpay") || host.includes("localhost");
+      const isPayPath = path.startsWith("/send") || path.startsWith("/pay") || path.startsWith("/public-payment");
+      const hasCheckoutSession = Boolean(parsed.searchParams.get("checkout_session") || parsed.searchParams.get("session"));
+      return isOpenPayDomain && ((hasRecipient && isPayPath) || hasCheckoutSession || hasSession || hasAmount);
     }
   } catch {
+    // If URL parsing fails, try to parse as plain text
+    // Check for common OpenPay patterns
+    const lowerValue = value.toLowerCase();
+    
+    // Check for openpay:// patterns
+    if (lowerValue.startsWith('openpay://')) return true;
+    
+    // Check for session tokens
+    if (lowerValue.includes('opsess_') || lowerValue.includes('session=')) return true;
+    
+    // Check for UUID patterns in text
+    if (uuidRegex.test(value)) return true;
+    
+    // Check for common payment parameters
+    if (lowerValue.includes('uid=') || lowerValue.includes('to=') || lowerValue.includes('amount=')) return true;
+    
     return false;
   }
 
@@ -252,6 +278,18 @@ const QrScannerPage = () => {
     handlingDecodeRef.current = true;
 
     try {
+      // Validate the decoded text
+      if (!decodedText || decodedText.trim().length < 3) {
+        const now = Date.now();
+        setScanHint("QR code appears to be empty or invalid.");
+        if (now - lastInvalidToastAtRef.current > 1800) {
+          toast.error("Invalid QR code - no data found");
+          lastInvalidToastAtRef.current = now;
+        }
+        handlingDecodeRef.current = false;
+        return;
+      }
+
       if (!isOpenPayQrCode(decodedText)) {
         const now = Date.now();
         setScanHint("QR detected, but this is not an OpenPay QR code.");
@@ -297,45 +335,57 @@ const QrScannerPage = () => {
       let resolvedCurrency = payload.currency;
       let resolvedNote = payload.note;
 
+      // If no recipient found but we have a checkout session, try to get merchant info
       if (!recipientId && payload.checkoutSession) {
-        const { data: checkoutPayload } = await (supabase as any).rpc("get_public_merchant_checkout_session", {
-          p_session_token: payload.checkoutSession,
-        });
-        const checkoutRow = Array.isArray(checkoutPayload) ? checkoutPayload[0] : checkoutPayload;
-        if (checkoutRow) {
-          const merchantUserId = String(checkoutRow.merchant_user_id || "");
-          if (merchantUserId) recipientId = merchantUserId;
-          const checkoutAmount = Number(checkoutRow.total_amount || 0);
-          if (checkoutAmount > 0) resolvedAmount = checkoutAmount.toFixed(2);
-          const checkoutCurrency = String(checkoutRow.currency || "").toUpperCase();
-          if (checkoutCurrency) resolvedCurrency = checkoutCurrency;
-          if (!resolvedNote) {
-            resolvedNote = `Merchant checkout ${String(checkoutRow.session_token || payload.checkoutSession)}`;
+        try {
+          const { data: checkoutPayload } = await (supabase as any).rpc("get_public_merchant_checkout_session", {
+            p_session_token: payload.checkoutSession,
+          });
+          const checkoutRow = Array.isArray(checkoutPayload) ? checkoutPayload[0] : checkoutPayload;
+          if (checkoutRow) {
+            const merchantUserId = String(checkoutRow.merchant_user_id || "");
+            if (merchantUserId) recipientId = merchantUserId;
+            const checkoutAmount = Number(checkoutRow.total_amount || 0);
+            if (checkoutAmount > 0) resolvedAmount = checkoutAmount.toFixed(2);
+            const checkoutCurrency = String(checkoutRow.currency || "").toUpperCase();
+            if (checkoutCurrency) resolvedCurrency = checkoutCurrency;
+            if (!resolvedNote) {
+              resolvedNote = `Merchant checkout ${String(checkoutRow.session_token || payload.checkoutSession)}`;
+            }
           }
+        } catch (error) {
+          console.error("Failed to fetch checkout session:", error);
         }
       }
 
+      // Try to find user by username if no recipient ID
       if (!recipientId && payload.username) {
-        const { data } = await supabase
-          .from("profiles")
-          .select("id")
-          .ilike("username", payload.username)
-          .limit(1)
-          .maybeSingle();
-        recipientId = data?.id || null;
+        try {
+          const { data } = await supabase
+            .from("profiles")
+            .select("id")
+            .ilike("username", payload.username)
+            .limit(1)
+            .maybeSingle();
+          recipientId = data?.id || null;
+        } catch (error) {
+          console.error("Failed to find user by username:", error);
+        }
       }
 
+      // Validate that we have a valid recipient
       if (!recipientId) {
         const now = Date.now();
         setScanHint("OpenPay QR format is valid, but recipient was not found.");
         if (now - lastInvalidToastAtRef.current > 1800) {
-          toast.error("Invalid QR code");
+          toast.error("Invalid QR code - recipient not found");
           lastInvalidToastAtRef.current = now;
         }
         handlingDecodeRef.current = false;
         return;
       }
 
+      // Build payment parameters
       const params = new URLSearchParams({ to: recipientId });
       if (resolvedAmount && Number.isFinite(Number(resolvedAmount)) && Number(resolvedAmount) > 0) {
         params.set("amount", Number(resolvedAmount).toFixed(2));
@@ -354,6 +404,14 @@ const QrScannerPage = () => {
       playScanBeep();
       await stopScanner();
       navigate(`${returnTo}?${params.toString()}`, { replace: true });
+    } catch (error) {
+      console.error("QR processing error:", error);
+      const now = Date.now();
+      setScanHint("Error processing QR code.");
+      if (now - lastInvalidToastAtRef.current > 1800) {
+        toast.error("Failed to process QR code");
+        lastInvalidToastAtRef.current = now;
+      }
     } finally {
       handlingDecodeRef.current = false;
     }
@@ -430,7 +488,17 @@ const QrScannerPage = () => {
         const scanConfig = {
           fps: 18,
           disableFlip: false,
-          formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+          formatsToSupport: [
+            Html5QrcodeSupportedFormats.QR_CODE,
+            Html5QrcodeSupportedFormats.AZTEC,
+            Html5QrcodeSupportedFormats.CODABAR,
+            Html5QrcodeSupportedFormats.DATA_MATRIX,
+            Html5QrcodeSupportedFormats.PDF_417,
+          ],
+          qrbox: {
+            width: 250,
+            height: 250,
+          },
         };
 
         let started = false;
@@ -452,7 +520,15 @@ const QrScannerPage = () => {
                 setScanHint("QR is blurry or unclear. Move closer and improve lighting.");
                 return;
               }
-              setScanHint("Scanning in progress...");
+              if (raw.includes("camera") || raw.includes("permission")) {
+                setScanHint("Camera permission needed. Allow camera access to scan QR codes.");
+                return;
+              }
+              if (raw.includes("device") || raw.includes("not supported")) {
+                setScanHint("Camera not supported. Try using photo upload or paste QR code.");
+                return;
+              }
+              setScanHint("Scanning in progress... Keep the QR code steady and well-lit.");
             });
             patchVideoElementForMobile();
             started = true;
@@ -496,7 +572,19 @@ const QrScannerPage = () => {
       if (fileScannerRef.current.isScanning) {
         await fileScannerRef.current.stop();
       }
-      const decoded = await fileScannerRef.current.scanFile(file, true);
+      
+      // Enhanced file scanner configuration for multiple formats
+      const fileScanConfig = {
+        formatsToSupport: [
+          Html5QrcodeSupportedFormats.QR_CODE,
+          Html5QrcodeSupportedFormats.AZTEC,
+          Html5QrcodeSupportedFormats.CODABAR,
+          Html5QrcodeSupportedFormats.DATA_MATRIX,
+          Html5QrcodeSupportedFormats.PDF_417,
+        ],
+      } as any;
+      
+      const decoded = await fileScannerRef.current.scanFile(file, false, fileScanConfig);
       await handleDecoded(decoded);
     } catch (error) {
       setScanHint("Could not detect a clear OpenPay QR from this image.");
