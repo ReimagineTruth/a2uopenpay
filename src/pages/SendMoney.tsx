@@ -11,10 +11,18 @@ import { getFunctionErrorMessage } from "@/lib/supabaseFunctionError";
 import CurrencySelector from "@/components/CurrencySelector";
 import TransactionReceipt, { type ReceiptData } from "@/components/TransactionReceipt";
 import NumberPad from "@/components/NumberPad";
-import TransactionPinModal from "@/components/TransactionPinModal";
 import { loadAppSecuritySettings } from "@/lib/appSecurity";
 import SplashScreen from "@/components/SplashScreen";
-import PinReminderModal from "@/components/PinReminderModal";
+ 
+type PinReturnState = {
+  pinVerified?: boolean;
+  actionData?: {
+    selectedUser?: UserProfile;
+    amount?: string;
+    note?: string;
+    step?: "select" | "amount" | "confirm";
+  };
+} | null;
 
 interface UserProfile {
   id: string;
@@ -102,14 +110,12 @@ const SendMoney = () => {
   const [isInitialLoadDone, setIsInitialLoadDone] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [showSendConfirm, setShowSendConfirm] = useState(false);
-  const [showPinModal, setShowPinModal] = useState(false);
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
   const [myAvatarUrl, setMyAvatarUrl] = useState<string | null>(null);
   const [myFullName, setMyFullName] = useState("");
   const [accountLookupResult, setAccountLookupResult] = useState<UserProfile | null>(null);
   const [accountLookupLoading, setAccountLookupLoading] = useState(false);
-  const [showPinReminder, setShowPinReminder] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -167,7 +173,7 @@ const SendMoney = () => {
       // Wait until initial balance and data are loaded before processing PIN result
       if (!isInitialLoadDone) return;
 
-      const state = location.state as any;
+      const state = location.state as PinReturnState;
       if (state?.pinVerified && state?.actionData) {
         // Restore state from before PIN redirect
         const data = state.actionData;
@@ -275,11 +281,17 @@ const SendMoney = () => {
           p_session_token: checkoutSessionToken,
         });
         const checkoutRow = Array.isArray(checkoutPayload) ? checkoutPayload[0] : checkoutPayload;
+        const typedCheckout: {
+          total_amount?: number;
+          currency?: string;
+          merchant_user_id?: string;
+          items?: Array<{ item_name?: string }>;
+        } = (checkoutRow || {}) as any;
         if (checkoutRow) {
-          const checkoutAmount = Number(checkoutRow.total_amount || 0);
-          const checkoutCurrency = String(checkoutRow.currency || "").toUpperCase();
-          const checkoutMerchantId = String(checkoutRow.merchant_user_id || "");
-          const checkoutItems = Array.isArray(checkoutRow.items) ? checkoutRow.items : [];
+          const checkoutAmount = Number(typedCheckout.total_amount || 0);
+          const checkoutCurrency = String(typedCheckout.currency || "").toUpperCase();
+          const checkoutMerchantId = String(typedCheckout.merchant_user_id || "");
+          const checkoutItems = Array.isArray(typedCheckout.items) ? typedCheckout.items : [];
           const firstItemName = String(checkoutItems[0]?.item_name || "").toLowerCase();
           const qrNoteHint = String(searchParams.get("note") || "").toLowerCase();
           const isPosHint = firstItemName.includes("pos payment") || qrNoteHint.includes("pos");
@@ -551,10 +563,7 @@ const SendMoney = () => {
           
           <div className="flex items-center gap-1.5 rounded-full bg-black/10 px-4 py-1.5 active:bg-black/20">
             <span className="text-sm font-bold uppercase tracking-wide">{currency.code}</span>
-            <CurrencySelector 
-              triggerClassName="p-0 h-auto bg-transparent border-none text-white shadow-none hover:bg-transparent"
-              showIcon={false}
-            />
+            <CurrencySelector />
           </div>
 
           {myAvatarUrl ? (
@@ -688,8 +697,8 @@ const SendMoney = () => {
                       } 
                     });
                   } else {
-                  setShowSendConfirm(false);
-                  setShowPinReminder(true);
+                    setShowSendConfirm(false);
+                    await handleSend();
                   }
                 }}
               >
@@ -705,13 +714,6 @@ const SendMoney = () => {
             </div>
           </DialogContent>
         </Dialog>
-        <PinReminderModal
-          open={showPinReminder}
-          onOpenChange={setShowPinReminder}
-          onProceed={async () => {
-            await handleSend();
-          }}
-        />
       </div>
     );
   }

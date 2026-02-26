@@ -308,7 +308,7 @@ const Dashboard = () => {
     const { data: { user } } = await supabase.auth.getUser();
     const settings = user ? loadAppSecuritySettings(user.id) : null;
     
-    if (settings?.pinHash) {
+    if (settings?.pinHash && actionName !== "handleSwapOpenUsd") {
       // Pass all necessary state for the action if needed
       const actionData: any = { actionName };
       
@@ -369,8 +369,8 @@ const Dashboard = () => {
   const loadSavingsAndLoan = useCallback(async () => {
     try {
       const [{ data: savingsData }, { data: loanData }, { data: creditScoreData }, { data: applicationData }, { data: paymentHistoryData }] = await Promise.all([
-        supabase.rpc("get_my_savings_dashboard"),
-        supabase.rpc("get_my_latest_loan"),
+        (supabase as any).rpc("get_my_savings_dashboard"),
+        (supabase as any).rpc("get_my_latest_loan"),
         (supabase as any).rpc("get_my_credit_score"),
         (supabase as any).rpc("get_my_latest_loan_application"),
         (supabase as any).rpc("get_my_loan_payment_history", { p_loan_id: null, p_limit: 24 }),
@@ -379,33 +379,39 @@ const Dashboard = () => {
       const savingsRow = Array.isArray(savingsData) ? savingsData[0] : null;
       const loanRow = Array.isArray(loanData) ? loanData[0] : null;
 
-      setSavings(
-        savingsRow
-          ? {
-              wallet_balance: Number(savingsRow.wallet_balance || 0),
-              savings_balance: Number(savingsRow.savings_balance || 0),
-              apy: Number(savingsRow.apy || 0),
-            }
-          : null,
-      );
+      {
+        const s: any = savingsRow || null;
+        setSavings(
+          s
+            ? {
+                wallet_balance: Number(s.wallet_balance || 0),
+                savings_balance: Number(s.savings_balance || 0),
+                apy: Number(s.apy || 0),
+              }
+            : null,
+        );
+      }
 
-      setLoan(
-        loanRow
-          ? {
-              id: String(loanRow.id),
-              principal_amount: Number(loanRow.principal_amount || 0),
-              outstanding_amount: Number(loanRow.outstanding_amount || 0),
-              monthly_payment_amount: Number(loanRow.monthly_payment_amount || 0),
-              monthly_fee_rate: Number(loanRow.monthly_fee_rate || 0),
-              term_months: Number(loanRow.term_months || 0),
-              paid_months: Number(loanRow.paid_months || 0),
-              credit_score: Number(loanRow.credit_score || 0),
-              status: String(loanRow.status || "none"),
-              next_due_date: String(loanRow.next_due_date || ""),
-              created_at: String(loanRow.created_at || ""),
-            }
-          : null,
-      );
+      {
+        const l: any = loanRow || null;
+        setLoan(
+          l
+            ? {
+                id: String(l.id),
+                principal_amount: Number(l.principal_amount || 0),
+                outstanding_amount: Number(l.outstanding_amount || 0),
+                monthly_payment_amount: Number(l.monthly_payment_amount || 0),
+                monthly_fee_rate: Number(l.monthly_fee_rate || 0),
+                term_months: Number(l.term_months || 0),
+                paid_months: Number(l.paid_months || 0),
+                credit_score: Number(l.credit_score || 0),
+                status: String(l.status || "none"),
+                next_due_date: String(l.next_due_date || ""),
+                created_at: String(l.created_at || ""),
+              }
+            : null,
+        );
+      }
 
       const applicationRow = Array.isArray(applicationData) ? applicationData[0] : applicationData;
       setLoanApplication(
@@ -493,13 +499,13 @@ const Dashboard = () => {
       }
       setUserId(user.id);
       const { count: unreadCount } = await supabase
-        .from("app_notifications")
+        .from("app_notifications" as any)
         .select("id", { count: "exact", head: true })
         .eq("user_id", user.id)
         .is("read_at", null);
       setUnreadNotifications(Number(unreadCount || 0));
 
-      const { data: claimResult } = await supabase.rpc("claim_welcome_bonus");
+      const { data: claimResult } = await (supabase as any).rpc("claim_welcome_bonus");
       if ((claimResult as { claimed?: boolean } | null)?.claimed) {
         toast.success("Welcome bonus claimed: +1 balance");
       }
@@ -703,7 +709,7 @@ const Dashboard = () => {
 
     const refreshUnread = async () => {
       const { count } = await supabase
-        .from("app_notifications")
+        .from("app_notifications" as any)
         .select("id", { count: "exact", head: true })
         .eq("user_id", userId)
         .is("read_at", null);
@@ -840,7 +846,7 @@ const Dashboard = () => {
       return;
     }
     setMovingToSavings(true);
-    const { error } = await supabase.rpc("transfer_my_wallet_to_savings", {
+    const { error } = await (supabase as any).rpc("transfer_my_wallet_to_savings", {
       p_amount: amount,
       p_note: "Dashboard savings transfer",
     });
@@ -862,7 +868,7 @@ const Dashboard = () => {
       return;
     }
     setMovingToWallet(true);
-    const { error } = await supabase.rpc("transfer_my_savings_to_wallet", {
+    const { error } = await (supabase as any).rpc("transfer_my_savings_to_wallet", {
       p_amount: amount,
       p_note: "Dashboard savings withdrawal",
     });

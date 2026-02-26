@@ -7,9 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import BrandLogo from "@/components/BrandLogo";
 import { playGoogleWalletSuccessSound } from "@/lib/soundEffects";
-import TransactionPinModal from "@/components/TransactionPinModal";
-import { loadAppSecuritySettings } from "@/lib/appSecurity";
-import PinReminderModal from "@/components/PinReminderModal";
 
 type SwapWithdrawalRow = {
   id: string;
@@ -40,68 +37,13 @@ const SwapWithdrawalPage = () => {
   const location = useLocation();
   const [searchParams] = useSearchParams();
 
-  const handleProtectedAction = async (action: () => Promise<void>, actionName: string) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    const settings = user ? loadAppSecuritySettings(user.id) : null;
-    
-    if (settings?.pinHash) {
-      // Pass all necessary state for the action
-      const actionData = {
-        actionName,
-        amount,
-        openpayName,
-        openpayUsername,
-        openpayAccountNumber,
-        piWalletAddress,
-        agreementAccepted: true // If we got here, they already accepted or we are forcing it
-      };
-
-      navigate("/confirm-pin", { 
-        state: { 
-          returnTo: location.pathname + location.search,
-          actionData,
-          title: "Confirm your OpenPay PIN"
-        } 
-      });
-    } else {
-      setPendingAction(() => action);
-      setShowPinReminder(true);
-    }
+  const handleProtectedAction = async (action: () => Promise<void>) => {
+    await action();
   };
 
   useEffect(() => {
-    const checkPinVerification = async () => {
-      // Wait until initial balance and data are loaded before processing PIN result
-      if (!isInitialLoadDone) return;
-
-      const state = location.state as any;
-      if (state?.pinVerified && state?.actionData?.actionName === "submitWithdrawalRequest") {
-        const data = state.actionData;
-        
-        // Execute action IMMEDIATELY with the data from PIN state
-        // This avoids race conditions with React state updates
-        void submitWithdrawalRequest({
-          amount: data.amount,
-          openpayName: data.openpayName,
-          openpayUsername: data.openpayUsername,
-          openpayAccountNumber: data.openpayAccountNumber,
-          piWalletAddress: data.piWalletAddress,
-        });
-
-        // Also update local state so UI is consistent
-        if (data.amount) setAmount(data.amount);
-        if (data.openpayName) setOpenpayName(data.openpayName);
-        if (data.openpayUsername) setOpenpayUsername(data.openpayUsername);
-        if (data.openpayAccountNumber) setOpenpayAccountNumber(data.openpayAccountNumber);
-        if (data.piWalletAddress) setPiWalletAddress(data.piWalletAddress);
-        if (data.agreementAccepted) setAgreementAccepted(true);
-
-        // Clear location state immediately to prevent re-execution
-        navigate(location.pathname + location.search, { replace: true, state: {} });
-      }
-    };
-    checkPinVerification();
-  }, [location.state, navigate, location.pathname, location.search, isInitialLoadDone]);
+    // No PIN redirect flow; proceed without confirm-pin
+  }, []);
 
   const [loading, setLoading] = useState(false);
   const [isInitialLoadDone, setIsInitialLoadDone] = useState(false);
@@ -116,8 +58,6 @@ const SwapWithdrawalPage = () => {
   const [agreementChecked, setAgreementChecked] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showPinModal, setShowPinModal] = useState(false);
-  const [showPinReminder, setShowPinReminder] = useState(false);
-  const [pendingAction, setPendingAction] = useState<(() => Promise<void>) | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [history, setHistory] = useState<SwapWithdrawalRow[]>([]);
   const [piPriceUsd, setPiPriceUsd] = useState<number | null>(null);
@@ -157,25 +97,27 @@ const SwapWithdrawalPage = () => {
         return;
       }
       const { data, error } = await supabase
-        .from("user_swap_withdrawals")
+        .from("user_swap_withdrawals" as any)
         .select("id, amount, openpay_account_name, openpay_account_username, openpay_account_number, pi_wallet_address, status, admin_note, reviewed_at, created_at")
         .order("created_at", { ascending: false })
         .limit(10);
       if (error) throw new Error(error.message || "Failed to load withdrawals");
-      const rows = Array.isArray(data) ? data : [];
+      const rows: any[] = Array.isArray(data) ? (data as any[]) : [];
       setHistory(
-        rows.map((row: any) => ({
-          id: String(row.id),
-          amount: Number(row.amount || 0),
-          openpay_account_name: String(row.openpay_account_name || ""),
-          openpay_account_username: String(row.openpay_account_username || ""),
-          openpay_account_number: String(row.openpay_account_number || ""),
-          pi_wallet_address: String(row.pi_wallet_address || ""),
-          status: String(row.status || "pending"),
-          admin_note: String(row.admin_note || ""),
-          reviewed_at: row.reviewed_at ? String(row.reviewed_at) : null,
-          created_at: String(row.created_at || ""),
-        })),
+        rows.map((r: any) => {
+          return {
+            id: String(r.id ?? ""),
+            amount: Number((r.amount as number | string | undefined) ?? 0),
+            openpay_account_name: String(r.openpay_account_name ?? ""),
+            openpay_account_username: String(r.openpay_account_username ?? ""),
+            openpay_account_number: String(r.openpay_account_number ?? ""),
+            pi_wallet_address: String(r.pi_wallet_address ?? ""),
+            status: String(r.status ?? "pending"),
+            admin_note: String(r.admin_note ?? ""),
+            reviewed_at: r.reviewed_at ? String(r.reviewed_at) : null,
+            created_at: String(r.created_at ?? ""),
+          };
+        }),
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to load withdrawals";
@@ -279,7 +221,7 @@ const SwapWithdrawalPage = () => {
     setSubmitted(false);
     setLoading(true);
     try {
-      const { data, error } = await supabase.rpc("submit_swap_withdrawal", {
+      const { data, error } = await (supabase as any).rpc("submit_swap_withdrawal", {
         p_amount: activeAmount,
         p_openpay_account_name: activeOpenpayName.trim(),
         p_openpay_account_username: activeOpenpayUsername,
@@ -381,7 +323,6 @@ const SwapWithdrawalPage = () => {
               <span>OpenUSD amount (min 10)</span>
               <input
                 value={amount}
-                onChange={(e) => setAmount(e.target.value)}
                 type="number"
                 min="10"
                 step="0.01"
@@ -395,7 +336,6 @@ const SwapWithdrawalPage = () => {
               <span>OpenPay full name</span>
               <input
                 value={openpayName}
-                onChange={(e) => setOpenpayName(e.target.value)}
                 placeholder="Full name"
                 readOnly
                 aria-readonly="true"
@@ -406,7 +346,6 @@ const SwapWithdrawalPage = () => {
               <span>OpenPay username</span>
               <input
                 value={openpayUsername}
-                onChange={(e) => setOpenpayUsername(e.target.value)}
                 placeholder="@username"
                 readOnly
                 aria-readonly="true"
@@ -417,7 +356,6 @@ const SwapWithdrawalPage = () => {
               <span>OpenPay account number</span>
               <input
                 value={openpayAccountNumber}
-                onChange={(e) => setOpenpayAccountNumber(e.target.value)}
                 placeholder="OPEA..."
                 readOnly
                 aria-readonly="true"
@@ -574,7 +512,7 @@ const SwapWithdrawalPage = () => {
               className="flex-1 h-11 rounded-2xl bg-paypal-blue text-white hover:bg-[#004dc5]"
               onClick={() => {
                 setShowConfirmModal(false);
-                handleProtectedAction(submitWithdrawalRequest, "submitWithdrawalRequest");
+                handleProtectedAction(submitWithdrawalRequest);
               }}
               disabled={loading}
             >
@@ -591,19 +529,6 @@ const SwapWithdrawalPage = () => {
           </div>
         </DialogContent>
       </Dialog>
-      <PinReminderModal
-        open={showPinReminder}
-        onOpenChange={(open) => {
-          setShowPinReminder(open);
-          if (!open) setPendingAction(null);
-        }}
-        onProceed={async () => {
-          if (pendingAction) {
-            await pendingAction();
-            setPendingAction(null);
-          }
-        }}
-      />
     </div>
   );
 };

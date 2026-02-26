@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { ArrowLeft, QrCode, ScanLine } from "lucide-react";
 import { format } from "date-fns";
@@ -65,6 +65,7 @@ const RequestMoney = () => {
     | null
   >(null);
   const [showPinReminder, setShowPinReminder] = useState(false);
+  const pinActionExecutedRef = useRef(false);
 
   const profileMap = useMemo(() => {
     const map = new Map<string, Profile>();
@@ -110,8 +111,10 @@ const RequestMoney = () => {
 
   useEffect(() => {
     const state = location.state as any;
+    if (pinActionExecutedRef.current) return;
     if (state?.pinVerified && state?.actionData) {
       const data = state.actionData;
+      let executed = false;
       if (data?.kind === "request_create") {
         const p = profileMap.get(data.payerId) || null;
         setPayerId(data.payerId);
@@ -119,15 +122,43 @@ const RequestMoney = () => {
         setAmount(String(data.amount));
         setNote(String(data.note || ""));
         void submitCreate();
+        executed = true;
       } else if (data?.kind === "request_pay") {
         const req = requests.find((r) => r.id === data.requestId);
         if (req) {
           void submitPay(req, profileMap.get(req.requester_id) || null);
+          executed = true;
+        } else {
+          return;
         }
       }
-      navigate(location.pathname + location.search, { replace: true, state: {} });
+      if (executed) {
+        pinActionExecutedRef.current = true;
+        navigate(location.pathname + location.search, { replace: true, state: {} });
+      }
     }
   }, [location.state, requests, profileMap, navigate, location.pathname, location.search]);
+
+  useEffect(() => {
+    if (pageLoading) return;
+    const state = location.state as any;
+    if (pinActionExecutedRef.current) return;
+    if (state?.pinVerified && state?.actionData) {
+      const data = state.actionData;
+      let executed = false;
+      if (data?.kind === "request_pay") {
+        const req = requests.find((r) => r.id === data.requestId);
+        if (req) {
+          void submitPay(req, profileMap.get(req.requester_id) || null);
+          executed = true;
+        }
+      }
+      if (executed) {
+        pinActionExecutedRef.current = true;
+        navigate(location.pathname + location.search, { replace: true, state: {} });
+      }
+    }
+  }, [pageLoading, requests, profileMap, location.state, navigate, location.pathname, location.search]);
 
   const normalizedSearch = search.trim().toLowerCase();
   const normalizedSearchRaw = search.trim();
@@ -265,6 +296,7 @@ const RequestMoney = () => {
       }
 
       scanner = new Html5Qrcode("openpay-receive-scanner", {
+        verbose: false,
         useBarCodeDetectorIfSupported: false,
       });
       const onDecoded = async (decodedText: string) => {
@@ -485,36 +517,18 @@ const RequestMoney = () => {
     const { data: { user } } = await supabase.auth.getUser();
     const settings = user ? loadAppSecuritySettings(user.id) : null;
 
-    if (settings?.pinHash && (confirmAction.type === "create" || confirmAction.type === "pay")) {
+    if (confirmAction.type === "create") {
+      await submitCreate();
       setConfirmModalOpen(false);
-      const actionData =
-        confirmAction.type === "create"
-          ? {
-              kind: "request_create",
-              payerId,
-              amount: confirmAction.amount,
-              note: confirmAction.note,
-            }
-          : {
-              kind: "request_pay",
-              requestId: confirmAction.request.id,
-            };
-      navigate("/confirm-pin", {
-        state: {
-          returnTo: location.pathname + location.search,
-          actionData,
-          title: "Confirm your OpenPay PIN",
-        },
-      });
+      setConfirmAction(null);
+    } else if (confirmAction.type === "pay") {
+      await submitPay(confirmAction.request, confirmAction.requester);
+      setConfirmModalOpen(false);
+      setConfirmAction(null);
     } else {
-      if (confirmAction.type === "create" || confirmAction.type === "pay") {
-        setConfirmModalOpen(false);
-        setShowPinReminder(true);
-      } else {
-        await submitReject(confirmAction.request);
-        setConfirmModalOpen(false);
-        setConfirmAction(null);
-      }
+      await submitReject(confirmAction.request);
+      setConfirmModalOpen(false);
+      setConfirmAction(null);
     }
   };
 

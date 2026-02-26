@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { format } from "date-fns";
@@ -62,6 +62,7 @@ const SendInvoice = () => {
   >(null);
   const [pageLoading, setPageLoading] = useState(true);
   const [showPinReminder, setShowPinReminder] = useState(false);
+  const pinActionExecutedRef = useRef(false);
 
   const profileMap = useMemo(() => {
     const map = new Map<string, Profile>();
@@ -100,8 +101,10 @@ const SendInvoice = () => {
 
   useEffect(() => {
     const state = location.state as any;
+    if (pinActionExecutedRef.current) return;
     if (state?.pinVerified && state?.actionData) {
       const data = state.actionData;
+      let executed = false;
       if (data?.kind === "invoice_create") {
         const rec = profileMap.get(data.recipientId) || null;
         setRecipientId(data.recipientId);
@@ -110,15 +113,43 @@ const SendInvoice = () => {
         setDescription(String(data.description || ""));
         setDueDate(String(data.dueDate || ""));
         void submitCreate();
+        executed = true;
       } else if (data?.kind === "invoice_pay") {
         const inv = invoices.find((i) => i.id === data.invoiceId);
         if (inv) {
           void submitPay(inv, profileMap.get(inv.sender_id) || null);
+          executed = true;
+        } else {
+          return;
         }
       }
-      navigate(location.pathname + location.search, { replace: true, state: {} });
+      if (executed) {
+        pinActionExecutedRef.current = true;
+        navigate(location.pathname + location.search, { replace: true, state: {} });
+      }
     }
   }, [location.state, invoices, profileMap, navigate, location.pathname, location.search]);
+
+  useEffect(() => {
+    if (pageLoading) return;
+    const state = location.state as any;
+    if (pinActionExecutedRef.current) return;
+    if (state?.pinVerified && state?.actionData) {
+      const data = state.actionData;
+      let executed = false;
+      if (data?.kind === "invoice_pay") {
+        const inv = invoices.find((i) => i.id === data.invoiceId);
+        if (inv) {
+          void submitPay(inv, profileMap.get(inv.sender_id) || null);
+          executed = true;
+        }
+      }
+      if (executed) {
+        pinActionExecutedRef.current = true;
+        navigate(location.pathname + location.search, { replace: true, state: {} });
+      }
+    }
+  }, [pageLoading, invoices, profileMap, location.state, navigate, location.pathname, location.search]);
 
   const normalizedSearch = search.trim().toLowerCase();
   const normalizedSearchRaw = search.trim();
@@ -318,37 +349,18 @@ const SendInvoice = () => {
     const { data: { user } } = await supabase.auth.getUser();
     const settings = user ? loadAppSecuritySettings(user.id) : null;
 
-    if (settings?.pinHash && (confirmAction.type === "create" || confirmAction.type === "pay")) {
+    if (confirmAction.type === "create") {
+      await submitCreate();
       setConfirmModalOpen(false);
-      const actionData =
-        confirmAction.type === "create"
-          ? {
-              kind: "invoice_create",
-              recipientId,
-              amount: confirmAction.amount,
-              description: confirmAction.description,
-              dueDate: confirmAction.dueDate,
-            }
-          : {
-              kind: "invoice_pay",
-              invoiceId: confirmAction.invoice.id,
-            };
-      navigate("/confirm-pin", {
-        state: {
-          returnTo: location.pathname + location.search,
-          actionData,
-          title: "Confirm your OpenPay PIN",
-        },
-      });
+      setConfirmAction(null);
+    } else if (confirmAction.type === "pay") {
+      await submitPay(confirmAction.invoice, confirmAction.sender);
+      setConfirmModalOpen(false);
+      setConfirmAction(null);
     } else {
-      if (confirmAction.type === "create" || confirmAction.type === "pay") {
-        setConfirmModalOpen(false);
-        setShowPinReminder(true);
-      } else {
-        await submitReject(confirmAction.invoice);
-        setConfirmModalOpen(false);
-        setConfirmAction(null);
-      }
+      await submitReject(confirmAction.invoice);
+      setConfirmModalOpen(false);
+      setConfirmAction(null);
     }
   };
 
