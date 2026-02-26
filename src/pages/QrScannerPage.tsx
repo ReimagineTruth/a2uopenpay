@@ -32,6 +32,12 @@ const extractQrPayload = (rawValue: string) => {
     // Check if this is a POS QR code (different from checkout)
     const isPosPayment = parsed.protocol.toLowerCase() === "openpay-pos:" && parsed.hostname.toLowerCase() === "checkout";
     
+    // Check if this is a POS payment QR code in openpay://pay format
+    const isPosPayFormat = parsed.protocol.toLowerCase() === "openpay:" && 
+                           parsed.hostname.toLowerCase() === "pay" && 
+                           (parsed.searchParams.get("note")?.toLowerCase().includes("pos") || 
+                            parsed.searchParams.get("note")?.toLowerCase().includes("payment"));
+    
     // Check if this is a regular checkout link
     const isCheckoutLink = parsed.protocol.toLowerCase() === "openpay:" && 
                               (parsed.hostname.toLowerCase() === "checkout" || 
@@ -46,6 +52,7 @@ const extractQrPayload = (rawValue: string) => {
       searchParams: Object.fromEntries(parsed.searchParams),
       isPublicPayment,
       isPosPayment,
+      isPosPayFormat,
       isCheckoutLink
     });
     
@@ -58,6 +65,11 @@ const extractQrPayload = (rawValue: string) => {
       checkoutSession = parsed.pathname.replace(/^\/+/, "");
       apiKeyType = "pos";
       console.log("POS Payment detected:", { checkoutSession, apiKeyType });
+    } else if (isPosPayFormat) {
+      // POS payment in openpay://pay format - no session, direct payment
+      checkoutSession = null;
+      apiKeyType = "pos";
+      console.log("POS Pay Format detected:", { checkoutSession, apiKeyType });
     } else if (isCheckoutLink) {
       // Checkout links have session in query params
       checkoutSession = parsed.searchParams.get("session") || parsed.searchParams.get("checkout_session");
@@ -81,7 +93,7 @@ const extractQrPayload = (rawValue: string) => {
       note,
       checkoutSession,
       publicPayment: isPublicPayment,
-      posPayment: isPosPayment,
+      posPayment: isPosPayment || isPosPayFormat,
       apiKeyType,
     };
   } catch {
@@ -421,16 +433,24 @@ const QrScannerPage = () => {
       console.log("Extracted QR Payload:", payload);
       
       // Handle POS payment QR codes - ONLY redirect to send payment, NOT checkout
-      if (payload.posPayment && payload.checkoutSession) {
+      if (payload.posPayment) {
         console.log("Handling POS payment QR code - SEND PAYMENT ONLY");
         setScanHint("POS payment QR detected. Opening send payment page...");
         playScanBeep();
         await stopScanner();
         
-        // Navigate to send payment page with POS session details
+        // Navigate to send payment page with POS details
         const params = new URLSearchParams();
-        params.set("pos_session", payload.checkoutSession);
-        params.set("note", "POS Payment");
+        if (payload.checkoutSession) {
+          params.set("pos_session", payload.checkoutSession);
+        }
+        if (payload.uid) {
+          params.set("to", payload.uid);
+        }
+        if (payload.username) {
+          params.set("username", payload.username);
+        }
+        params.set("note", payload.note || "POS Payment");
         params.set("amount", payload.amount || "");
         params.set("currency", payload.currency || "USD");
         
