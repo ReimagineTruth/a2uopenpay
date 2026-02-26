@@ -57,7 +57,6 @@ const SwapWithdrawalPage = () => {
   const [showAgreementModal, setShowAgreementModal] = useState(false);
   const [agreementChecked, setAgreementChecked] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [showPinModal, setShowPinModal] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [history, setHistory] = useState<SwapWithdrawalRow[]>([]);
   const [piPriceUsd, setPiPriceUsd] = useState<number | null>(null);
@@ -218,6 +217,7 @@ const SwapWithdrawalPage = () => {
     const activeOpenpayAccountNumber = overrideData ? overrideData.openpayAccountNumber : openpayAccountNumber;
     const activePiWalletAddress = overrideData ? overrideData.piWalletAddress : piWalletAddress;
 
+    playGoogleWalletSuccessSound();
     setSubmitted(false);
     setLoading(true);
     try {
