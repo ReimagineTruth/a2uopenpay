@@ -118,31 +118,31 @@ const WhitepaperPage = () => {
 
   const useCases = [
     {
-      icon: <Users className="w-8 h-8 text-blue-600" />,
+      icon: <Users className="w-8 h-8 text-paypal-blue" />,
       title: "Peer-to-Peer Transfers",
       description: "Instant OUSD transfers between users with minimal fees and maximum security."
     },
     {
-      icon: <Building className="w-8 h-8 text-green-600" />,
+      icon: <Building className="w-8 h-8 text-paypal-blue" />,
       title: "Merchant Payments",
       description: "Businesses can accept OUSD payments through POS systems and online platforms."
     },
     {
-      icon: <TrendingUp className="w-8 h-8 text-purple-600" />,
+      icon: <TrendingUp className="w-8 h-8 text-paypal-blue" />,
       title: "Staking & Savings",
       description: "Earn competitive yields by staking OUSD or participating in savings programs."
     },
     {
-      icon: <BarChart3 className="w-8 h-8 text-orange-600" />,
+      icon: <BarChart3 className="w-8 h-8 text-paypal-blue" />,
       title: "DeFi Operations",
       description: "Swap OUSD with other stablecoins and participate in liquidity mining."
     }
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-paypal-blue/5 dark:from-slate-900 dark:to-slate-800">
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-r from-blue-600 to-purple-600 text-white">
+      <section className="relative overflow-hidden bg-gradient-to-r from-paypal-blue to-[#0073e6] text-white">
         <div className="absolute inset-0 bg-black opacity-10"></div>
         <div className="relative container mx-auto px-4 py-24">
           <div className="max-w-4xl mx-auto text-center">
@@ -156,7 +156,7 @@ const WhitepaperPage = () => {
               OpenPay OpenUSD (OUSD)
             </h1>
             
-            <p className="text-xl md:text-2xl mb-8 text-blue-100">
+            <p className="text-xl md:text-2xl mb-8 text-white/90">
               Pi Network's USD-Pegged Utility Token for Digital Finance
             </p>
             
@@ -209,7 +209,7 @@ const WhitepaperPage = () => {
                   className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
                 >
                   <div className="flex items-center mb-4">
-                    <div className="p-3 bg-blue-100 dark:bg-blue-900 rounded-lg text-blue-600 dark:text-blue-400">
+                    <div className="p-3 bg-paypal-blue/10 dark:bg-paypal-blue/20 rounded-lg text-paypal-blue">
                       {feature.icon}
                     </div>
                     <h4 className="ml-4 text-xl font-semibold text-gray-900 dark:text-white">
@@ -233,7 +233,7 @@ const WhitepaperPage = () => {
             Token Model
           </h2>
           
-          <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-slate-700 dark:to-slate-700 rounded-2xl p-8 mb-12">
+          <div className="bg-gradient-to-r from-paypal-blue/5 to-paypal-blue/10 dark:from-slate-700 dark:to-slate-700 rounded-2xl p-8 mb-12">
             <div className="grid md:grid-cols-2 gap-8">
               <div>
                 <h3 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">
@@ -276,7 +276,7 @@ const WhitepaperPage = () => {
                     "DAO governance for feature voting"
                   ].map((feature, index) => (
                     <div key={index} className="flex items-center">
-                      <CheckCircle className="w-5 h-5 text-green-500 mr-3 flex-shrink-0" />
+                      <CheckCircle className="w-5 h-5 text-paypal-blue mr-3 flex-shrink-0" />
                       <span className="text-gray-700 dark:text-gray-300">{feature}</span>
                     </div>
                   ))}
@@ -354,10 +354,10 @@ const WhitepaperPage = () => {
             ].map((item, index) => (
               <div
                 key={index}
-                className="bg-gradient-to-br from-blue-50 to-purple-50 dark:from-slate-700 dark:to-slate-700 rounded-xl p-6"
+                className="bg-gradient-to-br from-paypal-blue/5 to-paypal-blue/10 dark:from-slate-700 dark:to-slate-700 rounded-xl p-6"
               >
                 <div className="flex items-center mb-4">
-                  <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg text-blue-600 dark:text-blue-400">
+                  <div className="p-2 bg-paypal-blue/10 dark:bg-paypal-blue/20 rounded-lg text-paypal-blue">
                     {item.icon}
                   </div>
                   <h3 className="ml-3 text-lg font-semibold text-gray-900 dark:text-white">
@@ -388,7 +388,7 @@ const WhitepaperPage = () => {
               >
                 <div className="flex flex-col md:flex-row md:items-center mb-6">
                   <div className="flex items-center mb-4 md:mb-0">
-                    <div className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-bold mr-4">
+                    <div className="px-4 py-2 bg-gradient-to-r from-paypal-blue to-[#0073e6] text-white rounded-lg font-bold mr-4">
                       {phase.phase}
                     </div>
                     <div>
@@ -406,7 +406,7 @@ const WhitepaperPage = () => {
                 <div className="grid md:grid-cols-2 gap-4">
                   {phase.milestones.map((milestone, milestoneIndex) => (
                     <div key={milestoneIndex} className="flex items-center">
-                      <ArrowRight className="w-4 h-4 text-blue-500 mr-3 flex-shrink-0" />
+                      <ArrowRight className="w-4 h-4 text-paypal-blue mr-3 flex-shrink-0" />
                       <span className="text-gray-700 dark:text-gray-300">{milestone}</span>
                     </div>
                   ))}
@@ -418,13 +418,13 @@ const WhitepaperPage = () => {
       </section>
 
       {/* Conclusion */}
-      <section className="py-20 px-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white">
+      <section className="py-20 px-4 bg-gradient-to-r from-paypal-blue to-[#0073e6] text-white">
         <div className="container mx-auto max-w-4xl text-center">
           <h2 className="text-4xl font-bold mb-8">
             Conclusion
           </h2>
           
-          <p className="text-xl leading-relaxed mb-8 text-blue-100">
+          <p className="text-xl leading-relaxed mb-8 text-white/90">
             <strong>OpenPay OpenUSD (OUSD)</strong> is a <strong>stable, utility-driven token</strong> under 
             <strong> Pi Network and MrWain Foundation</strong>, designed to empower payments, finance, and commerce. 
             It enables users to <strong>transact, earn, stake, and govern</strong> within a secure and stable ecosystem, 
