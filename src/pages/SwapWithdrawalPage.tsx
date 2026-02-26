@@ -44,8 +44,10 @@ const SwapWithdrawalPage = () => {
     const { data: { user } } = await supabase.auth.getUser();
     const settings = user ? loadAppSecuritySettings(user.id) : null;
     const pinSetupCompleted = user ? isPinSetupCompleted(user.id) : false;
-    setNextAction(() => {
-      if (!settings?.pinHash && !pinSetupCompleted) {
+    
+    // Only show PIN modal if user hasn't set up PIN yet
+    if (!pinSetupCompleted && !settings?.pinHash) {
+      setNextAction(() => {
         return async () => {
           const actionData = {
             kind: "swap_withdrawal_submit",
@@ -66,12 +68,12 @@ const SwapWithdrawalPage = () => {
             },
           });
         };
-      }
-      return async () => {
-        await action();
-      };
-    });
-    setShowPinModal(true);
+      });
+      setShowPinModal(true);
+    } else {
+      // User has PIN set up, proceed directly with action
+      await action();
+    }
   };
 
   useEffect(() => {

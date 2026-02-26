@@ -276,24 +276,24 @@ const TopUpAccountDetails = ({
     const { data: { user } } = await supabase.auth.getUser();
     const settings = user ? loadAppSecuritySettings(user.id) : null;
     const pinSetupCompleted = user ? isPinSetupCompleted(user.id) : false;
-    setPinNextAction(() => {
-      if (!settings?.pinHash && !pinSetupCompleted) {
-        return async () => {
-          navigate("/confirm-pin", {
-            state: {
-              returnTo: location.pathname + location.search,
-              actionData: { kind: "topup_submit" },
-              title: "Confirm your OpenPay PIN",
-            },
-          });
-        };
-      }
-      return async () => {
-        playGoogleWalletSuccessSound();
-        await submitTopUpRequest();
-      };
-    });
-    setShowPinModal(true);
+    
+    // Only show PIN modal if user hasn't set up PIN yet
+    if (!pinSetupCompleted && !settings?.pinHash) {
+      setPinNextAction(() => async () => {
+        navigate("/confirm-pin", {
+          state: {
+            returnTo: location.pathname + location.search,
+            actionData: { kind: "topup_submit" },
+            title: "Confirm your OpenPay PIN",
+          },
+        });
+      });
+      setShowPinModal(true);
+    } else {
+      // User has PIN set up, proceed directly with top-up
+      playGoogleWalletSuccessSound();
+      await submitTopUpRequest();
+    }
   };
 
   useEffect(() => {

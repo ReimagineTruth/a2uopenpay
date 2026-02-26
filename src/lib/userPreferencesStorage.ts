@@ -22,6 +22,11 @@ export interface UserPreferences {
   notificationsEnabled?: boolean;
   soundEffectsEnabled?: boolean;
   
+  // Payment links preferences
+  disableContactCollection?: boolean;
+  customerPaysFee?: boolean; // true = customer pays 2% fee, false = merchant handles fee
+  openPayFeeAccount?: string; // Account to receive fees: OPEA68BB7A9F964994A199A15786D680FA
+  
   // Timestamps
   lastUpdated?: string;
 }
@@ -48,6 +53,10 @@ const DEFAULT_PREFERENCES: UserPreferences = {
   cookiesAccepted: false,
   analyticsConsent: false,
   marketingConsent: false,
+  // Payment links defaults
+  disableContactCollection: false,
+  customerPaysFee: true, // By default, customer pays fee
+  openPayFeeAccount: 'OPEA68BB7A9F964994A199A15786D680FA',
 };
 
 // Default cookie consent
@@ -196,6 +205,31 @@ export const isPinSetupCompleted = (): boolean => {
 
 export const setPinSetupCompleted = (completed: boolean): void => {
   updateUserPreference('pinSetupCompleted', completed);
+};
+
+// Payment links preference functions
+export const getDisableContactCollection = (): boolean => {
+  return loadUserPreferences().disableContactCollection || false;
+};
+
+export const setDisableContactCollection = (disabled: boolean): void => {
+  updateUserPreference('disableContactCollection', disabled);
+};
+
+export const getCustomerPaysFee = (): boolean => {
+  return loadUserPreferences().customerPaysFee !== false; // Default to true if undefined
+};
+
+export const setCustomerPaysFee = (customerPays: boolean): void => {
+  updateUserPreference('customerPaysFee', customerPays);
+};
+
+export const getOpenPayFeeAccount = (): string => {
+  return loadUserPreferences().openPayFeeAccount || 'OPEA68BB7A9F964994A199A15786D680FA';
+};
+
+export const setOpenPayFeeAccount = (account: string): void => {
+  updateUserPreference('openPayFeeAccount', account);
 };
 
 // Helper to check if we should persist preferences

@@ -637,31 +637,38 @@ const MerchantCheckoutPage = () => {
               </div>
 
               <div className="mt-3 space-y-2 rounded-md border border-border p-3">
-                <p className="text-sm font-semibold text-foreground">Customer details (for receipt)</p>
-                <Input
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  placeholder="Full name"
-                  className="h-11 rounded-md"
-                />
-                <Input
-                  value={customerEmail}
-                  onChange={(e) => setCustomerEmail(e.target.value)}
-                  placeholder="Email"
-                  className="h-11 rounded-md"
-                />
-                <Input
-                  value={customerPhone}
-                  onChange={(e) => setCustomerPhone(e.target.value)}
-                  placeholder="Phone"
-                  className="h-11 rounded-md"
-                />
-                <Input
-                  value={customerAddress}
-                  onChange={(e) => setCustomerAddress(e.target.value)}
-                  placeholder="Address"
-                  className="h-11 rounded-md"
-                />
+                {!(sessionData?.items?.[0]?.item_name || "").toLowerCase().includes("disable_contact_collection") && (
+                  <>
+                    <p className="text-sm font-semibold text-foreground">Customer details (for receipt)</p>
+                    <Input
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      placeholder="Full name"
+                      className="h-11 rounded-md"
+                    />
+                    <Input
+                      value={customerEmail}
+                      onChange={(e) => setCustomerEmail(e.target.value)}
+                      placeholder="Email"
+                      className="h-11 rounded-md"
+                    />
+                    <Input
+                      value={customerPhone}
+                      onChange={(e) => setCustomerPhone(e.target.value)}
+                      placeholder="Phone"
+                      className="h-11 rounded-md"
+                    />
+                    <Input
+                      value={customerAddress}
+                      onChange={(e) => setCustomerAddress(e.target.value)}
+                      placeholder="Address"
+                      className="h-11 rounded-md"
+                    />
+                  </>
+                )}
+                {(sessionData?.items?.[0]?.item_name || "").toLowerCase().includes("disable_contact_collection") && (
+                  <p className="text-sm text-muted-foreground">Customer details collection is disabled for this payment</p>
+                )}
               </div>
 
               <div className="mt-4 border-t border-border pt-4">

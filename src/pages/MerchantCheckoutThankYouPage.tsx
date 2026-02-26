@@ -114,9 +114,9 @@ const MerchantCheckoutThankYouPage = () => {
       <div className="mx-auto w-full max-w-xl rounded-2xl border border-border bg-white p-6 shadow-sm">
         <div className="flex items-center gap-3">
           <CheckCircle2 className="h-7 w-7 text-emerald-600" />
-          <h1 className="text-2xl font-semibold text-foreground">POS payment completed</h1>
+          <h1 className="text-2xl font-semibold text-foreground">Payment Completed</h1>
         </div>
-        <p className="mt-2 text-sm text-muted-foreground">{confirmationMessage}</p>
+        <p className="mt-2 text-sm text-muted-foreground">{confirmationMessage || "Thank you! Your payment was processed successfully."}</p>
 
         {!!transactionId && (
           <p className="mt-4 text-xs text-muted-foreground">

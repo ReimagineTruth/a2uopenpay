@@ -533,27 +533,27 @@ const RequestMoney = () => {
 
     if (confirmAction.type === "pay") {
       setConfirmModalOpen(false);
-      setPinNextAction(() => {
-        if (!settings?.pinHash && !pinSetupCompleted) {
-          return async () => {
-            const actionData = { kind: "request_pay", requestId: confirmAction.request.id };
-            try {
-              if (typeof window !== "undefined") window.sessionStorage.setItem(PIN_ACTION_KEY, JSON.stringify(actionData));
-            } catch {}
-            navigate("/confirm-pin", {
-              state: {
-                returnTo: location.pathname + location.search,
-                actionData,
-                title: "Confirm your OpenPay PIN",
-              },
-            });
-          };
-        }
-        return async () => {
-          await submitPay(confirmAction.request, confirmAction.requester);
-        };
-      });
-      setShowPinReminder(true);
+      
+      // Only show PIN modal if user hasn't set up PIN yet
+      if (!pinSetupCompleted && !settings?.pinHash) {
+        setPinNextAction(() => async () => {
+          const actionData = { kind: "request_pay", requestId: confirmAction.request.id };
+          try {
+            if (typeof window !== "undefined") window.sessionStorage.setItem(PIN_ACTION_KEY, JSON.stringify(actionData));
+          } catch {}
+          navigate("/confirm-pin", {
+            state: {
+              returnTo: location.pathname + location.search,
+              actionData,
+              title: "Confirm your OpenPay PIN",
+            },
+          });
+        });
+        setShowPinReminder(true);
+      } else {
+        // User has PIN set up, proceed directly with pay
+        await submitPay(confirmAction.request, confirmAction.requester);
+      }
       return;
     }
 

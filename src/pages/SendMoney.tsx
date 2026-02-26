@@ -691,20 +691,21 @@ const SendMoney = () => {
                   const settings = user ? loadAppSecuritySettings(user.id) : null;
                   const pinSetupCompleted = user ? isPinSetupCompleted(user.id) : false;
                   setShowSendConfirm(false);
-                  setPinNextAction(() => {
-                    if (!settings?.pinHash && !pinSetupCompleted) {
-                      return async () =>
-                        navigate("/confirm-pin", {
-                          state: {
-                            title: "Confirm your OpenPay PIN",
-                          },
-                        });
-                    }
-                    return async () => {
-                      await handleSend();
-                    };
-                  });
-                  setShowPinReminder(true);
+                  
+                  // Only show PIN modal if user hasn't set up PIN yet
+                  if (!pinSetupCompleted && !settings?.pinHash) {
+                    setPinNextAction(() => async () =>
+                      navigate("/confirm-pin", {
+                        state: {
+                          title: "Confirm your OpenPay PIN",
+                        },
+                      })
+                    );
+                    setShowPinReminder(true);
+                  } else {
+                    // User has PIN set up, proceed directly with send
+                    await handleSend();
+                  }
                 }}
               >
                 {loading ? (

@@ -22,6 +22,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+import { loadUserPreferences, saveUserPreferences, getDisableContactCollection, getCustomerPaysFee, getOpenPayFeeAccount } from "@/lib/userPreferencesStorage";
+
 type Mode = "sandbox" | "live";
 type LinkType = "products" | "custom_amount";
 type ShareTab = "button" | "widget" | "iframe" | "direct" | "qr";
@@ -73,11 +75,22 @@ const PaymentLinksCreatePage = () => {
   const [currency, setCurrency] = useState("USD");
   const [customAmount, setCustomAmount] = useState("");
   const [selectedQty, setSelectedQty] = useState<Record<string, number>>({});
-
   const [collectName, setCollectName] = useState(true);
   const [collectEmail, setCollectEmail] = useState(true);
   const [collectPhone, setCollectPhone] = useState(false);
   const [collectAddress, setCollectAddress] = useState(false);
+
+  // Preference states
+  const [disableContactCollection, setDisableContactCollection] = useState(false);
+  const [customerPaysFee, setCustomerPaysFee] = useState(true);
+  const [openPayFeeAccount, setOpenPayFeeAccount] = useState('OPEA68BB7A9F964994A199A15786D680FA');
+
+  useEffect(() => {
+    const prefs = loadUserPreferences();
+    setDisableContactCollection(prefs.disableContactCollection || false);
+    setCustomerPaysFee(prefs.customerPaysFee !== false);
+    setOpenPayFeeAccount(prefs.openPayFeeAccount || 'OPEA68BB7A9F964994A199A15786D680FA');
+  }, []);
 
   const [afterPaymentType, setAfterPaymentType] = useState<"confirmation" | "redirect">("confirmation");
   const [confirmationMessage, setConfirmationMessage] = useState("Thanks for your payment.");
@@ -311,6 +324,18 @@ const PaymentLinksCreatePage = () => {
       return;
     }
 
+    // Get current preference values
+    const prefs = loadUserPreferences();
+    const shouldCollectContacts = !disableContactCollection;
+    const shouldCustomerPayFee = customerPaysFee;
+    const feeAccount = openPayFeeAccount;
+
+    // Calculate fees
+    const subtotalAmount = previewTotal;
+    const openPayFeeAmount = shouldCustomerPayFee ? subtotalAmount * 0.02 : 0; // 2% OpenPay fee
+    const totalWithFee = subtotalAmount + openPayFeeAmount;
+    const merchantSettlementAmount = shouldCustomerPayFee ? subtotalAmount : subtotalAmount - openPayFeeAmount;
+
     setCreating(true);
     const { data, error } = await db.rpc("create_merchant_payment_link", {
       p_secret_key: secretKey.trim(),
@@ -321,15 +346,21 @@ const PaymentLinksCreatePage = () => {
       p_currency: currency.toUpperCase(),
       p_custom_amount: type === "custom_amount" ? Number(customAmount) : null,
       p_items: type === "products" ? items : [],
-      p_collect_customer_name: collectName,
-      p_collect_customer_email: collectEmail,
-      p_collect_phone: collectPhone,
-      p_collect_address: collectAddress,
+      // Use preference values
+      p_collect_customer_name: shouldCollectContacts && collectName,
+      p_collect_customer_email: shouldCollectContacts && collectEmail,
+      p_collect_phone: shouldCollectContacts && collectPhone,
+      p_collect_address: shouldCollectContacts && collectAddress,
       p_after_payment_type: afterPaymentType,
       p_confirmation_message: confirmationMessage,
       p_redirect_url: afterPaymentType === "redirect" ? redirectUrl : null,
       p_call_to_action: callToAction,
       p_expires_in_minutes: null,
+      // Fee handling
+      p_fee_payer: shouldCustomerPayFee ? "customer" : "merchant",
+      p_fee_amount: openPayFeeAmount,
+      p_merchant_settlement_amount: merchantSettlementAmount,
+      p_openpay_fee_account: feeAccount,
     });
     setCreating(false);
 
