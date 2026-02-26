@@ -266,24 +266,39 @@ const MerchantCheckoutPage = () => {
         p_cvc: cardCvc,
         p_note: note,
       };
-      let { data: rpcTxId, error: rpcError } = await db.rpc("pay_merchant_checkout_with_virtual_card", basePayload);
+      let { data: rpcResult, error: rpcError } = await db.rpc("pay_merchant_checkout_public_virtual_card", {
+        p_session_token: resolvedSessionToken,
+        p_card_number: cardNumber,
+        p_expiry_month: parsedMonth,
+        p_expiry_year: parsedYear,
+        p_cvc: cardCvc,
+        p_customer_name: customerName.trim() || null,
+        p_customer_email: customerEmail.trim() || null,
+        p_customer_phone: customerPhone.trim() || null,
+        p_customer_address: customerAddress.trim() || null,
+      });
 
       if (rpcError) {
         const fallbackPayload = {
-          ...basePayload,
+          p_session_token: resolvedSessionToken,
+          p_card_number: cardNumber,
+          p_expiry_month: parsedMonth,
+          p_expiry_year: parsedYear,
+          p_cvc: cardCvc,
           p_customer_name: customerName.trim() || null,
           p_customer_email: customerEmail.trim() || null,
           p_customer_phone: customerPhone.trim() || null,
           p_customer_address: customerAddress.trim() || null,
         };
-        const retry = await db.rpc("pay_merchant_checkout_with_virtual_card", fallbackPayload);
-        rpcTxId = retry.data;
+        const retry = await db.rpc("pay_merchant_checkout_public_virtual_card", fallbackPayload);
+        rpcResult = retry.data;
         rpcError = retry.error;
       }
 
       if (rpcError) throw rpcError;
 
-      const txid = String(rpcTxId || "");
+      const result = Array.isArray(rpcResult) ? rpcResult[0] : rpcResult;
+      const txid = String(result?.transaction_id || "");
       toast.success("Payment successful");
 
       if (linkSessionMeta?.after_payment_type === "redirect" && linkSessionMeta.redirect_url) {
@@ -402,8 +417,8 @@ const MerchantCheckoutPage = () => {
     !paying &&
     Boolean(amount) &&
     (paymentMethod === "openpay_wallet" || isCardReady);
-  const walletPayUrl = `/send?to=${encodeURIComponent(sessionData?.merchant_user_id || legacyMerchantId)}&amount=${encodeURIComponent(amountInSelectedCurrency.toFixed(2))}&currency=${encodeURIComponent(selectedPayCurrency?.code || "PI")}&note=${encodeURIComponent(checkoutMemo)}&checkout_session=${encodeURIComponent(resolvedSessionToken)}&checkout_customer_name=${encodeURIComponent(customerName)}&checkout_customer_email=${encodeURIComponent(customerEmail)}&checkout_customer_phone=${encodeURIComponent(customerPhone)}&checkout_customer_address=${encodeURIComponent(customerAddress)}`;
-  const walletPayDeepLink = `openpay://send?to=${encodeURIComponent(sessionData?.merchant_user_id || legacyMerchantId)}&amount=${encodeURIComponent(amountInSelectedCurrency.toFixed(2))}&currency=${encodeURIComponent(selectedPayCurrency?.code || "PI")}&note=${encodeURIComponent(checkoutMemo)}&checkout_session=${encodeURIComponent(resolvedSessionToken)}&checkout_customer_name=${encodeURIComponent(customerName)}&checkout_customer_email=${encodeURIComponent(customerEmail)}&checkout_customer_phone=${encodeURIComponent(customerPhone)}&checkout_customer_address=${encodeURIComponent(customerAddress)}`;
+  const walletPayUrl = `/public-payment?session=${encodeURIComponent(resolvedSessionToken)}&customer_name=${encodeURIComponent(customerName)}&customer_email=${encodeURIComponent(customerEmail)}&customer_phone=${encodeURIComponent(customerPhone)}&customer_address=${encodeURIComponent(customerAddress)}`;
+  const walletPayDeepLink = `openpay://public-payment?session=${encodeURIComponent(resolvedSessionToken)}&customer_name=${encodeURIComponent(customerName)}&customer_email=${encodeURIComponent(customerEmail)}&customer_phone=${encodeURIComponent(customerPhone)}&customer_address=${encodeURIComponent(customerAddress)}`;
   const walletPayWebUrl = typeof window !== "undefined" ? `${window.location.origin}${walletPayUrl}` : walletPayUrl;
   const walletPayQrValue = walletPayDeepLink;
   const formatShortText = (value: string, head = 28, tail = 16) => {
