@@ -432,9 +432,9 @@ const QrScannerPage = () => {
       
       console.log("Extracted QR Payload:", payload);
       
-      // Handle POS payment QR codes - use separate POS system
+      // Handle POS payment QR codes - redirect to send payment
       if (payload.posPayment) {
-        console.log("Handling POS payment QR code - SEPARATE POS SYSTEM");
+        console.log("Handling POS payment QR code - SEND PAYMENT");
         setScanHint("POS payment QR detected. Opening send payment page...");
         playScanBeep();
         await stopScanner();
@@ -443,7 +443,6 @@ const QrScannerPage = () => {
         const params = new URLSearchParams();
         if (payload.checkoutSession) {
           params.set("pos_session", payload.checkoutSession);
-          params.set("system", "pos"); // Use POS system
         }
         if (payload.uid) {
           params.set("to", payload.uid);
@@ -454,71 +453,37 @@ const QrScannerPage = () => {
         params.set("note", payload.note || "POS Payment");
         params.set("amount", payload.amount || "");
         params.set("currency", payload.currency || "USD");
-        params.set("payment_system", "pos"); // Mark as POS system
         
         navigate(`/send?${params.toString()}`, { replace: true });
         handlingDecodeRef.current = false;
         return;
       }
       
-      // Handle checkout link QR codes - DISABLED FOR DEBUGGING
-      // if (payload.apiKeyType === "checkout" && payload.checkoutSession && !payload.posPayment) {
-      //   console.log("Handling checkout link QR code - SEPARATE CHECKOUT SYSTEM");
-      //   setScanHint("Checkout link QR detected. Opening payment page...");
-      //   playScanBeep();
-      //   await stopScanner();
-      //   
-      //   const params = new URLSearchParams();
-      //   if (payload.checkoutSession) {
-      //     params.set("session", payload.checkoutSession);
-      //   }
-      //   params.set("system", "checkout"); // Use checkout system
-      //   params.set("payment_system", "checkout"); // Mark as checkout system
-      //   // Add customer details if present
-      //   const customerName = decodedText.match(/customer_name=([^&]+)/)?.[1];
-      //   const customerEmail = decodedText.match(/customer_email=([^&]+)/)?.[1];
-      //   const customerPhone = decodedText.match(/customer_phone=([^&]+)/)?.[1];
-      //   const customerAddress = decodedText.match(/customer_address=([^&]+)/)?.[1];
-      //   
-      //   if (customerName) params.set("customer_name", decodeURIComponent(customerName));
-      //   if (customerEmail) params.set("customer_email", decodeURIComponent(customerEmail));
-      //   if (customerPhone) params.set("customer_phone", decodeURIComponent(customerPhone));
-      //   if (customerAddress) params.set("customer_address", decodeURIComponent(customerAddress));
-      //   
-      //   navigate(`/public-payment?${params.toString()}`, { replace: true });
-      //   handlingDecodeRef.current = false;
-      //   return;
-      // }
-      
-      // DEBUG: Log all checkout attempts without redirecting
+      // Handle checkout link QR codes - redirect to public payment
       if (payload.apiKeyType === "checkout" && payload.checkoutSession && !payload.posPayment) {
-        console.log("=== DEBUG: CHECKOUT LINK DETECTED ===");
-        console.log("DEBUG: Checkout session:", payload.checkoutSession);
-        console.log("DEBUG: Full decoded text:", decodedText);
-        console.log("DEBUG: Payload:", JSON.stringify(payload, null, 2));
-        console.log("DEBUG: API Key Type:", payload.apiKeyType);
-        console.log("DEBUG: POS Payment:", payload.posPayment);
-        console.log("DEBUG: Public Payment:", payload.publicPayment);
-        console.log("DEBUG: Has checkout session:", !!payload.checkoutSession);
-        console.log("DEBUG: Merchant API should identify this as CHECKOUT");
-        console.log("=== END DEBUG ===");
-        setScanHint("DEBUG: Checkout link detected but disabled for debugging");
-        // Don't redirect - just log for debugging
+        console.log("Handling checkout link QR code");
+        setScanHint("Checkout link QR detected. Opening payment page...");
+        playScanBeep();
+        await stopScanner();
+        
+        const params = new URLSearchParams();
+        if (payload.checkoutSession) {
+          params.set("session", payload.checkoutSession);
+        }
+        // Add customer details if present
+        const customerName = decodedText.match(/customer_name=([^&]+)/)?.[1];
+        const customerEmail = decodedText.match(/customer_email=([^&]+)/)?.[1];
+        const customerPhone = decodedText.match(/customer_phone=([^&]+)/)?.[1];
+        const customerAddress = decodedText.match(/customer_address=([^&]+)/)?.[1];
+        
+        if (customerName) params.set("customer_name", decodeURIComponent(customerName));
+        if (customerEmail) params.set("customer_email", decodeURIComponent(customerEmail));
+        if (customerPhone) params.set("customer_phone", decodeURIComponent(customerPhone));
+        if (customerAddress) params.set("customer_address", decodeURIComponent(customerAddress));
+        
+        navigate(`/public-payment?${params.toString()}`, { replace: true });
         handlingDecodeRef.current = false;
         return;
-      }
-      
-      // DEBUG: Also log POS payments for comparison
-      if (payload.posPayment) {
-        console.log("=== DEBUG: POS PAYMENT DETECTED ===");
-        console.log("DEBUG: POS session:", payload.checkoutSession);
-        console.log("DEBUG: Full decoded text:", decodedText);
-        console.log("DEBUG: Payload:", JSON.stringify(payload, null, 2));
-        console.log("DEBUG: API Key Type:", payload.apiKeyType);
-        console.log("DEBUG: POS Payment:", payload.posPayment);
-        console.log("DEBUG: Public Payment:", payload.publicPayment);
-        console.log("DEBUG: Merchant API should identify this as POS");
-        console.log("=== END DEBUG ===");
       }
       
       // Handle public payment QR codes
