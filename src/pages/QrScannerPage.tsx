@@ -432,9 +432,9 @@ const QrScannerPage = () => {
       
       console.log("Extracted QR Payload:", payload);
       
-      // Handle POS payment QR codes - ONLY redirect to send payment, NOT checkout
+      // Handle POS payment QR codes - use separate POS system
       if (payload.posPayment) {
-        console.log("Handling POS payment QR code - SEND PAYMENT ONLY");
+        console.log("Handling POS payment QR code - SEPARATE POS SYSTEM");
         setScanHint("POS payment QR detected. Opening send payment page...");
         playScanBeep();
         await stopScanner();
@@ -443,6 +443,7 @@ const QrScannerPage = () => {
         const params = new URLSearchParams();
         if (payload.checkoutSession) {
           params.set("pos_session", payload.checkoutSession);
+          params.set("system", "pos"); // Use POS system
         }
         if (payload.uid) {
           params.set("to", payload.uid);
@@ -453,37 +454,16 @@ const QrScannerPage = () => {
         params.set("note", payload.note || "POS Payment");
         params.set("amount", payload.amount || "");
         params.set("currency", payload.currency || "USD");
-        params.set("pos_payment", "true"); // Mark as POS payment
+        params.set("payment_system", "pos"); // Mark as POS system
         
         navigate(`/send?${params.toString()}`, { replace: true });
         handlingDecodeRef.current = false;
         return;
       }
       
-      // Handle regular payment QR codes (not POS) - redirect to send payment
-      if (payload.uid && !payload.posPayment && !payload.publicPayment && !payload.checkoutSession) {
-        console.log("Handling regular payment QR code");
-        setScanHint("Payment QR detected. Opening send payment page...");
-        playScanBeep();
-        await stopScanner();
-        
-        const params = new URLSearchParams();
-        params.set("to", payload.uid);
-        if (payload.username) {
-          params.set("username", payload.username);
-        }
-        params.set("note", payload.note || "");
-        params.set("amount", payload.amount || "");
-        params.set("currency", payload.currency || "USD");
-        
-        navigate(`/send?${params.toString()}`, { replace: true });
-        handlingDecodeRef.current = false;
-        return;
-      }
-      
-      // Handle checkout link QR codes - redirect to public payment (NOT POS)
+      // Handle checkout link QR codes - use separate checkout system
       if (payload.apiKeyType === "checkout" && payload.checkoutSession && !payload.posPayment) {
-        console.log("Handling checkout link QR code");
+        console.log("Handling checkout link QR code - SEPARATE CHECKOUT SYSTEM");
         setScanHint("Checkout link QR detected. Opening payment page...");
         playScanBeep();
         await stopScanner();
@@ -492,7 +472,8 @@ const QrScannerPage = () => {
         if (payload.checkoutSession) {
           params.set("session", payload.checkoutSession);
         }
-        params.set("api_key_type", "checkout");
+        params.set("system", "checkout"); // Use checkout system
+        params.set("payment_system", "checkout"); // Mark as checkout system
         // Add customer details if present
         const customerName = decodedText.match(/customer_name=([^&]+)/)?.[1];
         const customerEmail = decodedText.match(/customer_email=([^&]+)/)?.[1];
