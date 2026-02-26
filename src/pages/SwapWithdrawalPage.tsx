@@ -9,6 +9,7 @@ import BrandLogo from "@/components/BrandLogo";
 import { playGoogleWalletSuccessSound } from "@/lib/soundEffects";
 import TransactionPinModal from "@/components/TransactionPinModal";
 import { loadAppSecuritySettings } from "@/lib/appSecurity";
+import PinReminderModal from "@/components/PinReminderModal";
 
 type SwapWithdrawalRow = {
   id: string;
@@ -63,7 +64,8 @@ const SwapWithdrawalPage = () => {
         } 
       });
     } else {
-      await action();
+      setPendingAction(() => action);
+      setShowPinReminder(true);
     }
   };
 
@@ -114,6 +116,8 @@ const SwapWithdrawalPage = () => {
   const [agreementChecked, setAgreementChecked] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showPinModal, setShowPinModal] = useState(false);
+  const [showPinReminder, setShowPinReminder] = useState(false);
+  const [pendingAction, setPendingAction] = useState<(() => Promise<void>) | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [history, setHistory] = useState<SwapWithdrawalRow[]>([]);
   const [piPriceUsd, setPiPriceUsd] = useState<number | null>(null);
@@ -587,6 +591,19 @@ const SwapWithdrawalPage = () => {
           </div>
         </DialogContent>
       </Dialog>
+      <PinReminderModal
+        open={showPinReminder}
+        onOpenChange={(open) => {
+          setShowPinReminder(open);
+          if (!open) setPendingAction(null);
+        }}
+        onProceed={async () => {
+          if (pendingAction) {
+            await pendingAction();
+            setPendingAction(null);
+          }
+        }}
+      />
     </div>
   );
 };

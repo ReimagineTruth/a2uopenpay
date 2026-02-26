@@ -14,6 +14,7 @@ import NumberPad from "@/components/NumberPad";
 import TransactionPinModal from "@/components/TransactionPinModal";
 import { loadAppSecuritySettings } from "@/lib/appSecurity";
 import SplashScreen from "@/components/SplashScreen";
+import PinReminderModal from "@/components/PinReminderModal";
 
 interface UserProfile {
   id: string;
@@ -108,6 +109,7 @@ const SendMoney = () => {
   const [myFullName, setMyFullName] = useState("");
   const [accountLookupResult, setAccountLookupResult] = useState<UserProfile | null>(null);
   const [accountLookupLoading, setAccountLookupLoading] = useState(false);
+  const [showPinReminder, setShowPinReminder] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -686,8 +688,8 @@ const SendMoney = () => {
                       } 
                     });
                   } else {
-                    setShowSendConfirm(false);
-                    await handleSend();
+                  setShowSendConfirm(false);
+                  setShowPinReminder(true);
                   }
                 }}
               >
@@ -703,6 +705,13 @@ const SendMoney = () => {
             </div>
           </DialogContent>
         </Dialog>
+        <PinReminderModal
+          open={showPinReminder}
+          onOpenChange={setShowPinReminder}
+          onProceed={async () => {
+            await handleSend();
+          }}
+        />
       </div>
     );
   }

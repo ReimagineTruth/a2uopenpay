@@ -15,6 +15,7 @@ import { Html5Qrcode } from "html5-qrcode";
 import { Info } from "lucide-react";
 import TransactionReceipt, { type ReceiptData } from "@/components/TransactionReceipt";
 import SplashScreen from "@/components/SplashScreen";
+import PinReminderModal from "@/components/PinReminderModal";
 import { loadAppSecuritySettings } from "@/lib/appSecurity";
 
 interface Profile {
@@ -63,6 +64,7 @@ const RequestMoney = () => {
     | { type: "reject"; request: PaymentRequest; requester: Profile | null }
     | null
   >(null);
+  const [showPinReminder, setShowPinReminder] = useState(false);
 
   const profileMap = useMemo(() => {
     const map = new Map<string, Profile>();
@@ -505,15 +507,14 @@ const RequestMoney = () => {
         },
       });
     } else {
-      if (confirmAction.type === "create") {
-        await submitCreate();
-      } else if (confirmAction.type === "pay") {
-        await submitPay(confirmAction.request, confirmAction.requester);
+      if (confirmAction.type === "create" || confirmAction.type === "pay") {
+        setConfirmModalOpen(false);
+        setShowPinReminder(true);
       } else {
         await submitReject(confirmAction.request);
+        setConfirmModalOpen(false);
+        setConfirmAction(null);
       }
-      setConfirmModalOpen(false);
-      setConfirmAction(null);
     }
   };
 
@@ -901,6 +902,22 @@ const RequestMoney = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      <PinReminderModal
+        open={showPinReminder}
+        onOpenChange={(open) => {
+          setShowPinReminder(open);
+          if (!open) setConfirmAction(null);
+        }}
+        onProceed={async () => {
+          if (!confirmAction) return;
+          if (confirmAction.type === "create") {
+            await submitCreate();
+          } else if (confirmAction.type === "pay") {
+            await submitPay(confirmAction.request, confirmAction.requester);
+          }
+        }}
+      />
 
       <TransactionReceipt
         open={receiptOpen}

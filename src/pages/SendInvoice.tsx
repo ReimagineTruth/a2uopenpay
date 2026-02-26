@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import TransactionReceipt, { type ReceiptData } from "@/components/TransactionReceipt";
 import SplashScreen from "@/components/SplashScreen";
 import { loadAppSecuritySettings } from "@/lib/appSecurity";
+import PinReminderModal from "@/components/PinReminderModal";
 
 interface Profile {
   id: string;
@@ -60,6 +61,7 @@ const SendInvoice = () => {
     | null
   >(null);
   const [pageLoading, setPageLoading] = useState(true);
+  const [showPinReminder, setShowPinReminder] = useState(false);
 
   const profileMap = useMemo(() => {
     const map = new Map<string, Profile>();
@@ -339,15 +341,14 @@ const SendInvoice = () => {
         },
       });
     } else {
-      if (confirmAction.type === "create") {
-        await submitCreate();
-      } else if (confirmAction.type === "pay") {
-        await submitPay(confirmAction.invoice, confirmAction.sender);
+      if (confirmAction.type === "create" || confirmAction.type === "pay") {
+        setConfirmModalOpen(false);
+        setShowPinReminder(true);
       } else {
         await submitReject(confirmAction.invoice);
+        setConfirmModalOpen(false);
+        setConfirmAction(null);
       }
-      setConfirmModalOpen(false);
-      setConfirmAction(null);
     }
   };
 
@@ -697,6 +698,22 @@ const SendInvoice = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      <PinReminderModal
+        open={showPinReminder}
+        onOpenChange={(open) => {
+          setShowPinReminder(open);
+          if (!open) setConfirmAction(null);
+        }}
+        onProceed={async () => {
+          if (!confirmAction) return;
+          if (confirmAction.type === "create") {
+            await submitCreate();
+          } else if (confirmAction.type === "pay") {
+            await submitPay(confirmAction.invoice, confirmAction.sender);
+          }
+        }}
+      />
 
       <TransactionReceipt
         open={receiptOpen}
