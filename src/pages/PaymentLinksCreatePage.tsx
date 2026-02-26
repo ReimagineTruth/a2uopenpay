@@ -145,7 +145,7 @@ const PaymentLinksCreatePage = () => {
           .order("created_at", { ascending: false }),
       ]);
 
-      const { count: unreadCount } = await supabase
+      const { count: unreadCount } = await (supabase as any)
         .from("app_notifications")
         .select("id", { count: "exact", head: true })
         .eq("user_id", user.id)

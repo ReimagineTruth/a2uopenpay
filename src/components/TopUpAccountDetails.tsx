@@ -127,7 +127,7 @@ const TopUpAccountDetails = ({
         setHistory([]);
         return;
       }
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("user_topup_requests")
         .select("id, amount, provider, status, admin_note, created_at")
         .order("created_at", { ascending: false })
@@ -225,14 +225,14 @@ const TopUpAccountDetails = ({
       if (uploadError) {
         throw new Error(uploadError.message || "Upload failed");
       }
-      const { data: publicData } = supabase.storage.from("topup-proof").getPublicUrl(filePath);
+      const { data: publicData } = (supabase as any).storage.from("topup-proof").getPublicUrl(filePath);
       const proofUrl = publicData?.publicUrl || "";
       if (!proofUrl) {
         throw new Error("Failed to get proof URL");
       }
       setUploading(false);
 
-      const { data, error } = await supabase.rpc("submit_topup_request", {
+      const { data, error } = await (supabase as any).rpc("submit_topup_request", {
         p_amount: Number(safeAmount.toFixed(2)),
         p_provider: providerName,
         p_openpay_account_name: openpayName.trim(),

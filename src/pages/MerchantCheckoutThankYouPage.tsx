@@ -8,6 +8,8 @@ import TransactionReceipt, { type ReceiptData } from "@/components/TransactionRe
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { supabase } from "@/integrations/supabase/client";
 
+const db = supabase as any;
+
 type CheckoutSessionPublic = {
   session_id: string;
   currency: string;
@@ -46,7 +48,7 @@ const MerchantCheckoutThankYouPage = () => {
     const load = async () => {
       if (!sessionToken) return;
       setLoading(true);
-      const { data } = await supabase.rpc("get_public_merchant_checkout_session", { p_session_token: sessionToken });
+      const { data } = await db.rpc("get_public_merchant_checkout_session", { p_session_token: sessionToken });
       const row = Array.isArray(data) ? data[0] : data;
       if (row) {
         setSessionData({
@@ -68,7 +70,7 @@ const MerchantCheckoutThankYouPage = () => {
       if (transactionId) return;
       const lookupSessionId = sessionData?.session_id;
       if (!lookupSessionId) return;
-      const { data } = await supabase
+      const { data } = await db
         .from("merchant_payments")
         .select("transaction_id")
         .eq("session_id", lookupSessionId)
