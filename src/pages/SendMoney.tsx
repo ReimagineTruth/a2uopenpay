@@ -1,15 +1,18 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Search, Info, ScanLine, Bookmark, BookmarkCheck, Loader2 } from "lucide-react";
+import { ArrowLeft, Search, Info, ScanLine, Bookmark, BookmarkCheck, Loader2, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { getFunctionErrorMessage } from "@/lib/supabaseFunctionError";
 import CurrencySelector from "@/components/CurrencySelector";
 import TransactionReceipt, { type ReceiptData } from "@/components/TransactionReceipt";
+import NumberPad from "@/components/NumberPad";
+import TransactionPinModal from "@/components/TransactionPinModal";
+import { loadAppSecuritySettings } from "@/lib/appSecurity";
 
 interface UserProfile {
   id: string;
@@ -94,8 +97,10 @@ const SendMoney = () => {
   const [note, setNote] = useState("");
   const [isPosCheckoutSession, setIsPosCheckoutSession] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isInitialLoadDone, setIsInitialLoadDone] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [showSendConfirm, setShowSendConfirm] = useState(false);
+  const [showPinModal, setShowPinModal] = useState(false);
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
   const [myAvatarUrl, setMyAvatarUrl] = useState<string | null>(null);
@@ -103,6 +108,7 @@ const SendMoney = () => {
   const [accountLookupResult, setAccountLookupResult] = useState<UserProfile | null>(null);
   const [accountLookupLoading, setAccountLookupLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const { currencies, currency, setCurrency, format: formatCurrency } = useCurrency();
   const checkoutSessionToken = searchParams.get("checkout_session") || "";
@@ -152,6 +158,33 @@ const SendMoney = () => {
       }
     };
   }, []);
+
+  useEffect(() => {
+    const checkPinVerification = async () => {
+      // Wait until initial balance and data are loaded before processing PIN result
+      if (!isInitialLoadDone) return;
+
+      const state = location.state as any;
+      if (state?.pinVerified && state?.actionData) {
+        // Restore state from before PIN redirect
+        const data = state.actionData;
+        
+        // Execute the send action IMMEDIATELY with the data from PIN state
+        // This is the most reliable way as it avoids waiting for React state updates
+        void handleSend(data.selectedUser, data.amount, data.note);
+
+        // Also update local state so UI is consistent if needed
+        if (data.selectedUser) setSelectedUser(data.selectedUser);
+        if (data.amount) setAmount(data.amount);
+        if (data.note) setNote(data.note);
+        if (data.step) setStep(data.step);
+        
+        // Clear location state immediately to prevent re-execution
+        navigate(location.pathname + location.search, { replace: true, state: {} });
+      }
+    };
+    checkPinVerification();
+  }, [location.state, navigate, location.pathname, location.search, isInitialLoadDone]);
 
   useEffect(() => {
     const load = async () => {
@@ -265,6 +298,7 @@ const SendMoney = () => {
           }
         }
       }
+      setIsInitialLoadDone(true);
     };
     load();
   }, [checkoutSessionToken, currencies, navigate, searchParams, setCurrency]);
@@ -353,9 +387,27 @@ const SendMoney = () => {
   const handleSelectUser = (user: UserProfile) => { setSelectedUser(user); setShowConfirm(true); };
   const handleConfirmUser = () => { setShowConfirm(false); setStep("amount"); };
 
-  const handleSend = async () => {
-    const parsedAmount = parseFloat(amount);
-    if (!selectedUser || !amount || parsedAmount <= 0) { toast.error("Enter a valid amount"); return; }
+  const handleNumberPress = (val: string) => {
+    setAmount((prev) => {
+      if (val === "." && prev.includes(".")) return prev;
+      if (prev.includes(".") && prev.split(".")[1].length >= 2) return prev;
+      if (prev === "" && val === ".") return "0.";
+      if (prev === "0" && val !== ".") return val;
+      return prev + val;
+    });
+  };
+
+  const handleBackspace = () => {
+    setAmount((prev) => (prev.length > 0 ? prev.slice(0, -1) : ""));
+  };
+
+  const handleSend = async (overrideUser?: UserProfile, overrideAmount?: string, overrideNote?: string) => {
+    const activeUser = overrideUser || selectedUser;
+    const activeAmount = overrideAmount || amount;
+    const activeNote = overrideNote !== undefined ? overrideNote : note;
+
+    const parsedAmount = parseFloat(activeAmount);
+    if (!activeUser || !activeAmount || parsedAmount <= 0) { toast.error("Enter a valid amount"); return; }
     const usdAmount = parsedAmount / currency.rate;
     if (usdAmount > balance) { toast.error("Amount exceeds your available balance"); return; }
     setLoading(true);
@@ -363,7 +415,7 @@ const SendMoney = () => {
     if (checkoutSessionToken) {
       const { data: checkoutTxId, error: checkoutError } = await (supabase as any).rpc("pay_merchant_checkout_with_wallet", {
         p_session_token: checkoutSessionToken,
-        p_note: note || "Completed via OpenPay wallet /send flow",
+        p_note: activeNote || "Completed via OpenPay wallet /send flow",
         p_customer_name: checkoutCustomerName || null,
         p_customer_email: checkoutCustomerEmail || null,
         p_customer_phone: checkoutCustomerPhone || null,
@@ -377,7 +429,7 @@ const SendMoney = () => {
       }
 
       const txId = String(checkoutTxId || "");
-      const isPosRedirect = isPosCheckoutSession || note.toLowerCase().includes("pos");
+      const isPosRedirect = isPosCheckoutSession || activeNote.toLowerCase().includes("pos");
       const nextPath = isPosRedirect ? "/pos-thank-you" : "/merchant-checkout/thank-you";
       navigate(`${nextPath}?session=${encodeURIComponent(checkoutSessionToken)}&tx=${encodeURIComponent(txId)}`, { replace: true });
       setLoading(false);
@@ -386,9 +438,9 @@ const SendMoney = () => {
 
     const transferViaSecureRpcFallback = async () => {
       const { data: txId, error: rpcError } = await supabase.rpc("transfer_funds_authenticated", {
-        p_receiver_id: selectedUser.id,
+        p_receiver_id: activeUser.id,
         p_amount: usdAmount,
-        p_note: note || "",
+        p_note: activeNote || "",
       });
       if (rpcError) {
         const rpcMessage =
@@ -404,7 +456,7 @@ const SendMoney = () => {
     let usedFallback = false;
 
     const { data, error } = await supabase.functions.invoke("send-money", {
-      body: { receiver_id: selectedUser.id, amount: usdAmount, note },
+      body: { receiver_id: activeUser.id, amount: usdAmount, note: activeNote },
     });
 
     if (error) {
@@ -433,17 +485,17 @@ const SendMoney = () => {
       ledgerTransactionId: txId,
       type: "send",
       amount: usdAmount,
-      otherPartyName: selectedUser.full_name,
-      otherPartyUsername: selectedUser.username || undefined,
-      note: note || undefined,
+      otherPartyName: activeUser.full_name,
+      otherPartyUsername: activeUser.username || undefined,
+      note: activeNote || undefined,
       date: new Date(),
     });
     setReceiptOpen(true);
     playSendSuccessSound();
     if (usedFallback) {
-      toast.success(`${currency.symbol}${parseFloat(amount).toFixed(2)} sent to ${selectedUser.full_name}! (fallback route)`);
+      toast.success(`${currency.symbol}${parseFloat(activeAmount).toFixed(2)} sent to ${activeUser.full_name}! (fallback route)`);
     } else {
-      toast.success(`${currency.symbol}${parseFloat(amount).toFixed(2)} sent to ${selectedUser.full_name}!`);
+      toast.success(`${currency.symbol}${parseFloat(activeAmount).toFixed(2)} sent to ${activeUser.full_name}!`);
     }
   };
 
@@ -475,74 +527,89 @@ const SendMoney = () => {
 
   if (step === "amount") {
     return (
-      <div className="min-h-screen bg-background px-4 pt-4">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <button onClick={() => setStep("select")}><ArrowLeft className="w-6 h-6 text-foreground" /></button>
-            <h1 className="text-lg font-semibold text-paypal-dark">Express Send</h1>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => navigate("/scan-qr?returnTo=/send")}
-              className="paypal-surface flex h-10 w-10 items-center justify-center rounded-full"
-              aria-label="Scan QR code"
-            >
-              <ScanLine className="h-4 w-4 text-foreground" />
+      <div className="min-h-screen bg-paypal-blue flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 pt-6 text-white">
+          <div className="flex items-center gap-5">
+            <button onClick={() => setStep("select")} className="active:opacity-60">
+              <ArrowLeft className="h-7 w-7" />
             </button>
-            <CurrencySelector />
+            <button onClick={() => navigate("/scan-qr?returnTo=/send")} className="active:opacity-60">
+              <ScanLine className="h-7 w-7" />
+            </button>
+            <button onClick={() => navigate("/send-invoice")} className="active:opacity-60" title="Request Invoice">
+              <FileText className="h-7 w-7" />
+            </button>
+          </div>
+          
+          <div className="flex items-center gap-1.5 rounded-full bg-black/10 px-4 py-1.5 active:bg-black/20">
+            <span className="text-sm font-bold uppercase tracking-wide">{currency.code}</span>
+            <CurrencySelector 
+              triggerClassName="p-0 h-auto bg-transparent border-none text-white shadow-none hover:bg-transparent"
+              showIcon={false}
+            />
+          </div>
+
+          {myAvatarUrl ? (
+            <img src={myAvatarUrl} alt="Profile" className="h-9 w-9 rounded-full border border-white/20 object-cover" />
+          ) : (
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20">
+              <span className="text-xs font-bold">{getInitials(myFullName || "User")}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Amount Display */}
+        <div className="flex flex-1 flex-col items-center justify-center text-white">
+          <div className="mb-2 flex items-center text-8xl font-medium tracking-tight">
+            <span>{currency.symbol}</span>
+            <span>{amount || "0"}</span>
+          </div>
+          
+          {selectedUser && (
+            <div className="flex flex-col items-center gap-2">
+              <div className="flex items-center gap-2 rounded-full bg-black/5 px-3 py-1.5 text-sm font-medium">
+                <span>Sending to {selectedUser.full_name}</span>
+              </div>
+              <p className="text-xs font-medium text-white/80">Available: {formatCurrency(balance)}</p>
+            </div>
+          )}
+
+          <div className="mt-8 w-full max-w-[240px]">
+            <input
+              type="text"
+              placeholder="Add a note"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              className="w-full bg-transparent text-center text-lg text-white placeholder:text-white/50 focus:outline-none"
+            />
           </div>
         </div>
 
-        {selectedUser && (
-          <div className="mt-6 flex items-center gap-3 rounded-2xl bg-secondary/80 px-3 py-2.5">
-            {selectedUser.avatar_url ? (
-              <img
-                src={selectedUser.avatar_url}
-                alt={selectedUser.full_name}
-                className="h-12 w-12 rounded-full border border-border object-cover"
-              />
-            ) : (
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-paypal-dark">
-                <span className="text-sm font-bold text-primary-foreground">{getInitials(selectedUser.full_name)}</span>
-              </div>
-            )}
-            <div>
-              <p className="font-semibold text-foreground">{selectedUser.full_name}</p>
-              {selectedUser.username && <p className="text-sm text-muted-foreground">@{selectedUser.username}</p>}
-            </div>
-          </div>
-        )}
+        {/* Number Pad */}
+        <div className="px-8 pb-8">
+          <NumberPad 
+            onPress={handleNumberPress}
+            onBackspace={handleBackspace}
+            className="mb-8"
+          />
 
-        <div className="paypal-surface mt-8 rounded-3xl p-6">
-          <div className="mb-8 text-center">
-            <p className="text-5xl font-bold text-foreground">{currency.symbol}{amount || "0.00"}</p>
-            <div className="mt-1 flex items-center justify-center gap-2 text-sm text-muted-foreground">
-              {currency.code === "OUSD" ? (
-                <>
-                  <img src={OPENPAY_ICON_URL} alt="Open USD" className="h-4 w-4 rounded-full object-cover" />
-                  <span>OPEN USD</span>
-                </>
-              ) : (
-                <span>{currency.flag} {currency.code}</span>
-              )}
-            </div>
-            <p className="mt-2 text-sm font-medium text-paypal-blue">Available: {formatCurrency(balance)}</p>
+          <div className="flex gap-4">
+            <Button 
+              variant="ghost"
+              className="h-14 flex-1 rounded-full bg-white/10 text-xl font-bold text-white hover:bg-white/20 active:scale-95 transition-all"
+              onClick={() => navigate("/request-payment")}
+            >
+              Request
+            </Button>
+            <Button 
+              className="h-14 flex-1 rounded-full bg-white text-xl font-bold text-paypal-blue hover:bg-white/90 active:scale-95 transition-all shadow-lg"
+              onClick={handleOpenSendConfirm}
+              disabled={loading || !amount || parseFloat(amount) <= 0}
+            >
+              {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : "Pay"}
+            </Button>
           </div>
-          <Input type="number" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)}
-            className="mb-4 h-14 rounded-2xl border-white/70 bg-white text-center text-2xl" min="0.01" step="0.01" />
-          <Input placeholder="Add a note (optional)" value={note} onChange={(e) => setNote(e.target.value)}
-            className="mb-6 h-12 rounded-2xl border-white/70 bg-white" />
-          <Button onClick={handleOpenSendConfirm} disabled={loading || !amount || parseFloat(amount) <= 0}
-            className="h-14 w-full rounded-full bg-paypal-blue text-lg font-semibold text-white hover:bg-[#004dc5]">
-            {loading ? (
-              <span className="inline-flex items-center gap-2">
-                <Loader2 className="h-5 w-5 animate-spin" />
-                Sending...
-              </span>
-            ) : (
-              `Send ${currency.symbol}${amount || "0.00"}`
-            )}
-          </Button>
         </div>
 
         <TransactionReceipt open={receiptOpen} onOpenChange={(open) => {
@@ -601,8 +668,22 @@ const SendMoney = () => {
                 className="h-11 flex-1 rounded-2xl bg-paypal-blue text-white hover:bg-[#004dc5]"
                 disabled={loading}
                 onClick={async () => {
-                  setShowSendConfirm(false);
-                  await handleSend();
+                  const { data: { user } } = await supabase.auth.getUser();
+                  const settings = user ? loadAppSecuritySettings(user.id) : null;
+                  
+                  if (settings?.pinHash) {
+                    setShowSendConfirm(false);
+                    navigate("/confirm-pin", { 
+                      state: { 
+                        returnTo: location.pathname + location.search,
+                        actionData: { selectedUser, amount, note, step: "amount" },
+                        title: "Confirm your OpenPay PIN"
+                      } 
+                    });
+                  } else {
+                    setShowSendConfirm(false);
+                    await handleSend();
+                  }
                 }}
               >
                 {loading ? (
@@ -640,14 +721,22 @@ const SendMoney = () => {
           <Input placeholder="Name, username, email, or account number" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
             className="h-12 rounded-full border border-white/70 bg-white pl-4" autoFocus />
         </div>
-        <button
-          onClick={() => navigate("/scan-qr?returnTo=/send")}
-          className="paypal-surface flex h-12 items-center gap-2 rounded-full px-3"
-          aria-label="Scan QR code"
-        >
-          <ScanLine className="h-5 w-5 text-foreground" />
-          <span className="text-sm font-medium text-foreground">Scan QR</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => navigate("/scan-qr?returnTo=/send")}
+            className="paypal-surface flex h-12 w-12 items-center justify-center rounded-full"
+            aria-label="Scan QR code"
+          >
+            <ScanLine className="h-5 w-5 text-foreground" />
+          </button>
+          <button
+            onClick={() => navigate("/send-invoice")}
+            className="paypal-surface flex h-12 w-12 items-center justify-center rounded-full"
+            aria-label="Send Invoice"
+          >
+            <FileText className="h-5 w-5 text-foreground" />
+          </button>
+        </div>
       </div>
 
       <div className="mt-6">

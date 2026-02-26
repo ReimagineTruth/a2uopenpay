@@ -71,6 +71,7 @@ import OpenPayDesktopPage from "./pages/OpenPayDesktopPage";
 import VirtualCardPage from "./pages/VirtualCardPage";
 import LiveCustomerServicePage from "./pages/LiveCustomerServicePage";
 import SwapWithdrawalPage from "./pages/SwapWithdrawalPage";
+import ConfirmPinPage from "./pages/ConfirmPinPage";
 import NotFound from "./pages/NotFound";
 import { CurrencyProvider } from "./contexts/CurrencyContext";
 import { useRealtimePushNotifications } from "./hooks/useRealtimePushNotifications";
@@ -186,6 +187,7 @@ const AppRoutes = () => {
         <Route path="/live-customer-service" element={<LiveCustomerServicePage />} />
         <Route path="/support" element={<></>} />
         <Route path="/swap-withdrawal" element={<SwapWithdrawalPage />} />
+        <Route path="/confirm-pin" element={<ConfirmPinPage />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
       <AppSecurityGate />
@@ -195,13 +197,13 @@ const AppRoutes = () => {
       {showRouteSplash && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-gradient-to-b from-paypal-blue to-[#072a7a]">
           <div className="text-center">
-            <div className="mx-auto mb-3 flex h-20 w-20 items-center justify-center rounded-3xl bg-white/10 backdrop-blur-sm">
-              <BrandLogo className="h-14 w-14" />
+            <div className="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-3xl bg-white/10 backdrop-blur-sm">
+              <BrandLogo className="h-14 w-14 text-white" />
             </div>
             <p className="text-3xl font-bold tracking-tight text-white">OpenPay</p>
-            <p className="mt-1 text-sm text-white/85">Loading page...</p>
-            <p className="mt-1 text-xs uppercase tracking-wide text-white/70">Powered by Pi Network</p>
-            <div className="mx-auto mt-4 h-8 w-8 animate-spin rounded-full border-2 border-white/35 border-t-white" />
+            <p className="mt-1 text-sm text-white/80">Loading page...</p>
+            <p className="mt-1 text-xs font-medium tracking-normal text-white/65">Powered by Pi Network</p>
+            <div className="mx-auto mt-6 h-8 w-8 rounded-full border-2 border-white/35 border-t-white animate-spin" />
           </div>
         </div>
       )}

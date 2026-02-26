@@ -491,7 +491,7 @@ const QrScannerPage = () => {
   };
 
   return (
-    <div className="fixed inset-0 h-[100dvh] w-screen bg-slate-950 text-white">
+    <div className="fixed inset-0 h-[100dvh] w-screen bg-paypal-blue text-white">
       <div className="relative h-full w-full overflow-hidden">
         <style>{`
           #openpay-full-scanner {
@@ -500,7 +500,7 @@ const QrScannerPage = () => {
             width: 100% !important;
             height: 100% !important;
             overflow: hidden !important;
-            background: #0b1220 !important;
+            background: #063991 !important;
           }
           #openpay-full-scanner > div {
             position: absolute !important;
@@ -514,7 +514,7 @@ const QrScannerPage = () => {
             height: 100% !important;
             object-fit: cover !important;
             transform: translateZ(0);
-            background: #0b1220 !important;
+            background: #063991 !important;
           }
           #openpay-full-scanner__scan_region {
             position: absolute !important;
@@ -571,7 +571,7 @@ const QrScannerPage = () => {
             </div>
           </div>
 
-          <div className="mt-4 grid grid-cols-3 gap-2 rounded-2xl border border-white/20 bg-slate-900/80 p-2">
+          <div className="mt-4 grid grid-cols-3 gap-2 rounded-2xl border border-white/20 bg-black/20 p-2">
             <Button
               type="button"
               variant={scanMode === "camera" ? "default" : "outline"}
@@ -610,11 +610,11 @@ const QrScannerPage = () => {
           {scanMode === "camera" && (
             <>
               <div className="mt-3">
-                <div className="relative h-[40dvh] min-h-[240px] overflow-hidden rounded-3xl border border-white/40 bg-slate-900/90">
+                <div className="relative h-[40dvh] min-h-[240px] overflow-hidden rounded-3xl border border-white/40 bg-black/30">
                   <div id="openpay-full-scanner" className="absolute inset-0" />
                   <div
                     className={`pointer-events-none absolute inset-0 ${
-                      scanning ? "bg-slate-950/15" : "bg-slate-950/45"
+                      scanning ? "bg-black/10" : "bg-black/30"
                     } transition`}
                   />
                   <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">

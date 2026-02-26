@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { ArrowLeft, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import BrandLogo from "@/components/BrandLogo";
 import { playGoogleWalletSuccessSound } from "@/lib/soundEffects";
+import TransactionPinModal from "@/components/TransactionPinModal";
+import { loadAppSecuritySettings } from "@/lib/appSecurity";
 
 type SwapWithdrawalRow = {
   id: string;
@@ -34,8 +36,73 @@ const isSchemaCacheMissingError = (message: string | undefined, target: string) 
 
 const SwapWithdrawalPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
+
+  const handleProtectedAction = async (action: () => Promise<void>, actionName: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    const settings = user ? loadAppSecuritySettings(user.id) : null;
+    
+    if (settings?.pinHash) {
+      // Pass all necessary state for the action
+      const actionData = {
+        actionName,
+        amount,
+        openpayName,
+        openpayUsername,
+        openpayAccountNumber,
+        piWalletAddress,
+        agreementAccepted: true // If we got here, they already accepted or we are forcing it
+      };
+
+      navigate("/confirm-pin", { 
+        state: { 
+          returnTo: location.pathname + location.search,
+          actionData,
+          title: "Confirm your OpenPay PIN"
+        } 
+      });
+    } else {
+      await action();
+    }
+  };
+
+  useEffect(() => {
+    const checkPinVerification = async () => {
+      // Wait until initial balance and data are loaded before processing PIN result
+      if (!isInitialLoadDone) return;
+
+      const state = location.state as any;
+      if (state?.pinVerified && state?.actionData?.actionName === "submitWithdrawalRequest") {
+        const data = state.actionData;
+        
+        // Execute action IMMEDIATELY with the data from PIN state
+        // This avoids race conditions with React state updates
+        void submitWithdrawalRequest({
+          amount: data.amount,
+          openpayName: data.openpayName,
+          openpayUsername: data.openpayUsername,
+          openpayAccountNumber: data.openpayAccountNumber,
+          piWalletAddress: data.piWalletAddress,
+        });
+
+        // Also update local state so UI is consistent
+        if (data.amount) setAmount(data.amount);
+        if (data.openpayName) setOpenpayName(data.openpayName);
+        if (data.openpayUsername) setOpenpayUsername(data.openpayUsername);
+        if (data.openpayAccountNumber) setOpenpayAccountNumber(data.openpayAccountNumber);
+        if (data.piWalletAddress) setPiWalletAddress(data.piWalletAddress);
+        if (data.agreementAccepted) setAgreementAccepted(true);
+
+        // Clear location state immediately to prevent re-execution
+        navigate(location.pathname + location.search, { replace: true, state: {} });
+      }
+    };
+    checkPinVerification();
+  }, [location.state, navigate, location.pathname, location.search, isInitialLoadDone]);
+
   const [loading, setLoading] = useState(false);
+  const [isInitialLoadDone, setIsInitialLoadDone] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [amount, setAmount] = useState("");
   const [openpayName, setOpenpayName] = useState("");
@@ -46,6 +113,7 @@ const SwapWithdrawalPage = () => {
   const [showAgreementModal, setShowAgreementModal] = useState(false);
   const [agreementChecked, setAgreementChecked] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [showPinModal, setShowPinModal] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [history, setHistory] = useState<SwapWithdrawalRow[]>([]);
   const [piPriceUsd, setPiPriceUsd] = useState<number | null>(null);
@@ -53,7 +121,7 @@ const SwapWithdrawalPage = () => {
 
   const parsedAmount = Number(amount);
   const safeAmount = Number.isFinite(parsedAmount) && parsedAmount > 0 ? parsedAmount : 0;
-  const meetsMinimum = safeAmount >= 1;
+  const meetsMinimum = safeAmount >= 10;
   const feeAmount = safeAmount > 0 ? Number((safeAmount * WITHDRAWAL_FEE_RATE).toFixed(2)) : 0;
   const payoutAmount = safeAmount > 0 ? Number((safeAmount - feeAmount).toFixed(2)) : 0;
 
@@ -146,9 +214,11 @@ const SwapWithdrawalPage = () => {
   };
 
   useEffect(() => {
-    void loadIdentity();
-    void loadHistory();
-    void loadPiPrice();
+    const boot = async () => {
+      await Promise.all([loadIdentity(), loadHistory(), loadPiPrice()]);
+      setIsInitialLoadDone(true);
+    };
+    void boot();
     const timer = window.setInterval(() => {
       void loadPiPrice();
     }, 60 * 1000);
@@ -173,7 +243,7 @@ const SwapWithdrawalPage = () => {
       return;
     }
     if (!meetsMinimum) {
-      toast.error("Minimum withdrawal is 1 OPEN USD");
+      toast.error("Minimum withdrawal is 10 OPEN USD");
       return;
     }
     if (!openpayName.trim() || !normalizedUsername || !openpayAccountNumber.trim() || !piWalletAddress.trim()) {
@@ -189,16 +259,28 @@ const SwapWithdrawalPage = () => {
     setShowConfirmModal(true);
   };
 
-  const submitWithdrawalRequest = async () => {
+  const submitWithdrawalRequest = async (overrideData?: {
+    amount: string;
+    openpayName: string;
+    openpayUsername: string;
+    openpayAccountNumber: string;
+    piWalletAddress: string;
+  }) => {
+    const activeAmount = overrideData ? Number(overrideData.amount) : safeAmount;
+    const activeOpenpayName = overrideData ? overrideData.openpayName : openpayName;
+    const activeOpenpayUsername = overrideData ? overrideData.openpayUsername : normalizedUsername;
+    const activeOpenpayAccountNumber = overrideData ? overrideData.openpayAccountNumber : openpayAccountNumber;
+    const activePiWalletAddress = overrideData ? overrideData.piWalletAddress : piWalletAddress;
+
     setSubmitted(false);
     setLoading(true);
     try {
       const { data, error } = await supabase.rpc("submit_swap_withdrawal", {
-        p_amount: safeAmount,
-        p_openpay_account_name: openpayName.trim(),
-        p_openpay_account_username: normalizedUsername,
-        p_openpay_account_number: openpayAccountNumber.trim().toUpperCase(),
-        p_pi_wallet_address: piWalletAddress.trim(),
+        p_amount: activeAmount,
+        p_openpay_account_name: activeOpenpayName.trim(),
+        p_openpay_account_username: activeOpenpayUsername,
+        p_openpay_account_number: activeOpenpayAccountNumber.trim().toUpperCase(),
+        p_pi_wallet_address: activePiWalletAddress.trim(),
       });
       if (error) throw new Error(error.message || "Withdrawal submission failed");
       if (data) {
@@ -292,12 +374,12 @@ const SwapWithdrawalPage = () => {
 
           <div className="mt-4 grid gap-3">
             <label className="space-y-1 text-xs text-muted-foreground">
-              <span>OpenUSD amount (min 1)</span>
+              <span>OpenUSD amount (min 10)</span>
               <input
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 type="number"
-                min="1"
+                min="10"
                 step="0.01"
                 placeholder="Enter amount"
                 readOnly
@@ -395,8 +477,8 @@ const SwapWithdrawalPage = () => {
             <p className="text-sm text-muted-foreground">No withdrawal requests yet.</p>
           ) : (
             <div className="divide-y divide-border/70 rounded-2xl border border-border/70">
-              {history.map((row) => (
-                <div key={row.id} className="px-3 py-3">
+              {history.map((row, index) => (
+                <div key={row.id || index} className="px-3 py-3">
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-sm font-semibold text-foreground">{row.amount.toFixed(2)} OPEN USD</p>
                     <span className="rounded-full border border-border/70 px-2 py-0.5 text-xs font-semibold text-muted-foreground">
@@ -486,10 +568,9 @@ const SwapWithdrawalPage = () => {
           <div className="mt-3 flex gap-2">
             <Button
               className="flex-1 h-11 rounded-2xl bg-paypal-blue text-white hover:bg-[#004dc5]"
-              onClick={async () => {
-                playGoogleWalletSuccessSound();
+              onClick={() => {
                 setShowConfirmModal(false);
-                await submitWithdrawalRequest();
+                handleProtectedAction(submitWithdrawalRequest, "submitWithdrawalRequest");
               }}
               disabled={loading}
             >

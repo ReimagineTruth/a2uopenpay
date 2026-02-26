@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import BottomNav from "@/components/BottomNav";
 import { Bell, Check, ChevronDown, CircleDollarSign, Copy, CreditCard, Eye, EyeOff, FileText, HandCoins, PiggyBank, QrCode, RefreshCw, Settings, Store, Users } from "lucide-react";
 import { format } from "date-fns";
@@ -8,6 +8,8 @@ import CurrencySelector from "@/components/CurrencySelector";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import BrandLogo from "@/components/BrandLogo";
 import TransactionReceipt, { type ReceiptData } from "@/components/TransactionReceipt";
+import TransactionPinModal from "@/components/TransactionPinModal";
+import { loadAppSecuritySettings } from "@/lib/appSecurity";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -203,6 +205,7 @@ const toPreviewText = (value: string, max = 68) => {
 const Dashboard = () => {
   const remittanceUiEnabled = isRemittanceUiEnabled();
   const [balance, setBalance] = useState<number>(0);
+  const [isInitialLoadDone, setIsInitialLoadDone] = useState(false);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [userName, setUserName] = useState("");
   const [username, setUsername] = useState<string | null>(null);
@@ -215,6 +218,8 @@ const Dashboard = () => {
   const [agreementChecked, setAgreementChecked] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showReceiveOptions, setShowReceiveOptions] = useState(false);
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [pinAction, setPinAction] = useState<(() => Promise<void>) | null>(null);
   const [showBuyOptions, setShowBuyOptions] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [remittanceFeeIncome, setRemittanceFeeIncome] = useState(0);
@@ -270,6 +275,7 @@ const Dashboard = () => {
   const [showOnrampPicker, setShowOnrampPicker] = useState(false);
   const [showPaymentMethodPicker, setShowPaymentMethodPicker] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
   const { format: formatCurrency, currency } = useCurrency();
   const currencyLabel = currency.code === "OUSD" ? "OPEN USD" : currency.code;
   const piCurrencyLabel = currency.code === "OUSD" ? "OPEN USD" : `PI ${currency.code}`;
@@ -297,6 +303,68 @@ const Dashboard = () => {
       description: "Open the new OpenPay Guide page to see use cases for restaurants, shops, clothing, and digital services.",
     },
   ];
+
+  const handleProtectedAction = async (action: () => Promise<void>, actionName: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    const settings = user ? loadAppSecuritySettings(user.id) : null;
+    
+    if (settings?.pinHash) {
+      // Pass all necessary state for the action if needed
+      const actionData: any = { actionName };
+      
+      // Add specific data for actions that need it
+      if (actionName === "handleMoveWalletToSavings") actionData.savingsAmount = savingsAmount;
+      if (actionName === "handleMoveSavingsToWallet") actionData.withdrawAmount = withdrawAmount;
+      if (actionName === "handlePayLoan") actionData.loanPaymentAmount = loanPaymentAmount;
+      if (actionName === "handleMoveMerchantToSavings") actionData.merchantSavingsAmount = merchantSavingsAmount;
+      if (actionName === "handleMoveMerchantToWallet") actionData.merchantWithdrawAmount = merchantWithdrawAmount;
+      if (actionName === "handleSwapOpenUsd") actionData.swapSpendAmount = swapSpendAmount;
+
+      navigate("/confirm-pin", { 
+        state: { 
+          returnTo: location.pathname + location.search,
+          actionData,
+          title: "Confirm your OpenPay PIN"
+        } 
+      });
+    } else {
+      await action();
+    }
+  };
+
+  useEffect(() => {
+    const checkPinVerification = async () => {
+      // Wait until initial balance and data are loaded before processing PIN result
+      if (!isInitialLoadDone) return;
+
+      const state = location.state as any;
+      if (state?.pinVerified && state?.actionData?.actionName) {
+        const actionName = state.actionData.actionName;
+        const data = state.actionData;
+        
+        // Execute the correct action IMMEDIATELY based on the name
+        // We pass the data directly to the functions to avoid race conditions with state updates
+        if (actionName === "handleMoveWalletToSavings") void handleMoveWalletToSavings(data.savingsAmount);
+        else if (actionName === "handleMoveSavingsToWallet") void handleMoveSavingsToWallet(data.withdrawAmount);
+        else if (actionName === "handleMoveMerchantToSavings") void handleMoveMerchantToSavings(data.merchantSavingsAmount);
+        else if (actionName === "handleMoveMerchantToWallet") void handleMoveMerchantToWallet(data.merchantWithdrawAmount);
+        else if (actionName === "handlePayLoan") void handlePayLoan(data.loanPaymentAmount);
+        else if (actionName === "handleSwapOpenUsd") void handleSwapOpenUsd(data.swapSpendAmount);
+
+        // Also update local state so UI is consistent
+        if (data.savingsAmount) setSavingsAmount(data.savingsAmount);
+        if (data.withdrawAmount) setWithdrawAmount(data.withdrawAmount);
+        if (data.loanPaymentAmount) setLoanPaymentAmount(data.loanPaymentAmount);
+        if (data.merchantSavingsAmount) setMerchantSavingsAmount(data.merchantSavingsAmount);
+        if (data.merchantWithdrawAmount) setMerchantWithdrawAmount(data.merchantWithdrawAmount);
+        if (data.swapSpendAmount) setSwapSpendAmount(data.swapSpendAmount);
+
+        // Clear location state immediately to prevent re-execution
+        navigate(location.pathname + location.search, { replace: true, state: {} });
+      }
+    };
+    checkPinVerification();
+  }, [location.state, navigate, location.pathname, location.search, isInitialLoadDone]);
 
   const loadSavingsAndLoan = useCallback(async () => {
     try {
@@ -615,6 +683,7 @@ const Dashboard = () => {
       } else if (!hasFinishedOnboarding) {
         setShowOnboarding(true);
       }
+      setIsInitialLoadDone(true);
     } finally {
       setRefreshing(false);
     }
@@ -764,8 +833,8 @@ const Dashboard = () => {
     }
   };
 
-  const handleMoveWalletToSavings = async () => {
-    const amount = Number(savingsAmount);
+  const handleMoveWalletToSavings = async (overrideAmount?: number) => {
+    const amount = overrideAmount || Number(savingsAmount);
     if (!Number.isFinite(amount) || amount <= 0) {
       toast.error("Enter a valid amount");
       return;
@@ -786,8 +855,8 @@ const Dashboard = () => {
     await loadDashboard();
   };
 
-  const handleMoveSavingsToWallet = async () => {
-    const amount = Number(withdrawAmount);
+  const handleMoveSavingsToWallet = async (overrideAmount?: number) => {
+    const amount = overrideAmount || Number(withdrawAmount);
     if (!Number.isFinite(amount) || amount <= 0) {
       toast.error("Enter a valid amount");
       return;
@@ -808,8 +877,8 @@ const Dashboard = () => {
     await loadDashboard();
   };
 
-  const handleMoveMerchantToSavings = async () => {
-    const amount = Number(merchantSavingsAmount);
+  const handleMoveMerchantToSavings = async (overrideAmount?: number) => {
+    const amount = overrideAmount || Number(merchantSavingsAmount);
     if (!Number.isFinite(amount) || amount <= 0) {
       toast.error("Enter a valid amount");
       return;
@@ -832,8 +901,8 @@ const Dashboard = () => {
     await loadDashboard();
   };
 
-  const handleMoveMerchantToWallet = async () => {
-    const amount = Number(merchantWithdrawAmount);
+  const handleMoveMerchantToWallet = async (overrideAmount?: number) => {
+    const amount = overrideAmount || Number(merchantWithdrawAmount);
     if (!Number.isFinite(amount) || amount <= 0) {
       toast.error("Enter a valid amount");
       return;
@@ -902,13 +971,13 @@ const Dashboard = () => {
     await loadDashboard();
   };
 
-  const handlePayLoan = async () => {
+  const handlePayLoan = async (overrideAmount?: number) => {
     if (!loan?.id || loan.status !== "active") {
       toast.error("No active loan");
       return;
     }
-    const payment = loanPaymentAmount ? Number(loanPaymentAmount) : null;
-    if (loanPaymentAmount && (!Number.isFinite(payment) || Number(payment) <= 0)) {
+    const payment = overrideAmount || (loanPaymentAmount ? Number(loanPaymentAmount) : null);
+    if (payment !== null && (!Number.isFinite(payment) || Number(payment) <= 0)) {
       toast.error("Enter a valid payment amount");
       return;
     }
@@ -933,6 +1002,20 @@ const Dashboard = () => {
     setLoanPaymentReference("");
     toast.success("Loan payment completed");
     await loadDashboard();
+  };
+
+  const handleSwapOpenUsd = async (overrideAmount?: number) => {
+    const amount = overrideAmount || Number(swapSpendAmount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast.error("Enter a valid amount");
+      return;
+    }
+    if (amount < 10) {
+      toast.error("Minimum swap is 10 OPEN USD");
+      return;
+    }
+    const amountForSwap = Math.max(0.01, Number(amount.toFixed(2)));
+    navigate(`/swap-withdrawal?amount=${amountForSwap.toFixed(2)}`);
   };
 
   const selectedMerchantBalance = merchantBalances[merchantMode];
@@ -1067,7 +1150,7 @@ const Dashboard = () => {
   const safeSwapSpend = Number.isFinite(parsedSwapSpend) && parsedSwapSpend > 0 ? parsedSwapSpend : 0;
   const swapOpenUsdAmount = safeSwapSpend;
   const swapOpenUsdDisplay = swapOpenUsdAmount > 0 ? swapOpenUsdAmount.toFixed(2) : "0.00";
-  const swapOpenUsdMeetsMinimum = swapOpenUsdAmount >= 1;
+  const swapOpenUsdMeetsMinimum = swapOpenUsdAmount >= 10;
   const handleBuyOpenUsd = () => {
     if (safeBuySpend <= 0) {
       toast.error("Enter a valid amount");
@@ -1109,19 +1192,6 @@ const Dashboard = () => {
   };
 
   const openBuyOptions = () => setShowBuyOptions(true);
-
-  const handleSwapOpenUsd = () => {
-    if (safeSwapSpend <= 0) {
-      toast.error("Enter a valid amount");
-      return;
-    }
-    if (!swapOpenUsdMeetsMinimum) {
-      toast.error("Minimum swap is 1 OPEN USD");
-      return;
-    }
-    const amountForSwap = Math.max(0.01, Number(swapOpenUsdAmount.toFixed(2)));
-    navigate(`/swap-withdrawal?amount=${amountForSwap.toFixed(2)}`);
-  };
 
   const getSwapWithdrawalUrl = () => {
     if (Number.isFinite(safeSwapSpend) && safeSwapSpend > 0) {
@@ -1243,14 +1313,14 @@ const Dashboard = () => {
               <div className="rounded-2xl border border-border/70 p-3">
                 <p className="mb-2 text-sm font-semibold">Move wallet to savings</p>
                 <input value={savingsAmount} onChange={(e) => setSavingsAmount(e.target.value)} type="number" min="0" step="0.01" placeholder={`Amount (${currencyLabel})`} className="mb-2 h-10 w-full rounded-xl border border-border px-3" />
-                <button disabled={movingToSavings} onClick={handleMoveWalletToSavings} className="h-10 w-full rounded-xl bg-paypal-blue text-sm font-semibold text-white">
+                <button disabled={movingToSavings} onClick={() => handleProtectedAction(handleMoveWalletToSavings, "handleMoveWalletToSavings")} className="h-10 w-full rounded-xl bg-paypal-blue text-sm font-semibold text-white">
                   {movingToSavings ? "Moving..." : "Move to Savings"}
                 </button>
               </div>
               <div className="rounded-2xl border border-border/70 p-3">
-                <p className="mb-2 text-sm font-semibold">Move savings to wallet</p>
+                <p className="mb-2 text-sm font-semibold text-foreground">Move savings to wallet</p>
                 <input value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} type="number" min="0" step="0.01" placeholder={`Amount (${currencyLabel})`} className="mb-2 h-10 w-full rounded-xl border border-border px-3" />
-                <button disabled={movingToWallet} onClick={handleMoveSavingsToWallet} className="h-10 w-full rounded-xl border border-paypal-blue/40 bg-white text-sm font-semibold text-paypal-blue">
+                <button disabled={movingToWallet} onClick={() => handleProtectedAction(handleMoveSavingsToWallet, "handleMoveSavingsToWallet")} className="h-10 w-full rounded-xl border border-paypal-blue/40 bg-white text-sm font-semibold text-paypal-blue">
                   {movingToWallet ? "Moving..." : "Move to Wallet"}
                 </button>
               </div>
@@ -1264,11 +1334,11 @@ const Dashboard = () => {
                 <p className="py-3 text-sm text-muted-foreground">No savings activity yet.</p>
               ) : (
                 <div className="divide-y divide-border/70 rounded-xl border border-border/70">
-                  {savingsTransfers.map((entry) => {
+                  {savingsTransfers.map((entry, index) => {
                     const isWalletToSavings = entry.direction === "wallet_to_savings";
                     const directionLabel = isWalletToSavings ? "Move wallet to savings" : "Move savings to wallet";
                     return (
-                      <div key={entry.id} className="flex items-start justify-between gap-3 px-3 py-2.5">
+                      <div key={entry.id || index} className="flex items-start justify-between gap-3 px-3 py-2.5">
                         <div>
                           <p className="text-sm font-medium text-foreground">{directionLabel}</p>
                           <p className="text-xs text-muted-foreground">{entry.created_at ? format(new Date(entry.created_at), "MMM d, yyyy h:mm a") : "-"}</p>
@@ -1520,7 +1590,7 @@ const Dashboard = () => {
                 className="mt-2 h-10 w-full rounded-xl border border-border px-3"
               />
             )}
-            <button disabled={payingLoan || !loan || loan.status !== "active"} onClick={handlePayLoan} className="mt-2 h-10 w-full rounded-xl border border-paypal-blue/40 bg-white text-sm font-semibold text-paypal-blue">
+            <button disabled={payingLoan || !loan || loan.status !== "active"} onClick={() => handleProtectedAction(handlePayLoan, "handlePayLoan")} className="mt-2 h-10 w-full rounded-xl border border-paypal-blue/40 bg-white text-sm font-semibold text-paypal-blue">
               {payingLoan ? "Paying..." : "Pay Loan"}
             </button>
           </div>
@@ -1811,9 +1881,9 @@ const Dashboard = () => {
                     value={swapSpendAmount}
                     onChange={(e) => setSwapSpendAmount(e.target.value)}
                     type="number"
-                    min="1"
+                    min="10"
                     step="0.01"
-                    placeholder="Custom amount (min 1)"
+                    placeholder="Custom amount (min 10)"
                     className="h-10 w-full bg-transparent text-4xl font-semibold text-foreground outline-none"
                   />
                   <span className="inline-flex h-11 items-center rounded-xl bg-white px-3 text-sm font-semibold text-foreground">OPEN USD</span>
@@ -1846,7 +1916,7 @@ const Dashboard = () => {
             </div>
             <button
               type="button"
-              onClick={handleSwapOpenUsd}
+              onClick={() => handleProtectedAction(handleSwapOpenUsd, "handleSwapOpenUsd")}
               disabled={!swapOpenUsdMeetsMinimum}
               className="mt-3 h-11 w-full rounded-xl bg-paypal-blue text-sm font-semibold text-white hover:bg-[#004dc5] disabled:cursor-not-allowed disabled:opacity-60"
             >
@@ -1860,7 +1930,7 @@ const Dashboard = () => {
               Withdraw OpenUSD to PI Wallet
             </button>
             <p className="mt-2 text-xs text-muted-foreground">
-              Minimum swap: 1 OPEN USD. Swap uses OpenPay balance and is processed by admin approval.
+              Minimum swap: 10 OPEN USD. Swap uses OpenPay balance and is processed by admin approval.
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
               Stable mode enabled: 1 OPEN USD = 1 PI.
@@ -1983,7 +2053,7 @@ const Dashboard = () => {
               />
               <button
                 disabled={movingMerchantToSavings}
-                onClick={handleMoveMerchantToSavings}
+                onClick={() => handleProtectedAction(handleMoveMerchantToSavings, "handleMoveMerchantToSavings")}
                 className="h-10 w-full rounded-xl bg-paypal-blue text-sm font-semibold text-white"
               >
                 {movingMerchantToSavings ? "Moving..." : "Move to Savings"}
@@ -2002,7 +2072,7 @@ const Dashboard = () => {
               />
               <button
                 disabled={movingMerchantToWallet}
-                onClick={handleMoveMerchantToWallet}
+                onClick={() => handleProtectedAction(handleMoveMerchantToWallet, "handleMoveMerchantToWallet")}
                 className="h-10 w-full rounded-xl border border-paypal-blue/40 bg-white text-sm font-semibold text-paypal-blue"
               >
                 {movingMerchantToWallet ? "Moving..." : "Move to Wallet"}
@@ -2018,7 +2088,7 @@ const Dashboard = () => {
               <p className="py-3 text-sm text-muted-foreground">No merchant activity yet.</p>
             ) : (
               <div className="divide-y divide-border/70 rounded-xl border border-border/70">
-                {merchantActivity.map((entry) => {
+                {merchantActivity.map((entry, index) => {
                   const isOutflow = ["refund", "transfer_to_wallet", "transfer_to_savings"].includes(entry.activity_type);
                   const label =
                     entry.activity_type === "payment"
@@ -2029,11 +2099,11 @@ const Dashboard = () => {
                           ? "Move merchant balance to wallet"
                           : entry.activity_type === "transfer_to_savings"
                             ? "Move merchant balance to savings"
-                            : entry.activity_type.replaceAll("_", " ");
+                            : entry.activity_type.replace(/_/g, " ");
                   const detailLine = entry.note || `${entry.status} - ${entry.source}`;
                   const previewDetail = detailLine ? toPreviewText(detailLine, 64) : "";
                   return (
-                    <div key={entry.activity_id} className="flex flex-col gap-2 px-3 py-2.5 sm:flex-row sm:items-start sm:justify-between">
+                    <div key={entry.activity_id || index} className="flex flex-col gap-2 px-3 py-2.5 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-3 sm:justify-start">
                           <p className="text-sm font-medium text-foreground">{label}</p>

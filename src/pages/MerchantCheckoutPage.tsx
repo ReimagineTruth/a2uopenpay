@@ -19,12 +19,23 @@ type CheckoutSessionPublic = {
   mode: "sandbox" | "live";
   currency: string;
   amount: number;
+  subtotal_amount?: number;
+  fee_amount?: number;
+  fee_payer?: "customer" | "merchant";
+  merchant_settlement_amount?: number;
   expires_at: string;
   merchant_user_id: string;
   merchant_name: string;
   merchant_username: string;
   merchant_logo_url: string | null;
-  items: Array<{ item_name: string; quantity: number; unit_amount: number; line_total: number }>;
+  items: Array<{
+    item_name: string;
+    quantity: number;
+    unit_amount: number;
+    line_total: number;
+    item_image_url?: string | null;
+    item_images?: string[] | null;
+  }>;
 };
 
 type PaymentLinkSessionCreate = {
@@ -70,12 +81,11 @@ const MerchantCheckoutPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { token: pathToken } = useParams();
-  const { currencies } = useCurrency();
+  const { currencies, currency: dashboardCurrency } = useCurrency();
 
   const rawSessionToken = searchParams.get("session") || searchParams.get("session_token") || "";
   const paymentLinkToken = pathToken || searchParams.get("payment_link") || searchParams.get("link") || "";
 
-  const [viewerId, setViewerId] = useState<string | null>(null);
   const [viewerEmail, setViewerEmail] = useState("");
 
   const [sessionData, setSessionData] = useState<CheckoutSessionPublic | null>(null);
@@ -116,6 +126,12 @@ const MerchantCheckoutPage = () => {
 
   const isSessionCheckout = !!resolvedSessionToken;
 
+  useEffect(() => {
+    if (!currencies.length) return;
+    const preferred = currencies.find((c) => c.code === dashboardCurrency.code)?.code || currencies[0].code;
+    setPayCurrencyCode(preferred);
+  }, [currencies, dashboardCurrency.code]);
+
   const safeLegacyAmount = useMemo(() => (Number.isFinite(legacyAmount) && legacyAmount > 0 ? legacyAmount : 0), [legacyAmount]);
 
   useEffect(() => {
@@ -138,7 +154,6 @@ const MerchantCheckoutPage = () => {
       } = await supabase.auth.getUser();
 
       if (user) {
-        setViewerId(user.id);
         setViewerEmail(user.email || "");
         setCustomerEmail(user.email || "");
       }
@@ -195,11 +210,6 @@ const MerchantCheckoutPage = () => {
   const handlePaySession = async () => {
     if (!sessionData) {
       toast.error("Session data missing");
-      return;
-    }
-    if (!viewerId) {
-      toast.message("Sign in first to complete payment");
-      navigate("/auth");
       return;
     }
     const parseExpiryInput = () => {
@@ -312,11 +322,6 @@ const MerchantCheckoutPage = () => {
       toast.error("Invalid amount");
       return;
     }
-    if (!viewerId) {
-      toast.message("Sign in first to complete payment");
-      navigate("/auth");
-      return;
-    }
 
     setPaying(true);
     try {
@@ -362,6 +367,12 @@ const MerchantCheckoutPage = () => {
   const merchantUsername = isSessionCheckout ? (sessionData?.merchant_username || "") : "";
   const currency = isSessionCheckout ? (sessionData?.currency || "USD") : legacyCurrency;
   const amount = isSessionCheckout ? Number(sessionData?.amount || 0) : safeLegacyAmount;
+  const subtotalAmount = isSessionCheckout ? Number(sessionData?.subtotal_amount ?? amount) : amount;
+  const checkoutFeeAmount = isSessionCheckout ? Number(sessionData?.fee_amount || 0) : 0;
+  const feePayer = isSessionCheckout ? sessionData?.fee_payer || "customer" : "customer";
+  const merchantSettlementAmount = isSessionCheckout
+    ? Number(sessionData?.merchant_settlement_amount ?? (feePayer === "merchant" ? subtotalAmount - checkoutFeeAmount : subtotalAmount))
+    : amount;
   const getPiCodeLabel = (code: string) => (code === "PI" ? "PI" : code === "OUSD" ? "OPEN USD" : `PI ${code}`);
 
   if (isSessionCheckout && loadingSession && !sessionData) {
@@ -375,11 +386,17 @@ const MerchantCheckoutPage = () => {
   const selectedPayCurrencyRate = selectedPayCurrency?.rate ?? 1;
   const amountInUsd = amount / (sessionCurrencyRate || 1);
   const amountInSelectedCurrency = amountInUsd * selectedPayCurrencyRate;
+  const subtotalInSelectedCurrency = (subtotalAmount / (sessionCurrencyRate || 1)) * selectedPayCurrencyRate;
+  const feeInSelectedCurrency = (checkoutFeeAmount / (sessionCurrencyRate || 1)) * selectedPayCurrencyRate;
+  const settlementInSelectedCurrency = (merchantSettlementAmount / (sessionCurrencyRate || 1)) * selectedPayCurrencyRate;
   const convertedAmountLabel = `${selectedPayCurrency?.symbol || ""}${amountInSelectedCurrency.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${getPiCodeLabel(selectedPayCurrency?.code || "PI")}`;
   const showConvertedHint = (selectedPayCurrency?.code || "PI") !== currency;
   const checkoutMemo = isSessionCheckout
     ? `${sessionData?.items?.[0]?.item_name || "OpenPay Payment"} | Session ${resolvedSessionToken}`
     : `${legacyProductName}${legacyProductDescription ? ` | ${legacyProductDescription}` : ""}`;
+  const primaryItemImage = isSessionCheckout
+    ? (sessionData?.items?.[0]?.item_image_url || sessionData?.items?.[0]?.item_images?.[0] || "")
+    : "";
   const isCardReady = Boolean(cardNumber.trim() && cardExpiryMonth.trim() && cardCvc.trim());
   const canPay =
     !paying &&
@@ -438,6 +455,13 @@ const MerchantCheckoutPage = () => {
       <div className="grid min-h-[calc(100vh-56px)] grid-cols-1 lg:grid-cols-[1fr_900px]">
         <div className="border-r border-border bg-[#f3f4f7] px-6 py-10">
           <div className="mx-auto w-full max-w-xl">
+            {primaryItemImage ? (
+              <img
+                src={primaryItemImage}
+                alt={isSessionCheckout ? (sessionData?.items?.[0]?.item_name || "Product image") : "Product image"}
+                className="mb-4 h-48 w-full rounded-2xl border border-border object-cover"
+              />
+            ) : null}
             <div className="mb-3 flex items-center gap-2">
               {sessionData?.merchant_logo_url ? (
                 <img src={sessionData.merchant_logo_url} alt={merchantName} className="h-6 w-6 rounded-full object-cover" />
@@ -643,12 +667,26 @@ const MerchantCheckoutPage = () => {
               <div className="mt-4 border-t border-border pt-4">
                 <div className="flex items-center justify-between text-lg">
                   <span className="text-foreground">Subtotal</span>
-                  <span className="font-semibold text-foreground">{convertedAmountLabel}</span>
+                  <span className="font-semibold text-foreground">
+                    {selectedPayCurrency?.symbol || ""}
+                    {subtotalInSelectedCurrency.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {getPiCodeLabel(selectedPayCurrency?.code || "PI")}
+                  </span>
+                </div>
+                <div className="mt-2 flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">OpenPay fee (2%)</span>
+                  <span className="font-medium text-foreground">
+                    {selectedPayCurrency?.symbol || ""}
+                    {feeInSelectedCurrency.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {getPiCodeLabel(selectedPayCurrency?.code || "PI")} ({feePayer})
+                  </span>
                 </div>
                 <div className="mt-2 flex items-center justify-between rounded-md bg-secondary px-3 py-2 text-lg">
                   <span className="font-semibold text-foreground">Due today</span>
                   <span className="font-bold text-foreground">{convertedAmountLabel}</span>
                 </div>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Merchant receives: {selectedPayCurrency?.symbol || ""}
+                  {settlementInSelectedCurrency.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {getPiCodeLabel(selectedPayCurrency?.code || "PI")}. Fee is routed to @openpay.
+                </p>
                 {showConvertedHint && (
                   <p className="mt-2 text-xs text-muted-foreground">
                     Converted from {amountLabel} to {convertedAmountLabel} using current OpenPay FX rate.
@@ -698,7 +736,6 @@ const MerchantCheckoutPage = () => {
               </div>
             </div>
 
-            {!viewerId && <p className="mt-3 text-sm text-muted-foreground">You need to sign in to pay this checkout link.</p>}
             {!!viewerEmail && <p className="mt-2 text-sm text-muted-foreground">Signed in as {viewerEmail}</p>}
             <p className="mt-8 text-center text-sm text-muted-foreground">Powered by OpenPay</p>
           </div>
@@ -712,6 +749,9 @@ const MerchantCheckoutPage = () => {
             Review this payment before you continue.
           </DialogDescription>
           <div className="mt-3 space-y-2 rounded-xl border border-border p-3 text-sm">
+            {primaryItemImage ? (
+              <img src={primaryItemImage} alt="Product image" className="h-40 w-full rounded-xl border border-border object-cover" />
+            ) : null}
             <p className="flex items-center justify-between gap-2">
               <span className="text-muted-foreground">Merchant</span>
               <span className="text-right font-medium text-foreground">{merchantName}</span>

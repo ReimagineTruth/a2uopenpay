@@ -255,8 +255,8 @@ const MerchantProductCatalogPage = () => {
             <p className="px-6 py-8 text-base text-muted-foreground">No products yet.</p>
           )}
 
-          {products.map((product) => (
-            <div key={product.id} className="border-b border-border/70 px-6 py-5 last:border-b-0">
+          {products.map((product, index) => (
+            <div key={product.id || index} className="border-b border-border/70 px-6 py-5 last:border-b-0">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-3 text-sm">
                   <span className={`rounded px-2 py-1 text-xs font-semibold uppercase tracking-wide ${product.is_active ? "bg-paypal-success/15 text-paypal-success" : "bg-secondary text-muted-foreground"}`}>

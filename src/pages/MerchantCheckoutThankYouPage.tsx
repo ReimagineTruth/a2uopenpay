@@ -14,6 +14,13 @@ type CheckoutSessionPublic = {
   amount: number;
   merchant_name: string;
   merchant_username: string;
+  items?: Array<{
+    item_name: string;
+    delivery_type?: "file" | "link" | null;
+    delivery_file_name?: string | null;
+    delivery_file_data_url?: string | null;
+    delivery_link_url?: string | null;
+  }>;
 };
 
 const MerchantCheckoutThankYouPage = () => {
@@ -48,6 +55,7 @@ const MerchantCheckoutThankYouPage = () => {
           amount: Number(row.amount || 0),
           merchant_name: String(row.merchant_name || "OpenPay Merchant"),
           merchant_username: String(row.merchant_username || ""),
+          items: Array.isArray(row.items) ? row.items : [],
         });
       }
       setLoading(false);
@@ -77,6 +85,8 @@ const MerchantCheckoutThankYouPage = () => {
   const mergedMerchantName = sessionData?.merchant_name || fallbackMerchantName;
   const mergedMerchantUsername = sessionData?.merchant_username || fallbackMerchantUsername;
   const mergedSessionId = sessionData?.session_id || sessionToken || "N/A";
+  const firstItem = sessionData?.items?.[0];
+  const downloadFileName = firstItem?.delivery_file_name || `${firstItem?.item_name || "digital-product"}.bin`;
 
   const amountInUsd = useMemo(() => {
     const rate = currencies.find((c) => c.code === mergedCurrency)?.rate ?? 1;
@@ -129,6 +139,28 @@ const MerchantCheckoutThankYouPage = () => {
             Activity
           </Button>
         </div>
+        {firstItem?.delivery_file_data_url && (
+          <Button
+            className="mt-3 h-10 rounded-lg bg-paypal-blue text-white hover:bg-[#004dc5]"
+            onClick={() => {
+              const link = document.createElement("a");
+              link.href = firstItem.delivery_file_data_url || "";
+              link.download = downloadFileName;
+              link.click();
+            }}
+          >
+            Download digital file
+          </Button>
+        )}
+        {firstItem?.delivery_link_url && (
+          <Button
+            variant="outline"
+            className="mt-3 h-10 rounded-lg"
+            onClick={() => window.open(firstItem.delivery_link_url || "", "_blank", "noopener,noreferrer")}
+          >
+            Open download link
+          </Button>
+        )}
 
         <p className="mt-6 text-center text-sm text-muted-foreground">Powered by OpenPay</p>
       </div>
