@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { playGoogleWalletSuccessSound } from "@/lib/soundEffects";
-import { loadAppSecuritySettings } from "@/lib/appSecurity";
+import { loadAppSecuritySettings, isPinSetupCompleted } from "@/lib/appSecurity";
 import PinReminderModal from "@/components/PinReminderModal";
 
 type TopUpAccountDetailsProps = {
@@ -275,8 +275,9 @@ const TopUpAccountDetails = ({
     setShowConfirmModal(false);
     const { data: { user } } = await supabase.auth.getUser();
     const settings = user ? loadAppSecuritySettings(user.id) : null;
+    const pinSetupCompleted = user ? isPinSetupCompleted(user.id) : false;
     setPinNextAction(() => {
-      if (settings?.pinHash) {
+      if (!settings?.pinHash && !pinSetupCompleted) {
         return async () => {
           navigate("/confirm-pin", {
             state: {

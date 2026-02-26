@@ -9,9 +9,11 @@ import {
   AppSecuritySettings,
   clearAllAppSecurityUnlocks,
   clearAppSecurityUnlock,
+  clearPinSetupStatus,
   getBiometricSupportStatus,
   hashSecret,
   loadAppSecuritySettings,
+  markPinSetupCompleted,
   registerBiometricCredential,
   saveAppSecuritySettings,
 } from "@/lib/appSecurity";
@@ -142,6 +144,8 @@ const SettingsPage = () => {
     upsertUserPreferences(userId, { security_settings: updated }).catch(() => undefined);
     clearAppSecurityUnlock(userId);
     setSecuritySettings(updated);
+    // Mark PIN setup as completed in persistent storage
+    markPinSetupCompleted(userId);
     setPin("");
     setSavingSecurity(false);
     toast.success("PIN security enabled");
@@ -203,6 +207,8 @@ const SettingsPage = () => {
     saveAppSecuritySettings(userId, updated);
     upsertUserPreferences(userId, { security_settings: updated }).catch(() => undefined);
     setSecuritySettings(updated);
+    // Clear PIN setup status from persistent storage
+    clearPinSetupStatus(userId);
     toast.success("PIN security disabled");
   };
 

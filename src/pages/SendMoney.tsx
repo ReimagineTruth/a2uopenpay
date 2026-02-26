@@ -11,7 +11,7 @@ import { getFunctionErrorMessage } from "@/lib/supabaseFunctionError";
 import CurrencySelector from "@/components/CurrencySelector";
 import TransactionReceipt, { type ReceiptData } from "@/components/TransactionReceipt";
 import NumberPad from "@/components/NumberPad";
-import { loadAppSecuritySettings } from "@/lib/appSecurity";
+import { loadAppSecuritySettings, isPinSetupCompleted } from "@/lib/appSecurity";
 import SplashScreen from "@/components/SplashScreen";
 import PinReminderModal from "@/components/PinReminderModal";
  
@@ -689,14 +689,13 @@ const SendMoney = () => {
                 onClick={async () => {
                   const { data: { user } } = await supabase.auth.getUser();
                   const settings = user ? loadAppSecuritySettings(user.id) : null;
+                  const pinSetupCompleted = user ? isPinSetupCompleted(user.id) : false;
                   setShowSendConfirm(false);
                   setPinNextAction(() => {
-                    if (settings?.pinHash) {
+                    if (!settings?.pinHash && !pinSetupCompleted) {
                       return async () =>
                         navigate("/confirm-pin", {
                           state: {
-                            returnTo: location.pathname + location.search,
-                            actionData: { selectedUser, amount, note, step: "amount" },
                             title: "Confirm your OpenPay PIN",
                           },
                         });

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import BrandLogo from "@/components/BrandLogo";
 import { playGoogleWalletSuccessSound } from "@/lib/soundEffects";
-import { loadAppSecuritySettings } from "@/lib/appSecurity";
+import { loadAppSecuritySettings, isPinSetupCompleted } from "@/lib/appSecurity";
 import PinReminderModal from "@/components/PinReminderModal";
 
 type SwapWithdrawalRow = {
@@ -43,8 +43,9 @@ const SwapWithdrawalPage = () => {
   const handleProtectedAction = async (action: () => Promise<void>) => {
     const { data: { user } } = await supabase.auth.getUser();
     const settings = user ? loadAppSecuritySettings(user.id) : null;
+    const pinSetupCompleted = user ? isPinSetupCompleted(user.id) : false;
     setNextAction(() => {
-      if (settings?.pinHash) {
+      if (!settings?.pinHash && !pinSetupCompleted) {
         return async () => {
           const actionData = {
             kind: "swap_withdrawal_submit",

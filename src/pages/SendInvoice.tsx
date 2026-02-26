@@ -13,7 +13,7 @@ import { Info } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import TransactionReceipt, { type ReceiptData } from "@/components/TransactionReceipt";
 import SplashScreen from "@/components/SplashScreen";
-import { loadAppSecuritySettings } from "@/lib/appSecurity";
+import { loadAppSecuritySettings, isPinSetupCompleted } from "@/lib/appSecurity";
 import PinReminderModal from "@/components/PinReminderModal";
 
 const PIN_ACTION_KEY = "openpay_pin_action_v1";
@@ -360,11 +360,12 @@ const SendInvoice = () => {
 
     const { data: { user } } = await supabase.auth.getUser();
     const settings = user ? loadAppSecuritySettings(user.id) : null;
+    const pinSetupCompleted = user ? isPinSetupCompleted(user.id) : false;
 
     if (confirmAction.type === "pay") {
       setConfirmModalOpen(false);
       setPinNextAction(() => {
-        if (settings?.pinHash) {
+        if (!settings?.pinHash && !pinSetupCompleted) {
           return async () => {
             const actionData = { kind: "invoice_pay", invoiceId: confirmAction.invoice.id };
             try {

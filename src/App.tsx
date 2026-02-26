@@ -80,6 +80,7 @@ import AppFooter from "./components/AppFooter";
 import BrandLogo from "./components/BrandLogo";
 import AppLanguageTranslate from "./components/AppLanguageTranslate";
 import SupportWidget from "./components/SupportWidget";
+import { CookieConsentProvider } from "./contexts/CookieConsentContext";
 
 const queryClient = new QueryClient();
 
@@ -216,16 +217,18 @@ const App = () => {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <CurrencyProvider>
-        <TooltipProvider>
-          <AppLanguageTranslate />
-          <Toaster />
-          <Sonner />
-          <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-            <AppRoutes />
-          </BrowserRouter>
-        </TooltipProvider>
-      </CurrencyProvider>
+      <CookieConsentProvider>
+        <CurrencyProvider>
+          <TooltipProvider>
+            <AppLanguageTranslate />
+            <Toaster />
+            <Sonner />
+            <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+              <AppRoutes />
+            </BrowserRouter>
+          </TooltipProvider>
+        </CurrencyProvider>
+      </CookieConsentProvider>
     </QueryClientProvider>
   );
 };

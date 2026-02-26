@@ -47,13 +47,34 @@ const setGoogleTranslateCookie = (languageCode: string) => {
 
 export const getStoredAppLanguage = () => {
   if (typeof window === "undefined") return "en";
-  return localStorage.getItem(APP_LANGUAGE_STORAGE_KEY) || "en";
+  
+  // Try to get from new preferences system first
+  try {
+    const { getLanguage } = require("./userPreferencesStorage");
+    const language = getLanguage();
+    if (language) return language;
+  } catch (error) {
+    // Fallback to old method if new system not available
+    const saved = localStorage.getItem(APP_LANGUAGE_STORAGE_KEY);
+    if (saved) return saved;
+  }
+  
+  return "en";
 };
 
 export const applyStoredAppLanguage = (languageCode: string) => {
   if (typeof window === "undefined") return;
   const safeLanguage = languageCode || "en";
-  localStorage.setItem(APP_LANGUAGE_STORAGE_KEY, safeLanguage);
+  
+  // Save to new preferences system
+  try {
+    const { setLanguage } = require("./userPreferencesStorage");
+    setLanguage(safeLanguage);
+  } catch (error) {
+    // Fallback to old method
+    localStorage.setItem(APP_LANGUAGE_STORAGE_KEY, safeLanguage);
+  }
+  
   setGoogleTranslateCookie(safeLanguage);
   document.documentElement.lang = safeLanguage;
 };

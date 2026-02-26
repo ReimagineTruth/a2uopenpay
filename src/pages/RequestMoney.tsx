@@ -16,7 +16,7 @@ import { Info } from "lucide-react";
 import TransactionReceipt, { type ReceiptData } from "@/components/TransactionReceipt";
 import SplashScreen from "@/components/SplashScreen";
 import PinReminderModal from "@/components/PinReminderModal";
-import { loadAppSecuritySettings } from "@/lib/appSecurity";
+import { loadAppSecuritySettings, isPinSetupCompleted } from "@/lib/appSecurity";
 
 const PIN_ACTION_KEY = "openpay_pin_action_v1";
 
@@ -529,11 +529,12 @@ const RequestMoney = () => {
 
     const { data: { user } } = await supabase.auth.getUser();
     const settings = user ? loadAppSecuritySettings(user.id) : null;
+    const pinSetupCompleted = user ? isPinSetupCompleted(user.id) : false;
 
     if (confirmAction.type === "pay") {
       setConfirmModalOpen(false);
       setPinNextAction(() => {
-        if (settings?.pinHash) {
+        if (!settings?.pinHash && !pinSetupCompleted) {
           return async () => {
             const actionData = { kind: "request_pay", requestId: confirmAction.request.id };
             try {
