@@ -420,10 +420,10 @@ const QrScannerPage = () => {
       
       console.log("Extracted QR Payload:", payload);
       
-      // Handle POS payment QR codes (different from checkout links) - redirect to send payment
+      // Handle POS payment QR codes - ONLY redirect to send payment, NOT checkout
       if (payload.posPayment && payload.checkoutSession) {
-        console.log("Handling POS payment QR code");
-        setScanHint("POS payment QR detected. Opening payment page...");
+        console.log("Handling POS payment QR code - SEND PAYMENT ONLY");
+        setScanHint("POS payment QR detected. Opening send payment page...");
         playScanBeep();
         await stopScanner();
         
@@ -431,15 +431,16 @@ const QrScannerPage = () => {
         const params = new URLSearchParams();
         params.set("pos_session", payload.checkoutSession);
         params.set("note", "POS Payment");
-        params.set("api_key_type", payload.apiKeyType || "pos");
+        params.set("amount", payload.amount || "");
+        params.set("currency", payload.currency || "USD");
         
         navigate(`/send?${params.toString()}`, { replace: true });
         handlingDecodeRef.current = false;
         return;
       }
       
-      // Handle checkout link QR codes - redirect to public payment
-      if (payload.apiKeyType === "checkout" && payload.checkoutSession) {
+      // Handle checkout link QR codes - redirect to public payment (NOT POS)
+      if (payload.apiKeyType === "checkout" && payload.checkoutSession && !payload.posPayment) {
         console.log("Handling checkout link QR code");
         setScanHint("Checkout link QR detected. Opening payment page...");
         playScanBeep();
