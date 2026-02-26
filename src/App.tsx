@@ -47,6 +47,7 @@ import OpenPayMerchantPortalDocsPage from "./pages/OpenPayMerchantPortalDocsPage
 import OpenPartnerPage from "./pages/OpenPartnerPage";
 import PiWhitepaperPage from "./pages/PiWhitepaperPage";
 import PiMicaWhitepaperPage from "./pages/PiMicaWhitepaperPage";
+import WhitepaperPage from "./pages/WhitepaperPage";
 import GdprPage from "./pages/GdprPage";
 import PaymentLinksCreatePage from "./pages/PaymentLinksCreatePage";
 import MerchantProductCatalogPage from "./pages/MerchantProductCatalogPage";
@@ -170,6 +171,7 @@ const AppRoutes = () => {
         <Route path="/open-partner" element={<OpenPartnerPage />} />
         <Route path="/pi-whitepaper" element={<PiWhitepaperPage />} />
         <Route path="/pi-mica-whitepaper" element={<PiMicaWhitepaperPage />} />
+        <Route path="/whitepaper" element={<WhitepaperPage />} />
         <Route path="/gdpr" element={<GdprPage />} />
         <Route path="/legal" element={<LegalPage />} />
         <Route path="/merchant-onboarding" element={<MerchantOnboardingPage />} />

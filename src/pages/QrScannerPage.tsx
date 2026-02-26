@@ -22,57 +22,71 @@ const extractQrPayload = (rawValue: string) => {
     const parsed = new URL(value);
     const uidOrTo = parsed.searchParams.get("uid") || parsed.searchParams.get("to");
     const usernameParam = parsed.searchParams.get("username");
-    const pathUsername =
-      parsed.hostname === "pay"
-        ? normalizeUsername(parsed.pathname.replace(/^\/+/, ""))
-        : "";
-    const normalizedUsername = normalizeUsername(usernameParam) || pathUsername;
     const amount = parsed.searchParams.get("amount") || "";
     const currencyCode = (parsed.searchParams.get("currency") || "").toUpperCase();
     const note = parsed.searchParams.get("note") || "";
-    const checkoutSessionFromQuery = parsed.searchParams.get("session") || parsed.searchParams.get("checkout_session") || "";
-    const checkoutSessionFromPosPath =
-      parsed.protocol.toLowerCase() === "openpay-pos:" && parsed.hostname.toLowerCase() === "checkout"
-        ? parsed.pathname.replace(/^\/+/, "")
-        : "";
-    const checkoutSession = checkoutSessionFromQuery || checkoutSessionFromPosPath;
     
     // Check if this is a public payment QR code
     const isPublicPayment = parsed.protocol.toLowerCase() === "openpay:" && parsed.hostname.toLowerCase() === "public-payment";
     
+    // Check if this is a POS QR code (different from checkout)
+    const isPosPayment = parsed.protocol.toLowerCase() === "openpay-pos:" && parsed.hostname.toLowerCase() === "checkout";
+    
+    // Extract session tokens differently for POS vs checkout
+    let checkoutSession = null;
+    if (isPosPayment) {
+      // POS QR codes have session token in pathname
+      checkoutSession = parsed.pathname.replace(/^\/+/, "");
+    } else {
+      // Regular checkout links have session in query params
+      checkoutSession = parsed.searchParams.get("session") || parsed.searchParams.get("checkout_session");
+    }
+    
     return {
       uid: uidOrTo && uuidRegex.test(uidOrTo) ? uidOrTo : null,
-      username: normalizedUsername,
+      username: normalizeUsername(usernameParam),
       amount,
       currency: currencyCode,
       note,
       checkoutSession,
       publicPayment: isPublicPayment,
+      posPayment: isPosPayment,
     };
   } catch {
-    // no-op
+    // Fallback for non-URL QR codes
+    const maybeUid = value.split("uid=")[1]?.split("&")[0] || value.split("to=")[1]?.split("&")[0];
+    const maybeUsername = value.split("username=")[1]?.split("&")[0]?.toLowerCase().trim();
+    const maybeAmount = value.split("amount=")[1]?.split("&")[0] || "";
+    const maybeCurrency = (value.split("currency=")[1]?.split("&")[0] || "").toUpperCase();
+    const maybeNote = value.split("note=")[1]?.split("&")[0] || "";
+    
+    // Check for POS session tokens (opsess_ pattern)
+    const posSessionMatch = value.match(/^openpay-pos:\/\/checkout\/([^/?#]+)/i);
+    let checkoutSession = null;
+    let isPosPayment = false;
+    
+    if (posSessionMatch) {
+      checkoutSession = posSessionMatch[1];
+      isPosPayment = true;
+    } else {
+      // Regular checkout session
+      checkoutSession = value.split("session=")[1]?.split("&")[0] ||
+        value.split("checkout_session=")[1]?.split("&")[0] || "";
+    }
+    
+    const isPublicPayment = value.includes("public-payment") && !isPosPayment;
+    
+    return {
+      uid: maybeUid && uuidRegex.test(maybeUid) ? maybeUid : null,
+      username: maybeUsername,
+      amount: maybeAmount,
+      currency: maybeCurrency,
+      note: maybeNote,
+      checkoutSession,
+      publicPayment: isPublicPayment,
+      posPayment: isPosPayment,
+    };
   }
-
-  const maybeUid = value.split("uid=")[1]?.split("&")[0] || value.split("to=")[1]?.split("&")[0];
-  const maybeUsername = normalizeUsername(value.split("username=")[1]?.split("&")[0]);
-  const maybeAmount = value.split("amount=")[1]?.split("&")[0] || "";
-  const maybeCurrency = (value.split("currency=")[1]?.split("&")[0] || "").toUpperCase();
-  const maybeNote = value.split("note=")[1]?.split("&")[0] || "";
-  const maybeCheckoutSession =
-    value.split("session=")[1]?.split("&")[0] ||
-    value.split("checkout_session=")[1]?.split("&")[0] ||
-    value.match(/^openpay-pos:\/\/checkout\/([^/?#]+)/i)?.[1] ||
-    "";
-  const isPublicPayment = value.includes("public-payment") || value.includes("session=");
-  return {
-    uid: maybeUid && uuidRegex.test(maybeUid) ? maybeUid : null,
-    username: maybeUsername,
-    amount: maybeAmount,
-    currency: maybeCurrency,
-    note: maybeNote,
-    checkoutSession: maybeCheckoutSession,
-    publicPayment: isPublicPayment,
-  };
 };
 
 const isOpenPayQrCode = (rawValue: string) => {
@@ -349,8 +363,20 @@ const QrScannerPage = () => {
       setScanHint("OpenPay QR detected. Validating...");
       const payload = extractQrPayload(decodedText);
       
+      // Handle POS payment QR codes (different from checkout links)
+      if (payload.posPayment && payload.checkoutSession) {
+        setScanHint("POS payment QR detected. Opening payment page...");
+        playScanBeep();
+        await stopScanner();
+        
+        // Navigate to POS payment page with session token
+        navigate(`/merchant-pos?session=${payload.checkoutSession}`, { replace: true });
+        handlingDecodeRef.current = false;
+        return;
+      }
+      
       // Handle public payment QR codes
-      if (payload.publicPayment || payload.checkoutSession) {
+      if (payload.publicPayment || (payload.checkoutSession && !payload.posPayment)) {
         setScanHint("Public payment QR detected. Opening payment page...");
         playScanBeep();
         await stopScanner();

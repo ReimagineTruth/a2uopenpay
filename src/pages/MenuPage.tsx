@@ -235,6 +235,7 @@ const MenuPage = () => {
       title: "Legal and Docs",
       items: [
         { icon: BookOpen, label: "OpenPay Documentation", action: () => navigate("/openpay-documentation") },
+        { icon: FileText, label: "OUSD Whitepaper", action: () => navigate("/whitepaper") },
         { icon: FileText, label: "Pi Whitepaper", action: () => navigate("/pi-whitepaper") },
         { icon: FileText, label: "Pi MiCA Whitepaper", action: () => navigate("/pi-mica-whitepaper") },
         { icon: ShieldCheck, label: "GDPR", action: () => navigate("/gdpr") },
