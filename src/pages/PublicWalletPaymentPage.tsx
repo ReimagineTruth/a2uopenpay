@@ -185,8 +185,8 @@ const PublicWalletPaymentPage = () => {
   if (!sessionData) return <SplashScreen message="Payment session not found" />;
 
   return (
-    <div className="min-h-screen bg-[#f5f6fa]">
-      <div className="flex h-14 items-center border-b border-border bg-white px-4">
+    <div className="min-h-screen bg-background">
+      <div className="flex h-14 items-center border-b border-border bg-card px-4">
         <button onClick={() => navigate(-1)} className="flex h-9 w-9 items-center justify-center rounded-md hover:bg-secondary" aria-label="Back">
           <ArrowLeft className="h-5 w-5 text-foreground" />
         </button>
@@ -198,7 +198,7 @@ const PublicWalletPaymentPage = () => {
       </div>
 
       <div className="grid min-h-[calc(100vh-56px)] grid-cols-1 lg:grid-cols-[1fr_900px]">
-        <div className="border-r border-border bg-[#f3f4f7] px-6 py-10">
+        <div className="border-r border-border bg-muted/30 px-6 py-10">
           <div className="mx-auto w-full max-w-xl">
             {sessionData.merchant_logo_url ? (
               <img src={sessionData.merchant_logo_url} alt={sessionData.merchant_name} className="mb-4 h-48 w-full rounded-2xl border border-border object-cover" />
@@ -218,11 +218,11 @@ const PublicWalletPaymentPage = () => {
           </div>
         </div>
 
-        <div className="bg-white px-6 py-10">
+        <div className="bg-card px-6 py-10">
           <div className="mx-auto w-full max-w-lg">
             <h2 className="text-4xl font-semibold text-foreground">Complete Payment</h2>
 
-            <div className="mt-5 rounded-2xl border border-border bg-white p-5 shadow-sm">
+            <div className="mt-5 rounded-2xl border border-border bg-card p-5 shadow-sm">
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
