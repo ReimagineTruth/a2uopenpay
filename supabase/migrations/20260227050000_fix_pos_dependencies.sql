@@ -8,7 +8,7 @@
 CREATE TABLE IF NOT EXISTS public.pos_payments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   merchant_user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  pos_terminal_id UUID REFERENCES public.merchant_pos_terminals(id) ON DELETE SET NULL,
+  -- pos_terminal_id UUID REFERENCES public.merchant_pos_terminals(id) ON DELETE SET NULL, -- Table doesn't exist yet
   session_token TEXT NOT NULL UNIQUE,
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'paid', 'expired', 'canceled')),
   currency TEXT NOT NULL CHECK (char_length(currency) = 3),
@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS public.pos_transactions (
 CREATE TABLE IF NOT EXISTS public.pos_api_keys (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   merchant_user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  pos_terminal_id UUID REFERENCES public.merchant_pos_terminals(id) ON DELETE SET NULL,
+  -- pos_terminal_id UUID REFERENCES public.merchant_pos_terminals(id) ON DELETE SET NULL, -- Table doesn't exist yet
   key_mode TEXT NOT NULL CHECK (key_mode IN ('sandbox', 'live')),
   key_name TEXT NOT NULL DEFAULT 'POS Default Key',
   publishable_key TEXT NOT NULL UNIQUE,
@@ -142,8 +142,8 @@ CREATE OR REPLACE FUNCTION public.create_pos_payment_session(
   p_customer_email TEXT DEFAULT NULL,
   p_customer_phone TEXT DEFAULT NULL,
   p_payment_method TEXT DEFAULT 'wallet',
-  p_expires_in_minutes INTEGER DEFAULT 30,
-  p_pos_terminal_id UUID DEFAULT NULL
+  p_expires_in_minutes INTEGER DEFAULT 30
+  -- p_pos_terminal_id UUID DEFAULT NULL -- Table doesn't exist yet
 )
 RETURNS TABLE (
   session_id UUID,
@@ -185,7 +185,7 @@ BEGIN
   -- Create POS payment session
   INSERT INTO public.pos_payments (
     merchant_user_id,
-    pos_terminal_id,
+    -- pos_terminal_id, -- Table doesn't exist yet
     session_token,
     currency,
     amount,
@@ -198,7 +198,7 @@ BEGIN
     expires_at
   ) VALUES (
     v_user_id,
-    p_pos_terminal_id,
+    -- p_pos_terminal_id, -- Table doesn't exist yet
     v_session_token,
     v_currency,
     v_amount,

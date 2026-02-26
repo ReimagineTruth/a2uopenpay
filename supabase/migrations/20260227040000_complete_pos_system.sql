@@ -5,7 +5,7 @@
 
 -- Create POS API key
 CREATE OR REPLACE FUNCTION public.create_pos_api_key(
-  p_pos_terminal_id UUID DEFAULT NULL,
+  -- p_pos_terminal_id UUID DEFAULT NULL, -- Table doesn't exist yet
   p_key_name TEXT DEFAULT 'POS Default Key',
   p_key_mode TEXT DEFAULT 'live'
 )
@@ -44,7 +44,7 @@ BEGIN
   -- Create POS API key
   INSERT INTO public.pos_api_keys (
     merchant_user_id,
-    pos_terminal_id,
+    -- pos_terminal_id, -- Table doesn't exist yet
     key_mode,
     key_name,
     publishable_key,
@@ -52,7 +52,7 @@ BEGIN
     secret_key_last4
   ) VALUES (
     v_user_id,
-    p_pos_terminal_id,
+    -- p_pos_terminal_id, -- Table doesn't exist yet
     p_key_mode,
     p_key_name,
     v_publishable_key,
