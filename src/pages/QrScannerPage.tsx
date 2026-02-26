@@ -32,6 +32,12 @@ const extractQrPayload = (rawValue: string) => {
     // Check if this is a POS QR code (different from checkout)
     const isPosPayment = parsed.protocol.toLowerCase() === "openpay-pos:" && parsed.hostname.toLowerCase() === "checkout";
     
+    // Check if this is a regular checkout link (not POS)
+    const isPosCheckout = parsed.protocol.toLowerCase() === "openpay:" && 
+                              (parsed.hostname.toLowerCase() === "checkout" || 
+                               parsed.hostname.toLowerCase() === "payment-link") &&
+                              !parsed.searchParams.get("session");
+    
     // Extract session tokens differently for POS vs checkout
     let checkoutSession = null;
     if (isPosPayment) {
@@ -51,6 +57,7 @@ const extractQrPayload = (rawValue: string) => {
       checkoutSession,
       publicPayment: isPublicPayment,
       posPayment: isPosPayment,
+      posCheckout: isPosCheckout,
     };
   } catch {
     // Fallback for non-URL QR codes
@@ -60,21 +67,34 @@ const extractQrPayload = (rawValue: string) => {
     const maybeCurrency = (value.split("currency=")[1]?.split("&")[0] || "").toUpperCase();
     const maybeNote = value.split("note=")[1]?.split("&")[0] || "";
     
-    // Check for POS session tokens (opsess_ pattern)
-    const posSessionMatch = value.match(/^openpay-pos:\/\/checkout\/([^/?#]+)/i);
+    // Check for POS session tokens (opsess_ pattern) - more flexible matching
+    const posSessionMatch = value.match(/^openpay-pos:\/\/checkout\/([^/?#]+)/i) || 
+                                   value.match(/opsess_[a-zA-Z0-9]+/) ||
+                                   (value.includes("opsess_") && value.includes("checkout"));
     let checkoutSession = null;
     let isPosPayment = false;
+    let isPosCheckout = false;
     
     if (posSessionMatch) {
-      checkoutSession = posSessionMatch[1];
+      if (Array.isArray(posSessionMatch)) {
+        checkoutSession = posSessionMatch[1];
+      } else {
+        checkoutSession = posSessionMatch;
+      }
       isPosPayment = true;
+      isPosCheckout = true;
     } else {
+      // Check for regular checkout links (not POS)
+      const isCheckoutLink = value.includes("checkout_session=") || 
+                               value.includes("merchant-checkout") ||
+                               (value.includes("checkout") && !value.includes("opsess_"));
+      
       // Regular checkout session
       checkoutSession = value.split("session=")[1]?.split("&")[0] ||
         value.split("checkout_session=")[1]?.split("&")[0] || "";
     }
     
-    const isPublicPayment = value.includes("public-payment") && !isPosPayment;
+    const isPublicPayment = value.includes("public-payment") && !isPosPayment && !isPosCheckout;
     
     return {
       uid: maybeUid && uuidRegex.test(maybeUid) ? maybeUid : null,
@@ -85,6 +105,7 @@ const extractQrPayload = (rawValue: string) => {
       checkoutSession,
       publicPayment: isPublicPayment,
       posPayment: isPosPayment,
+      posCheckout: isPosCheckout,
     };
   }
 };
@@ -375,6 +396,32 @@ const QrScannerPage = () => {
         params.set("note", "POS Payment");
         
         navigate(`/send?${params.toString()}`, { replace: true });
+        handlingDecodeRef.current = false;
+        return;
+      }
+      
+      // Handle regular checkout links (not POS) - redirect to public payment
+      if (payload.posCheckout && payload.checkoutSession) {
+        setScanHint("Checkout link QR detected. Opening payment page...");
+        playScanBeep();
+        await stopScanner();
+        
+        const params = new URLSearchParams();
+        if (payload.checkoutSession) {
+          params.set("session", payload.checkoutSession);
+        }
+        // Add customer details if present
+        const customerName = decodedText.match(/customer_name=([^&]+)/)?.[1];
+        const customerEmail = decodedText.match(/customer_email=([^&]+)/)?.[1];
+        const customerPhone = decodedText.match(/customer_phone=([^&]+)/)?.[1];
+        const customerAddress = decodedText.match(/customer_address=([^&]+)/)?.[1];
+        
+        if (customerName) params.set("customer_name", decodeURIComponent(customerName));
+        if (customerEmail) params.set("customer_email", decodeURIComponent(customerEmail));
+        if (customerPhone) params.set("customer_phone", decodeURIComponent(customerPhone));
+        if (customerAddress) params.set("customer_address", decodeURIComponent(customerAddress));
+        
+        navigate(`/public-payment?${params.toString()}`, { replace: true });
         handlingDecodeRef.current = false;
         return;
       }
