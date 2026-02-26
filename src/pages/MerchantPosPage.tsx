@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, CheckCircle2, Copy, HelpCircle, History, Printer, RotateCcw, Search, Settings, Wallet, XCircle } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
@@ -83,6 +83,7 @@ const normalizePosCurrencyCode = (rawCode: string) => {
 
 const MerchantPosPage = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { currencies, currency: activeCurrency } = useCurrency();
   const [activeView, setActiveView] = useState<PosView>("home");
   const [mode, setMode] = useState<"sandbox" | "live">(() => {
@@ -284,6 +285,54 @@ const MerchantPosPage = () => {
     };
     void init();
   }, [navigate]);
+
+  // Handle session parameter from URL (for POS QR codes)
+  useEffect(() => {
+    const sessionParam = searchParams.get("session");
+    if (sessionParam && sessionParam.startsWith("opsess_")) {
+      // Load the POS session from the session token
+      const loadPosSession = async () => {
+        try {
+          const { data, error } = await (supabase as any)
+            .from("merchant_checkout_sessions")
+            .select("*")
+            .eq("session_token", sessionParam)
+            .eq("status", "open")
+            .gte("expires_at", new Date().toISOString())
+            .maybeSingle();
+
+          if (error) {
+            console.error("Failed to load POS session:", error);
+            toast.error("Invalid or expired POS session");
+            return;
+          }
+
+          if (data) {
+            const posSession: PosSession = {
+              session_id: String(data.id),
+              session_token: String(data.session_token),
+              total_amount: Number(data.total_amount),
+              currency: String(data.currency),
+              status: String(data.status),
+              expires_at: String(data.expires_at),
+              qr_payload: String(data.qr_payload || ""),
+            };
+            
+            setCurrentSession(posSession);
+            setPaymentStatus("waiting");
+            setActiveView("receive");
+            setReceiptIssuedAt(new Date().toISOString());
+            toast.success("POS session loaded successfully");
+          }
+        } catch (error) {
+          console.error("Error loading POS session:", error);
+          toast.error("Failed to load POS session");
+        }
+      };
+
+      loadPosSession();
+    }
+  }, [searchParams, navigate]);
 
   useEffect(() => {
     localStorage.setItem(
