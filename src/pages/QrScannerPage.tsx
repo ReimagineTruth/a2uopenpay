@@ -453,6 +453,28 @@ const QrScannerPage = () => {
         params.set("note", payload.note || "POS Payment");
         params.set("amount", payload.amount || "");
         params.set("currency", payload.currency || "USD");
+        params.set("pos_payment", "true"); // Mark as POS payment
+        
+        navigate(`/send?${params.toString()}`, { replace: true });
+        handlingDecodeRef.current = false;
+        return;
+      }
+      
+      // Handle regular payment QR codes (not POS) - redirect to send payment
+      if (payload.uid && !payload.posPayment && !payload.publicPayment && !payload.checkoutSession) {
+        console.log("Handling regular payment QR code");
+        setScanHint("Payment QR detected. Opening send payment page...");
+        playScanBeep();
+        await stopScanner();
+        
+        const params = new URLSearchParams();
+        params.set("to", payload.uid);
+        if (payload.username) {
+          params.set("username", payload.username);
+        }
+        params.set("note", payload.note || "");
+        params.set("amount", payload.amount || "");
+        params.set("currency", payload.currency || "USD");
         
         navigate(`/send?${params.toString()}`, { replace: true });
         handlingDecodeRef.current = false;
