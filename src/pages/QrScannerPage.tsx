@@ -363,14 +363,18 @@ const QrScannerPage = () => {
       setScanHint("OpenPay QR detected. Validating...");
       const payload = extractQrPayload(decodedText);
       
-      // Handle POS payment QR codes (different from checkout links)
+      // Handle POS payment QR codes (different from checkout links) - redirect to send payment
       if (payload.posPayment && payload.checkoutSession) {
         setScanHint("POS payment QR detected. Opening payment page...");
         playScanBeep();
         await stopScanner();
         
-        // Navigate to POS payment page with session token
-        navigate(`/merchant-pos?session=${payload.checkoutSession}`, { replace: true });
+        // Navigate to send payment page with POS session details
+        const params = new URLSearchParams();
+        params.set("pos_session", payload.checkoutSession);
+        params.set("note", "POS Payment");
+        
+        navigate(`/send?${params.toString()}`, { replace: true });
         handlingDecodeRef.current = false;
         return;
       }

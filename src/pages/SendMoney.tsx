@@ -128,6 +128,7 @@ const SendMoney = () => {
   const checkoutCustomerEmail = searchParams.get("checkout_customer_email") || "";
   const checkoutCustomerPhone = searchParams.get("checkout_customer_phone") || "";
   const checkoutCustomerAddress = searchParams.get("checkout_customer_address") || "";
+  const posSessionToken = searchParams.get("pos_session") || "";
   const formatShortText = (value: string, head = 28, tail = 18) => {
     const cleaned = value.trim();
     if (cleaned.length <= head + tail + 3) return cleaned;
@@ -316,10 +317,44 @@ const SendMoney = () => {
           }
         }
       }
+
+      // Handle POS session token
+      if (posSessionToken) {
+        const { data: posPayload } = await (supabase as any)
+          .from("merchant_checkout_sessions")
+          .select("*")
+          .eq("session_token", posSessionToken)
+          .eq("status", "open")
+          .gte("expires_at", new Date().toISOString())
+          .maybeSingle();
+
+        if (posPayload) {
+          const posAmount = Number(posPayload.total_amount || 0);
+          const posCurrency = String(posPayload.currency || "").toUpperCase();
+          const posMerchantId = String(posPayload.merchant_user_id || "");
+          
+          setIsPosCheckoutSession(true);
+          
+          if (posAmount > 0) {
+            setAmount(posAmount.toFixed(2));
+          }
+          if (posCurrency) {
+            const foundCurrency = currencies.find((c) => c.code === posCurrency);
+            if (foundCurrency) setCurrency(foundCurrency);
+          }
+          if (posMerchantId && profiles) {
+            const merchantProfile = profiles.find((p) => p.id === posMerchantId);
+            if (merchantProfile) {
+              setSelectedUser(merchantProfile);
+              setStep("amount");
+            }
+          }
+        }
+      }
       setIsInitialLoadDone(true);
     };
     load();
-  }, [checkoutSessionToken, currencies, navigate, searchParams, setCurrency]);
+  }, [checkoutSessionToken, posSessionToken, currencies, navigate, searchParams, setCurrency]);
 
   const normalizedSearch = searchQuery.trim().toLowerCase();
   const normalizedSearchRaw = searchQuery.trim();
