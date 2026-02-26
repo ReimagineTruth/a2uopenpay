@@ -10,10 +10,10 @@ import { supabase } from "@/integrations/supabase/client";
 
 const extractQrPayload = (rawValue: string) => {
   const value = rawValue.trim();
-  if (!value) return { uid: null as string | null, username: "", amount: "", currency: "", note: "", checkoutSession: "" };
+  if (!value) return { uid: null as string | null, username: "", amount: "", currency: "", note: "", checkoutSession: "", publicPayment: false };
 
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-  if (uuidRegex.test(value)) return { uid: value, username: "", amount: "", currency: "", note: "", checkoutSession: "" };
+  if (uuidRegex.test(value)) return { uid: value, username: "", amount: "", currency: "", note: "", checkoutSession: "", publicPayment: false };
 
   const normalizeUsername = (input: string | null | undefined) =>
     (input || "").trim().replace(/^@+/, "").toLowerCase();
@@ -30,12 +30,16 @@ const extractQrPayload = (rawValue: string) => {
     const amount = parsed.searchParams.get("amount") || "";
     const currencyCode = (parsed.searchParams.get("currency") || "").toUpperCase();
     const note = parsed.searchParams.get("note") || "";
-    const checkoutSessionFromQuery = parsed.searchParams.get("checkout_session") || "";
+    const checkoutSessionFromQuery = parsed.searchParams.get("session") || parsed.searchParams.get("checkout_session") || "";
     const checkoutSessionFromPosPath =
       parsed.protocol.toLowerCase() === "openpay-pos:" && parsed.hostname.toLowerCase() === "checkout"
         ? parsed.pathname.replace(/^\/+/, "")
         : "";
     const checkoutSession = checkoutSessionFromQuery || checkoutSessionFromPosPath;
+    
+    // Check if this is a public payment QR code
+    const isPublicPayment = parsed.protocol.toLowerCase() === "openpay:" && parsed.hostname.toLowerCase() === "public-payment";
+    
     return {
       uid: uidOrTo && uuidRegex.test(uidOrTo) ? uidOrTo : null,
       username: normalizedUsername,
@@ -43,6 +47,7 @@ const extractQrPayload = (rawValue: string) => {
       currency: currencyCode,
       note,
       checkoutSession,
+      publicPayment: isPublicPayment,
     };
   } catch {
     // no-op
@@ -54,9 +59,11 @@ const extractQrPayload = (rawValue: string) => {
   const maybeCurrency = (value.split("currency=")[1]?.split("&")[0] || "").toUpperCase();
   const maybeNote = value.split("note=")[1]?.split("&")[0] || "";
   const maybeCheckoutSession =
+    value.split("session=")[1]?.split("&")[0] ||
     value.split("checkout_session=")[1]?.split("&")[0] ||
     value.match(/^openpay-pos:\/\/checkout\/([^/?#]+)/i)?.[1] ||
     "";
+  const isPublicPayment = value.includes("public-payment") || value.includes("session=");
   return {
     uid: maybeUid && uuidRegex.test(maybeUid) ? maybeUid : null,
     username: maybeUsername,
@@ -64,6 +71,7 @@ const extractQrPayload = (rawValue: string) => {
     currency: maybeCurrency,
     note: maybeNote,
     checkoutSession: maybeCheckoutSession,
+    publicPayment: isPublicPayment,
   };
 };
 
@@ -79,8 +87,11 @@ const isOpenPayQrCode = (rawValue: string) => {
     const host = parsed.hostname.toLowerCase();
     const path = parsed.pathname.toLowerCase();
     const hasRecipient = Boolean(parsed.searchParams.get("uid") || parsed.searchParams.get("to") || parsed.searchParams.get("username"));
+    const hasSession = Boolean(parsed.searchParams.get("session") || parsed.searchParams.get("checkout_session"));
 
     if (protocol === "openpay:") {
+      // Support for public payment QR codes
+      if (host === "public-payment") return true;
       return hasRecipient && (host === "pay" || host === "send");
     }
 
@@ -92,8 +103,8 @@ const isOpenPayQrCode = (rawValue: string) => {
     if (protocol === "http:" || protocol === "https:") {
       const isOpenPayDomain = host.includes("openpay");
       const isPayPath = path.startsWith("/send") || path.startsWith("/pay");
-      const hasCheckoutSession = Boolean(parsed.searchParams.get("checkout_session"));
-      return isOpenPayDomain && ((hasRecipient && isPayPath) || hasCheckoutSession);
+      const isPublicPaymentPath = path.startsWith("/public-payment");
+      return isOpenPayDomain && ((hasRecipient && isPayPath) || hasSession || isPublicPaymentPath);
     }
   } catch {
     return false;
@@ -254,6 +265,33 @@ const QrScannerPage = () => {
 
       setScanHint("OpenPay QR detected. Validating...");
       const payload = extractQrPayload(decodedText);
+      
+      // Handle public payment QR codes
+      if (payload.publicPayment || payload.checkoutSession) {
+        setScanHint("Public payment QR detected. Opening payment page...");
+        playScanBeep();
+        await stopScanner();
+        
+        const params = new URLSearchParams();
+        if (payload.checkoutSession) {
+          params.set("session", payload.checkoutSession);
+        }
+        // Add customer details if present
+        const customerName = decodedText.match(/customer_name=([^&]+)/)?.[1];
+        const customerEmail = decodedText.match(/customer_email=([^&]+)/)?.[1];
+        const customerPhone = decodedText.match(/customer_phone=([^&]+)/)?.[1];
+        const customerAddress = decodedText.match(/customer_address=([^&]+)/)?.[1];
+        
+        if (customerName) params.set("customer_name", decodeURIComponent(customerName));
+        if (customerEmail) params.set("customer_email", decodeURIComponent(customerEmail));
+        if (customerPhone) params.set("customer_phone", decodeURIComponent(customerPhone));
+        if (customerAddress) params.set("customer_address", decodeURIComponent(customerAddress));
+        
+        navigate(`/public-payment?${params.toString()}`, { replace: true });
+        handlingDecodeRef.current = false;
+        return;
+      }
+      
       let recipientId = payload.uid;
       let resolvedAmount = payload.amount;
       let resolvedCurrency = payload.currency;
@@ -369,6 +407,7 @@ const QrScannerPage = () => {
 
       const scanner = new Html5Qrcode("openpay-full-scanner", {
         useBarCodeDetectorIfSupported: false,
+        verbose: false,
       });
       scannerRef.current = scanner;
 
