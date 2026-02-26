@@ -82,17 +82,21 @@ ALTER TABLE public.pos_payments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pos_transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pos_api_keys ENABLE ROW LEVEL SECURITY;
 
--- Create policies if they don't exist
-CREATE POLICY IF NOT EXISTS "Users can view their own POS payments" ON public.pos_payments
+-- Create policies (drop existing first to avoid conflicts)
+DROP POLICY IF EXISTS "Users can view their own POS payments" ON public.pos_payments;
+CREATE POLICY "Users can view their own POS payments" ON public.pos_payments
   FOR SELECT USING (auth.uid() = merchant_user_id);
 
-CREATE POLICY IF NOT EXISTS "Users can insert their own POS payments" ON public.pos_payments
+DROP POLICY IF EXISTS "Users can insert their own POS payments" ON public.pos_payments;
+CREATE POLICY "Users can insert their own POS payments" ON public.pos_payments
   FOR INSERT WITH CHECK (auth.uid() = merchant_user_id);
 
-CREATE POLICY IF NOT EXISTS "Users can update their own POS payments" ON public.pos_payments
+DROP POLICY IF EXISTS "Users can update their own POS payments" ON public.pos_payments;
+CREATE POLICY "Users can update their own POS payments" ON public.pos_payments
   FOR UPDATE USING (auth.uid() = merchant_user_id);
 
-CREATE POLICY IF NOT EXISTS "Users can view their own POS transactions" ON public.pos_transactions
+DROP POLICY IF EXISTS "Users can view their own POS transactions" ON public.pos_transactions;
+CREATE POLICY "Users can view their own POS transactions" ON public.pos_transactions
   FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM public.pos_payments pp 
@@ -101,7 +105,8 @@ CREATE POLICY IF NOT EXISTS "Users can view their own POS transactions" ON publi
     )
   );
 
-CREATE POLICY IF NOT EXISTS "Users can insert their own POS transactions" ON public.pos_transactions
+DROP POLICY IF EXISTS "Users can insert their own POS transactions" ON public.pos_transactions;
+CREATE POLICY "Users can insert their own POS transactions" ON public.pos_transactions
   FOR INSERT WITH CHECK (
     EXISTS (
       SELECT 1 FROM public.pos_payments pp 
@@ -110,13 +115,16 @@ CREATE POLICY IF NOT EXISTS "Users can insert their own POS transactions" ON pub
     )
   );
 
-CREATE POLICY IF NOT EXISTS "Users can view their own POS API keys" ON public.pos_api_keys
+DROP POLICY IF EXISTS "Users can view their own POS API keys" ON public.pos_api_keys;
+CREATE POLICY "Users can view their own POS API keys" ON public.pos_api_keys
   FOR SELECT USING (auth.uid() = merchant_user_id);
 
-CREATE POLICY IF NOT EXISTS "Users can insert their own POS API keys" ON public.pos_api_keys
+DROP POLICY IF EXISTS "Users can insert their own POS API keys" ON public.pos_api_keys;
+CREATE POLICY "Users can insert their own POS API keys" ON public.pos_api_keys
   FOR INSERT WITH CHECK (auth.uid() = merchant_user_id);
 
-CREATE POLICY IF NOT EXISTS "Users can update their own POS API keys" ON public.pos_api_keys
+DROP POLICY IF EXISTS "Users can update their own POS API keys" ON public.pos_api_keys;
+CREATE POLICY "Users can update their own POS API keys" ON public.pos_api_keys
   FOR UPDATE USING (auth.uid() = merchant_user_id);
 
 -- Now recreate the core POS functions with proper error handling
