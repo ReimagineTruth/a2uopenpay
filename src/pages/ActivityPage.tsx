@@ -104,8 +104,8 @@ const ActivityPage = () => {
           .eq("user_id", user.id)
           .single(),
         db.rpc("get_my_merchant_activity", { p_mode: null, p_limit: 20, p_offset: 0 }),
-        supabase
-          .from("swap_withdrawals")
+        (supabase as any)
+          .from("user_swap_withdrawals")
           .select("*")
           .eq("user_id", user.id)
           .order("created_at", { ascending: false })

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import BottomNav from "@/components/BottomNav";
-import { Send, ArrowLeftRight, CircleDollarSign, FileText, Wallet, Activity, HelpCircle, Info, Scale, LogOut, Clapperboard, ShieldAlert, FileCheck, Lock, Users, Store, BookOpen, Download, Megaphone, Smartphone, CreditCard, ShieldCheck, Handshake, Monitor, Copy, X } from "lucide-react";
+import { Send, ArrowLeftRight, CircleDollarSign, FileText, Wallet, Activity, HelpCircle, Info, Scale, LogOut, Clapperboard, ShieldAlert, FileCheck, Lock, Users, Store, BookOpen, Download, Megaphone, Smartphone, CreditCard, ShieldCheck, Handshake, Monitor, Copy, X, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
 import { clearAllAppSecurityUnlocks } from "@/lib/appSecurity";
 import { canAccessRemittanceMerchant, isRemittanceUiEnabled } from "@/lib/remittanceAccess";
@@ -171,6 +171,7 @@ const MenuPage = () => {
       title: "Wallet and Account",
       items: [
         { icon: Wallet, label: "Wallet", action: () => navigate("/dashboard") },
+        { icon: TrendingUp, label: "Analytics", action: () => navigate("/dashboard?section=analytics") },
         { icon: Users, label: "User profile", action: () => navigate("/profile") },
         { icon: CreditCard, label: "OpenPay Virtual Card", action: () => navigate("/virtual-card") },
         { icon: ArrowLeftRight, label: "Currency converter", action: () => navigate("/currency-converter") },
