@@ -205,7 +205,7 @@ const PiAuthPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-paypal-blue to-[#072a7a] px-6 py-10">
-      <div className="mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-sm flex-col justify-center">
+      <div className="mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-md lg:max-w-lg xl:max-w-xl flex-col justify-center">
         <div className="mb-8 text-center">
           <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-3xl bg-white/10 backdrop-blur-sm">
             <BrandLogo className="h-14 w-14 text-white" />
@@ -220,8 +220,8 @@ const PiAuthPage = () => {
           </div>
 
           <div className="rounded-2xl border border-border/70 bg-white p-3">
-            <h2 className="text-base font-semibold text-foreground">Pi Browser</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <h2 className="text-base font-semibold text-gray-800">Pi Browser</h2>
+            <p className="mt-1 text-sm text-gray-600">
               Connect your Pi account securely with Pi authentication.
             </p>
             {!!searchParams.get("ref") && (
@@ -234,96 +234,48 @@ const PiAuthPage = () => {
                 Pi SDK is unavailable. Please open this app in Pi Browser.
               </p>
             )}
-            <Button
-              onClick={handlePiAuth}
-              disabled={busyAuth}
-              className="mt-3 h-11 w-full rounded-2xl bg-paypal-blue text-white hover:bg-[#004dc5]"
-            >
-              {busyAuth ? "Authenticating..." : "Authenticate with Pi"}
-            </Button>
-            <Button
-              asChild
-              variant="outline"
-              className="mt-2 h-11 w-full rounded-2xl"
-            >
-              <Link to="/sign-in?mode=signin">Use Email Sign In</Link>
-            </Button>
-            <Button
-              asChild
-              type="button"
-              variant="outline"
-              className="mt-2 h-11 w-full rounded-2xl"
-            >
-              <a href="https://openpaylandingpage.vercel.app/" target="_blank" rel="noreferrer">
-                Landing Page
-              </a>
-            </Button>
-            <p className="mt-2 text-xs text-muted-foreground">
+            <div className="mt-4 space-y-2">
+              <Button
+                onClick={handlePiAuth}
+                disabled={busyAuth}
+                className="h-11 w-full rounded-2xl bg-paypal-blue text-white hover:bg-[#004dc5]"
+              >
+                {busyAuth ? "Authenticating..." : "Authenticate with Pi"}
+              </Button>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <Button
+                  asChild
+                  variant="outline"
+                  className="h-11 w-full rounded-2xl"
+                >
+                  <Link to="/sign-in?mode=signin">Use Email Sign In</Link>
+                </Button>
+                <Button
+                  asChild
+                  type="button"
+                  variant="outline"
+                  className="h-11 w-full rounded-2xl"
+                >
+                  <a href="https://openpaylandingpage.vercel.app/" target="_blank" rel="noreferrer">
+                    Landing Page
+                  </a>
+                </Button>
+              </div>
+            </div>
+            <p className="mt-2 text-xs text-gray-600">
               Use Email Sign In when using OpenPay App, Desktop, Tablet, or Browser. Enjoy full-screen experience, notifications, POS, Merchant Portal access, and more.
             </p>
-        </div>
-        <p className="mb-1 text-lg font-semibold text-white">OpenPay</p>
-        <p className="text-sm font-medium text-white/85">Welcome to OpenPay</p>
+            {piUser && (
+              <p className="mt-3 text-sm text-gray-800">
+                Connected as <span className="font-semibold">@{piUser.username}</span> ({piUser.uid})
+              </p>
+            )}
+            <AuthFooter />
+          </div>
       </div>
-
-      <div className="paypal-surface w-full rounded-3xl p-7 shadow-2xl shadow-black/15">
-        <div className="mb-4">
-          <h1 className="paypal-heading text-xl">Welcome</h1>
-        </div>
-
-        <div className="rounded-2xl border border-border/70 bg-white p-3">
-          <h2 className="text-base font-semibold text-foreground">Pi Browser</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Connect your Pi account securely with Pi authentication.
-          </p>
-          {!!searchParams.get("ref") && (
-            <p className="mt-1 text-xs text-paypal-blue">
-              Referral code detected: {(searchParams.get("ref") || "").trim().toLowerCase()}
-            </p>
-          )}
-          {!sdkReady && (
-            <p className="mt-1 text-xs text-destructive">
-              Pi SDK is unavailable. Please open this app in Pi Browser.
-            </p>
-          )}
-          <Button
-            onClick={handlePiAuth}
-            disabled={busyAuth}
-            className="mt-3 h-11 w-full rounded-2xl bg-paypal-blue text-white hover:bg-[#004dc5]"
-          >
-            {busyAuth ? "Authenticating..." : "Authenticate with Pi"}
-          </Button>
-          <Button
-            asChild
-            variant="outline"
-            className="mt-2 h-11 w-full rounded-2xl"
-          >
-            <Link to="/sign-in?mode=signin">Use Email Sign In</Link>
-          </Button>
-          <Button
-            asChild
-            type="button"
-            variant="outline"
-            className="mt-2 h-11 w-full rounded-2xl"
-          >
-            <a href="https://openpaylandingpage.vercel.app/" target="_blank" rel="noreferrer">
-              Landing Page
-            </a>
-          </Button>
-          <p className="mt-2 text-xs text-muted-foreground">
-            Use Email Sign In when using OpenPay App, Desktop, Tablet, or Browser. Enjoy full-screen experience, notifications, POS, Merchant Portal access, and more.
-          </p>
-          {piUser && (
-            <p className="mt-3 text-sm text-foreground">
-              Connected as <span className="font-semibold">@{piUser.username}</span> ({piUser.uid})
-            </p>
-          )}
-        </div>
-      </div>
-      <AuthFooter />
     </div>
   </div>
-);
+  );
+};
 
 export default PiAuthPage;
-
