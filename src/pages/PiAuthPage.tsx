@@ -145,51 +145,26 @@ const PiAuthPage = () => {
 
       // Ensure current authenticated user has latest Pi metadata.
       const {
-        data: { user },
+        data: user,
       } = await supabase.auth.getUser();
 
       if (user) {
-        const { error } = await supabase.auth.updateUser({
-          data: {
-            pi_uid: verified.uid,
-            pi_username: username,
-            pi_connected_at: new Date().toISOString(),
-          },
-        });
-        if (error) {
-          toast.error(error.message || "Pi linked locally, but profile update failed");
-        }
+        const settings = user ? loadAppSecuritySettings(user.id) : null;
+        const pinSetupCompleted = user ? isPinSetupCompleted(user.id) : false;
 
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("full_name, username")
-          .eq("id", user.id)
-          .single();
-
-        const needsProfileSetup =
-          Boolean(signInResult?.created) ||
-          !profile?.full_name?.trim() ||
-          !profile?.username?.trim() ||
-          profile.username.startsWith("pi_");
-
-        if (needsProfileSetup) {
-          toast.message("Set up your profile to continue");
-          navigate("/setup-profile", { replace: true });
-          return;
-        }
-
-        if (expectedCode) {
-          const { data: isMatch, error: verifyError } = await (supabase as any).rpc(
-            "verify_my_openpay_authorization_code",
-            { p_code: expectedCode }
+        // Only show PIN modal if user hasn't set up PIN yet
+        if (!pinSetupCompleted && !settings?.pinHash) {
+          setPinNextAction(() => async () =>
+            navigate("/setup-profile", {
+              state: {
+                title: "Set up your OpenPay PIN",
+              },
+            })
           );
-          if (verifyError) {
-            throw new Error(verifyError.message || "Authorization code verification failed");
-          }
-          if (!isMatch) {
-            await supabase.auth.signOut();
-            throw new Error("Invalid or expired authorization code. Please request a new code and try again.");
-          }
+          setShowPinReminder(true);
+        } else {
+          // User has PIN set up, proceed directly with send
+          await signInResult;
         }
       }
 
