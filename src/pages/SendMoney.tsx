@@ -577,7 +577,7 @@ const SendMoney = () => {
       <img src={user.avatar_url} alt={user.full_name} className="h-12 w-12 rounded-full object-cover border border-border" />
     ) : (
       <div className={`w-12 h-12 rounded-full ${colors[colorIndex % colors.length]} flex items-center justify-center`}>
-        <span className="text-sm font-bold text-primary-foreground">{getInitials(user.full_name)}</span>
+        <span className="text-base font-bold text-primary-foreground">{getInitials(user.full_name)}</span>
       </div>
     )
   );
@@ -604,7 +604,7 @@ const SendMoney = () => {
           </div>
           
           <div className="flex items-center gap-1.5 rounded-full bg-black/10 px-4 py-1.5 active:bg-black/20">
-            <span className="text-sm font-bold uppercase tracking-wide">{currency.code}</span>
+            <span className="text-base font-bold uppercase tracking-wide">{currency.code}</span>
             <CurrencySelector />
           </div>
 
@@ -612,7 +612,7 @@ const SendMoney = () => {
             <img src={myAvatarUrl} alt="Profile" className="h-9 w-9 rounded-full border border-white/20 object-cover" />
           ) : (
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20">
-              <span className="text-xs font-bold">{getInitials(myFullName || "User")}</span>
+              <span className="text-sm font-bold">{getInitials(myFullName || "User")}</span>
             </div>
           )}
         </div>
@@ -626,10 +626,10 @@ const SendMoney = () => {
           
           {selectedUser && (
             <div className="flex flex-col items-center gap-2">
-              <div className="flex items-center gap-2 rounded-full bg-black/5 px-3 py-1.5 text-sm font-medium">
+              <div className="flex items-center gap-2 rounded-full bg-black/5 px-3 py-1.5 text-base font-medium">
                 <span>Sending to {selectedUser.full_name}</span>
               </div>
-              <p className="text-xs font-medium text-white/80">Available: {formatCurrency(balance)}</p>
+              <p className="text-sm font-medium text-white/80">Available: {formatCurrency(balance)}</p>
             </div>
           )}
 
@@ -678,7 +678,7 @@ const SendMoney = () => {
         <Dialog open={showSendConfirm} onOpenChange={setShowSendConfirm}>
           <DialogContent className="rounded-3xl">
             <DialogTitle className="text-xl font-bold text-foreground">Confirm payment</DialogTitle>
-            <DialogDescription className="text-sm text-muted-foreground">
+            <DialogDescription className="text-base text-muted-foreground">
               Review the details before sending.
             </DialogDescription>
             {selectedUser && (
@@ -687,7 +687,7 @@ const SendMoney = () => {
                   <img src={selectedUser.avatar_url} alt={selectedUser.full_name} className="h-12 w-12 rounded-full border border-border object-cover" />
                 ) : (
                   <div className="flex h-12 w-12 items-center justify-center rounded-full bg-paypal-dark">
-                    <span className="text-sm font-bold text-primary-foreground">{getInitials(selectedUser.full_name)}</span>
+                    <span className="text-base font-bold text-primary-foreground">{getInitials(selectedUser.full_name)}</span>
                   </div>
                 )}
                 <div>
@@ -697,7 +697,7 @@ const SendMoney = () => {
               </div>
             )}
 
-            <div className="mt-4 space-y-2 rounded-2xl border border-border p-3 text-sm">
+            <div className="mt-4 space-y-2 rounded-2xl border border-border p-3 text-base">
               <p className="flex items-center justify-between">
                 <span className="text-muted-foreground">Amount</span>
                 <span className="font-semibold text-foreground">{currency.symbol}{Number(amount || 0).toFixed(2)} ({currency.code})</span>
@@ -714,7 +714,7 @@ const SendMoney = () => {
               )}
             </div>
 
-            <p className="mt-3 rounded-md border border-paypal-light-blue/60 bg-[#edf3ff] px-2 py-1 text-xs text-paypal-blue">
+            <p className="mt-3 rounded-md border border-paypal-light-blue/60 bg-[#edf3ff] px-3 py-2 text-sm text-paypal-blue">
               Only transact with users you know. Approve only if you expected this transaction. If you do not recognize the user, cancel now.
             </p>
 
@@ -778,7 +778,7 @@ const SendMoney = () => {
           />
         ) : (
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20">
-            <span className="text-xs font-bold text-white">{getInitials(myFullName || "OpenPay User")}</span>
+            <span className="text-sm font-bold text-white">{getInitials(myFullName || "OpenPay User")}</span>
           </div>
         )}
         <button onClick={() => navigate("/dashboard")} className="active:opacity-60 transition-opacity">
@@ -825,8 +825,8 @@ const SendMoney = () => {
                   {renderAvatar(user, i)}
                   <div className="text-left flex-1">
                     <p className="font-semibold text-foreground">{user.full_name}</p>
-                    {user.username && <p className="text-sm text-muted-foreground">@{user.username}</p>}
-                    <p className="text-xs text-muted-foreground">Recent transaction</p>
+                    {user.username && <p className="text-base text-muted-foreground">@{user.username}</p>}
+                    <p className="text-sm text-muted-foreground">Recent transaction</p>
                   </div>
                   <button
                     type="button"
@@ -850,7 +850,7 @@ const SendMoney = () => {
           {isAccountNumberSearch && (
             <>
               {accountLookupLoading && (
-                <p className="border-b border-border/70 px-3 py-3 text-sm text-muted-foreground">Searching account number...</p>
+                <p className="border-b border-border/70 px-3 py-3 text-base text-muted-foreground">Searching account number...</p>
               )}
               {!accountLookupLoading && accountLookupResult && (
                 <div
@@ -860,8 +860,8 @@ const SendMoney = () => {
                   {renderAvatar(accountLookupResult, 0)}
                   <div className="text-left flex-1">
                     <p className="font-semibold text-foreground">{accountLookupResult.full_name}</p>
-                    {accountLookupResult.username && <p className="text-sm text-muted-foreground">@{accountLookupResult.username}</p>}
-                    <p className="text-xs text-muted-foreground">Matched by account number</p>
+                    {accountLookupResult.username && <p className="text-base text-muted-foreground">@{accountLookupResult.username}</p>}
+                    <p className="text-sm text-muted-foreground">Matched by account number</p>
                   </div>
                   <Info className="w-5 h-5 text-muted-foreground" />
                 </div>
@@ -877,7 +877,7 @@ const SendMoney = () => {
               {renderAvatar(user, i)}
               <div className="text-left flex-1">
                 <p className="font-semibold text-foreground">{user.full_name}</p>
-                {user.username && <p className="text-sm text-muted-foreground">@{user.username}</p>}
+                {user.username && <p className="text-base text-muted-foreground">@{user.username}</p>}
               </div>
               <button
                 type="button"
