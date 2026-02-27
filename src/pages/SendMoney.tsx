@@ -13,7 +13,6 @@ import TransactionReceipt, { type ReceiptData } from "@/components/TransactionRe
 import NumberPad from "@/components/NumberPad";
 import { loadAppSecuritySettings, isPinSetupCompleted } from "@/lib/appSecurity";
 import SplashScreen from "@/components/SplashScreen";
-import TransactionPinModal from "@/components/TransactionPinModal";
  
 type PinReturnState = {
   pinVerified?: boolean;
@@ -117,8 +116,6 @@ const SendMoney = () => {
   const [myFullName, setMyFullName] = useState("");
   const [accountLookupResult, setAccountLookupResult] = useState<UserProfile | null>(null);
   const [accountLookupLoading, setAccountLookupLoading] = useState(false);
-  const [showPinReminder, setShowPinReminder] = useState(false);
-  const [pinNextAction, setPinNextAction] = useState<(() => Promise<void>) | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -178,9 +175,11 @@ const SendMoney = () => {
       if (!isInitialLoadDone) return;
 
       const state = location.state as PinReturnState;
+      console.log('PIN verification state:', state);
       if (state?.pinVerified && state?.actionData) {
         // Restore state from before PIN redirect
         const data = state.actionData;
+        console.log('Restoring action data from PIN:', data);
         
         // Execute the send action IMMEDIATELY with the data from PIN state
         // This is the most reliable way as it avoids waiting for React state updates
@@ -191,6 +190,9 @@ const SendMoney = () => {
         if (data.amount) setAmount(data.amount);
         if (data.note) setNote(data.note);
         if (data.step) setStep(data.step);
+        
+        // Always show transaction confirmation modal after PIN verification
+        setShowSendConfirm(true);
         
         // Clear location state immediately to prevent re-execution
         navigate(location.pathname + location.search, { replace: true, state: {} });
@@ -543,7 +545,13 @@ const SendMoney = () => {
       note: activeNote || undefined,
       date: new Date(),
     });
+    console.log('Receipt data set:', {
+      transactionId: txId,
+      amount: usdAmount,
+      otherPartyName: activeUser.full_name
+    });
     setReceiptOpen(true);
+    console.log('Receipt modal opened:', true);
     playSendSuccessSound();
     if (usedFallback) {
       toast.success(`${currency.symbol}${parseFloat(activeAmount).toFixed(2)} sent to ${activeUser.full_name}! (fallback route)`);
@@ -727,18 +735,22 @@ const SendMoney = () => {
                   const pinSetupCompleted = user ? isPinSetupCompleted(user.id) : false;
                   setShowSendConfirm(false);
                   
-                  // Only show PIN modal if user hasn't set up PIN yet
-                  if (!pinSetupCompleted && !settings?.pinHash) {
-                    setPinNextAction(() => async () =>
-                      navigate("/confirm-pin", {
-                        state: {
-                          title: "Confirm your OpenPay PIN",
-                        },
-                      })
-                    );
-                    setShowPinReminder(true);
+                  // Navigate to PIN confirmation page if user has PIN set up
+                  if (pinSetupCompleted && settings?.pinHash) {
+                    navigate("/confirm-pin", {
+                      state: {
+                        title: "Confirm your OpenPay PIN",
+                        returnTo: "/send",
+                        actionData: {
+                          selectedUser,
+                          amount,
+                          note,
+                          step: "confirm"
+                        }
+                      },
+                    });
                   } else {
-                    // User has PIN set up, proceed directly with send
+                    // Proceed directly with send if no PIN set up
                     await handleSend();
                   }
                 }}
@@ -755,17 +767,6 @@ const SendMoney = () => {
             </div>
           </DialogContent>
         </Dialog>
-        <TransactionPinModal
-          open={showPinReminder}
-          onOpenChange={setShowPinReminder}
-          onSuccess={async () => {
-            const fn = pinNextAction;
-            setShowPinReminder(false);
-            setPinNextAction(null);
-            if (fn) await fn();
-          }}
-          title="Enter your PIN to send payment"
-        />
       </div>
     );
   }
@@ -928,17 +929,6 @@ const SendMoney = () => {
         </DialogContent>
       </Dialog>
 
-      <TransactionPinModal
-        open={showPinReminder}
-        onOpenChange={setShowPinReminder}
-        onSuccess={async () => {
-          const fn = pinNextAction;
-          setShowPinReminder(false);
-          setPinNextAction(null);
-          if (fn) await fn();
-        }}
-        title="Enter your PIN to send payment"
-      />
 
     </div>
   );

@@ -6,9 +6,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import BrandLogo from "@/components/BrandLogo";
-import { playGoogleWalletSuccessSound } from "@/lib/soundEffects";
 import { loadAppSecuritySettings, isPinSetupCompleted } from "@/lib/appSecurity";
-import PinReminderModal from "@/components/PinReminderModal";
+import { playGoogleWalletSuccessSound } from "@/lib/soundEffects";
 
 type SwapWithdrawalRow = {
   id: string;
@@ -45,33 +44,24 @@ const SwapWithdrawalPage = () => {
     const settings = user ? loadAppSecuritySettings(user.id) : null;
     const pinSetupCompleted = user ? isPinSetupCompleted(user.id) : false;
     
-    // Only show PIN modal if user hasn't set up PIN yet
-    if (!pinSetupCompleted && !settings?.pinHash) {
-      setNextAction(() => {
-        return async () => {
-          const actionData = {
+    // Navigate to PIN confirmation page if user has PIN set up
+    if (pinSetupCompleted && settings?.pinHash) {
+      navigate("/confirm-pin", {
+        state: {
+          title: "Confirm your OpenPay PIN",
+          returnTo: location.pathname + location.search,
+          actionData: {
             kind: "swap_withdrawal_submit",
             amount: safeAmount,
             openpayName,
             openpayUsername: normalizedUsername,
             openpayAccountNumber,
             piWalletAddress,
-          };
-          if (typeof window !== "undefined") {
-            window.sessionStorage.setItem(PIN_ACTION_KEY, JSON.stringify(actionData));
-          }
-          navigate("/confirm-pin", {
-            state: {
-              returnTo: location.pathname + location.search,
-              actionData,
-              title: "Confirm your OpenPay PIN",
-            },
-          });
-        };
+          },
+        },
       });
-      setShowPinModal(true);
     } else {
-      // User has PIN set up, proceed directly with action
+      // Proceed directly with action if no PIN set up
       await action();
     }
   };
@@ -96,8 +86,6 @@ const SwapWithdrawalPage = () => {
   const [history, setHistory] = useState<SwapWithdrawalRow[]>([]);
   const [piPriceUsd, setPiPriceUsd] = useState<number | null>(null);
   const [piPriceUpdatedAt, setPiPriceUpdatedAt] = useState<number | null>(null);
-  const [showPinModal, setShowPinModal] = useState(false);
-  const [nextAction, setNextAction] = useState<(() => Promise<void>) | null>(null);
 
   const parsedAmount = Number(amount);
   const safeAmount = Number.isFinite(parsedAmount) && parsedAmount > 0 ? parsedAmount : 0;
@@ -551,17 +539,7 @@ const SwapWithdrawalPage = () => {
         </DialogContent>
       </Dialog>
 
-      <PinReminderModal
-        open={showPinModal}
-        onOpenChange={setShowPinModal}
-        onProceed={async () => {
-          const fn = nextAction;
-          setShowPinModal(false);
-          setNextAction(null);
-          if (fn) await fn();
-        }}
-      />
-
+      
       <Dialog open={showConfirmModal} onOpenChange={setShowConfirmModal}>
         <DialogContent className="rounded-3xl sm:max-w-md">
           <DialogTitle className="text-lg font-bold text-foreground">Confirm Withdrawal</DialogTitle>

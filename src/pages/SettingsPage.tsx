@@ -148,7 +148,7 @@ const SettingsPage = () => {
     markPinSetupCompleted(userId);
     setPin("");
     setSavingSecurity(false);
-    toast.success("PIN security enabled");
+    toast.success("PIN setup completed! Your account is now protected with PIN security.");
   };
 
   const handleSetSecurityPassword = async () => {
@@ -368,6 +368,18 @@ const SettingsPage = () => {
                   Disable
                 </Button>
               )}
+              <Button 
+                variant="outline" 
+                onClick={() => navigate("/confirm-pin", {
+                  state: {
+                    title: "Set up your OpenPay PIN",
+                    returnTo: "/settings"
+                  }
+                })}
+                className="h-10 rounded-2xl"
+              >
+                PIN Setup
+              </Button>
             </div>
           </div>
 

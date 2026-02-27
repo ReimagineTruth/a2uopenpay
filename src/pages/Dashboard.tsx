@@ -8,7 +8,6 @@ import CurrencySelector from "@/components/CurrencySelector";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import BrandLogo from "@/components/BrandLogo";
 import TransactionReceipt, { type ReceiptData } from "@/components/TransactionReceipt";
-import TransactionPinModal from "@/components/TransactionPinModal";
 import { loadAppSecuritySettings } from "@/lib/appSecurity";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";

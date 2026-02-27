@@ -5,9 +5,8 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
-import { playGoogleWalletSuccessSound } from "@/lib/soundEffects";
 import { loadAppSecuritySettings, isPinSetupCompleted } from "@/lib/appSecurity";
-import PinReminderModal from "@/components/PinReminderModal";
+import { playGoogleWalletSuccessSound } from "@/lib/soundEffects";
 
 type TopUpAccountDetailsProps = {
   providerName: string;
@@ -61,7 +60,6 @@ const TopUpAccountDetails = ({
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
   const [showPinModal, setShowPinModal] = useState(false);
-  const [pinNextAction, setPinNextAction] = useState<(() => Promise<void>) | null>(null);
   const [history, setHistory] = useState<TopUpHistoryRow[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
 
@@ -276,22 +274,21 @@ const TopUpAccountDetails = ({
     const { data: { user } } = await supabase.auth.getUser();
     const settings = user ? loadAppSecuritySettings(user.id) : null;
     const pinSetupCompleted = user ? isPinSetupCompleted(user.id) : false;
+    playGoogleWalletSuccessSound();
     
-    // Only show PIN modal if user hasn't set up PIN yet
-    if (!pinSetupCompleted && !settings?.pinHash) {
-      setPinNextAction(() => async () => {
-        navigate("/confirm-pin", {
-          state: {
-            returnTo: location.pathname + location.search,
-            actionData: { kind: "topup_submit" },
-            title: "Confirm your OpenPay PIN",
-          },
-        });
+    // Navigate to PIN confirmation page if user has PIN set up
+    if (pinSetupCompleted && settings?.pinHash) {
+      navigate("/confirm-pin", {
+        state: {
+          title: "Confirm your OpenPay PIN",
+          returnTo: location.pathname + location.search,
+          actionData: {
+            kind: "topup_submit"
+          }
+        },
       });
-      setShowPinModal(true);
     } else {
-      // User has PIN set up, proceed directly with top-up
-      playGoogleWalletSuccessSound();
+      // Proceed directly with topup if no PIN set up
       await submitTopUpRequest();
     }
   };
@@ -514,16 +511,6 @@ const TopUpAccountDetails = ({
         </DialogContent>
       </Dialog>
 
-      <PinReminderModal
-        open={showPinModal}
-        onOpenChange={setShowPinModal}
-        onProceed={async () => {
-          const fn = pinNextAction;
-          setShowPinModal(false);
-          setPinNextAction(null);
-          if (fn) await fn();
-        }}
-      />
     </div>
   );
 };

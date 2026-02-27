@@ -14,9 +14,8 @@ import { QRCodeSVG } from "qrcode.react";
 import { Html5Qrcode } from "html5-qrcode";
 import { Info } from "lucide-react";
 import TransactionReceipt, { type ReceiptData } from "@/components/TransactionReceipt";
-import SplashScreen from "@/components/SplashScreen";
-import PinReminderModal from "@/components/PinReminderModal";
 import { loadAppSecuritySettings, isPinSetupCompleted } from "@/lib/appSecurity";
+import SplashScreen from "@/components/SplashScreen";
 
 const PIN_ACTION_KEY = "openpay_pin_action_v1";
 
@@ -66,8 +65,6 @@ const RequestMoney = () => {
     | { type: "reject"; request: PaymentRequest; requester: Profile | null }
     | null
   >(null);
-  const [showPinReminder, setShowPinReminder] = useState(false);
-  const [pinNextAction, setPinNextAction] = useState<(() => Promise<void>) | null>(null);
   const pinActionExecutedRef = useRef(false);
 
   const profileMap = useMemo(() => {
@@ -534,24 +531,20 @@ const RequestMoney = () => {
     if (confirmAction.type === "pay") {
       setConfirmModalOpen(false);
       
-      // Only show PIN modal if user hasn't set up PIN yet
-      if (!pinSetupCompleted && !settings?.pinHash) {
-        setPinNextAction(() => async () => {
-          const actionData = { kind: "request_pay", requestId: confirmAction.request.id };
-          try {
-            if (typeof window !== "undefined") window.sessionStorage.setItem(PIN_ACTION_KEY, JSON.stringify(actionData));
-          } catch {}
-          navigate("/confirm-pin", {
-            state: {
-              returnTo: location.pathname + location.search,
-              actionData,
-              title: "Confirm your OpenPay PIN",
-            },
-          });
+      // Navigate to PIN confirmation page if user has PIN set up
+      if (pinSetupCompleted && settings?.pinHash) {
+        navigate("/confirm-pin", {
+          state: {
+            title: "Confirm your OpenPay PIN",
+            returnTo: "/request-payment",
+            actionData: {
+              kind: "request_pay",
+              requestId: confirmAction.request.id
+            }
+          },
         });
-        setShowPinReminder(true);
       } else {
-        // User has PIN set up, proceed directly with pay
+        // Proceed directly with pay if no PIN set up
         await submitPay(confirmAction.request, confirmAction.requester);
       }
       return;
@@ -955,19 +948,6 @@ const RequestMoney = () => {
         </DialogContent>
       </Dialog>
 
-      <PinReminderModal
-        open={showPinReminder}
-        onOpenChange={(open) => {
-          setShowPinReminder(open);
-          if (!open) setConfirmAction(null);
-        }}
-        onProceed={async () => {
-          const fn = pinNextAction;
-          setShowPinReminder(false);
-          setPinNextAction(null);
-          if (fn) await fn();
-        }}
-      />
 
       <TransactionReceipt
         open={receiptOpen}

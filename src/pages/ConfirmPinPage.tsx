@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { X, HelpCircle, ArrowLeft, Check, Delete, ShieldCheck, Keyboard, Fingerprint } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { hashSecret, loadAppSecuritySettings } from "@/lib/appSecurity";
+import { hashSecret, loadAppSecuritySettings, saveAppSecuritySettings, markPinSetupCompleted } from "@/lib/appSecurity";
+import { upsertUserPreferences } from "@/lib/userPreferences";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -28,8 +29,9 @@ const ConfirmPinPage = () => {
       }
       const settings = loadAppSecuritySettings(user.id);
       if (!settings?.pinHash) {
-        // If no PIN is set, just go back and proceed
-        navigate(returnTo, { state: { pinVerified: true, actionData }, replace: true });
+        // If no PIN is set, user needs to set one up first
+        // Don't navigate back - let user enter their PIN
+        return;
       }
     };
     checkPinSet();
@@ -58,8 +60,17 @@ const ConfirmPinPage = () => {
       const settings = loadAppSecuritySettings(user.id);
       const hashed = await hashSecret(pin);
       
-      if (hashed === settings.pinHash) {
-        // Success: Redirect back with verified flag and original action data
+      if (!settings?.pinHash) {
+        // PIN setup: User is setting up PIN for first time
+        const updated = { ...settings, pinHash: hashed };
+        saveAppSecuritySettings(user.id, updated);
+        upsertUserPreferences(user.id, { security_settings: updated }).catch(() => undefined);
+        markPinSetupCompleted(user.id);
+        toast.success("PIN setup completed! Your account is now protected.");
+        navigate(returnTo, { state: { pinVerified: true, actionData }, replace: true });
+      } else if (hashed === settings.pinHash) {
+        // PIN verification: User is verifying existing PIN
+        toast.success("PIN verified successfully!");
         navigate(returnTo, { state: { pinVerified: true, actionData }, replace: true });
       } else {
         toast.error("Incorrect PIN. Please try again.");
@@ -84,8 +95,13 @@ const ConfirmPinPage = () => {
         </button>
         <div className="flex items-center gap-4">
           <button 
-            onClick={() => setShowInstructions(true)}
-            className="hover:opacity-70 active:scale-90 transition-all"
+            onClick={() => {
+              console.log('Question mark clicked - showing instructions');
+              setShowInstructions(true);
+            }}
+            className="hover:opacity-70 active:scale-90 transition-all bg-white/10 p-2 rounded-full"
+            title="PIN Instructions"
+            aria-label="Show PIN instructions"
           >
             <HelpCircle className="h-7 w-7" />
           </button>
@@ -155,8 +171,11 @@ const ConfirmPinPage = () => {
         </div>
       </div>
 
-      <Dialog open={showInstructions} onOpenChange={setShowInstructions}>
-        <DialogContent className="rounded-3xl border-none bg-white p-6 sm:max-w-md">
+      <Dialog open={showInstructions} onOpenChange={(open) => {
+        console.log('Instructions modal open:', open);
+        setShowInstructions(open);
+      }}>
+        <DialogContent className="rounded-3xl border-none bg-white p-6 sm:max-w-md z-[200]">
           <DialogHeader>
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-paypal-blue/10">
               <ShieldCheck className="h-8 w-8 text-paypal-blue" />
@@ -174,7 +193,7 @@ const ConfirmPinPage = () => {
               </div>
               <div>
                 <p className="font-semibold text-gray-900">1. Enter your PIN</p>
-                <p className="text-sm text-gray-500">Use the number pad to type your secret 4 to 8 digit PIN. The dots will indicate your progress.</p>
+                <p className="text-sm text-gray-500">Use the number pad to type your secret 4 to 8 digit PIN. The white dots will fill up as you enter each digit.</p>
               </div>
             </div>
 
@@ -184,7 +203,7 @@ const ConfirmPinPage = () => {
               </div>
               <div>
                 <p className="font-semibold text-gray-900">2. Tap to Confirm</p>
-                <p className="text-sm text-gray-500">After entering the correct PIN, tap the checkmark (✓) button at the bottom right to complete the transaction.</p>
+                <p className="text-sm text-gray-500">After entering your complete PIN, tap the green checkmark (✓) button at the bottom right to authorize the transaction.</p>
               </div>
             </div>
 
@@ -194,7 +213,7 @@ const ConfirmPinPage = () => {
               </div>
               <div>
                 <p className="font-semibold text-gray-900">3. Correction</p>
-                <p className="text-sm text-gray-500">Made a mistake? Use the backspace button at the bottom left to clear the last digit entered.</p>
+                <p className="text-sm text-gray-500">Made a mistake? Use the backspace button at the bottom left to clear the last digit you entered.</p>
               </div>
             </div>
 
@@ -218,7 +237,10 @@ const ConfirmPinPage = () => {
           </div>
 
           <Button 
-            onClick={() => setShowInstructions(false)}
+            onClick={() => {
+              console.log('Closing instructions modal');
+              setShowInstructions(false);
+            }}
             className="mt-8 h-12 w-full rounded-2xl bg-paypal-blue text-base font-bold text-white hover:bg-paypal-blue/90"
           >
             Got it, thanks!

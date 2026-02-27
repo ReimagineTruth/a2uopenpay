@@ -148,26 +148,6 @@ const PiAuthPage = () => {
         data: user,
       } = await supabase.auth.getUser();
 
-      if (user) {
-        const settings = user ? loadAppSecuritySettings(user.id) : null;
-        const pinSetupCompleted = user ? isPinSetupCompleted(user.id) : false;
-
-        // Only show PIN modal if user hasn't set up PIN yet
-        if (!pinSetupCompleted && !settings?.pinHash) {
-          setPinNextAction(() => async () =>
-            navigate("/setup-profile", {
-              state: {
-                title: "Set up your OpenPay PIN",
-              },
-            })
-          );
-          setShowPinReminder(true);
-        } else {
-          // User has PIN set up, proceed directly with send
-          await signInResult;
-        }
-      }
-
       setPiUser({ uid: verified.uid, username });
       toast.success(`Authenticated as @${username}`);
       navigate("/dashboard", { replace: true });
