@@ -1260,18 +1260,24 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Utility Buttons */}
+      {/* OpenApp Banner */}
       <div className="px-4 mt-2">
-        <div className="flex justify-end">
-          <button 
-            onClick={() => navigate("/openapp")} 
-            aria-label="Open OpenApp utilities" 
-            className="paypal-surface flex h-10 w-10 items-center justify-center rounded-full"
-            title="OpenApp Utilities"
-          >
-            <ExternalLink className="h-5 w-5 text-foreground" />
-          </button>
-        </div>
+        <button 
+          onClick={() => navigate("/openapp")} 
+          className="w-full paypal-surface rounded-2xl p-4 flex items-center justify-between hover:opacity-90 transition-opacity"
+          aria-label="Open OpenApp utilities"
+        >
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-paypal-blue">
+              <ExternalLink className="h-5 w-5 text-white" />
+            </div>
+            <div className="text-left">
+              <h3 className="font-semibold text-foreground">OpenApp Utilities</h3>
+              <p className="text-sm text-muted-foreground">Access OpenApp platform and tools</p>
+            </div>
+          </div>
+          <ChevronDown className="h-5 w-5 text-muted-foreground" />
+        </button>
       </div>
 
       {/* Greeting */}
