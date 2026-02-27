@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 
-const OPENAPP_URL = "https://www.openappdev.space/";
+const OPENAPP_URL = "https://openapp7296.pinet.com/";
 
 const OpenAppPage = () => {
   const navigate = useNavigate();
