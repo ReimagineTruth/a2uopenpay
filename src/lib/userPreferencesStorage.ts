@@ -22,10 +22,26 @@ export interface UserPreferences {
   notificationsEnabled?: boolean;
   soundEffectsEnabled?: boolean;
   
+  // Profile details
+  fullName?: string;
+  username?: string;
+  email?: string;
+  phone?: string;
+  dateOfBirth?: string;
+  country?: string;
+  timezone?: string;
+  
   // Payment links preferences
   disableContactCollection?: boolean;
   customerPaysFee?: boolean; // true = customer pays 2% fee, false = merchant handles fee
   openPayFeeAccount?: string; // Account to receive fees: OPEA68BB7A9F964994A199A15786D680FA
+  
+  // App preferences
+  defaultCurrency?: string;
+  qrCodeSize?: 'small' | 'medium' | 'large';
+  showBalance?: boolean;
+  enableTwoFactor?: boolean;
+  preferredPaymentMethod?: string;
   
   // Timestamps
   lastUpdated?: string;
@@ -53,6 +69,23 @@ const DEFAULT_PREFERENCES: UserPreferences = {
   cookiesAccepted: false,
   analyticsConsent: false,
   marketingConsent: false,
+  
+  // Profile defaults
+  fullName: '',
+  username: '',
+  email: '',
+  phone: '',
+  dateOfBirth: '',
+  country: '',
+  timezone: 'UTC',
+  
+  // App preferences
+  defaultCurrency: 'USD',
+  qrCodeSize: 'medium',
+  showBalance: true,
+  enableTwoFactor: false,
+  preferredPaymentMethod: 'wallet',
+  
   // Payment links defaults
   disableContactCollection: false,
   customerPaysFee: true, // By default, customer pays fee
@@ -207,6 +240,39 @@ export const setPinSetupCompleted = (completed: boolean): void => {
   updateUserPreference('pinSetupCompleted', completed);
 };
 
+// Security preference functions
+export const getAutoLockEnabled = (): boolean => {
+  return loadUserPreferences().autoLockEnabled !== false;
+};
+
+export const setAutoLockEnabled = (enabled: boolean): void => {
+  updateUserPreference('autoLockEnabled', enabled);
+};
+
+export const getAutoLockTimeout = (): number => {
+  return loadUserPreferences().autoLockTimeout || 15;
+};
+
+export const setAutoLockTimeout = (timeout: number): void => {
+  updateUserPreference('autoLockTimeout', timeout);
+};
+
+export const getNotificationsEnabled = (): boolean => {
+  return loadUserPreferences().notificationsEnabled !== false;
+};
+
+export const setNotificationsEnabled = (enabled: boolean): void => {
+  updateUserPreference('notificationsEnabled', enabled);
+};
+
+export const getSoundEffectsEnabled = (): boolean => {
+  return loadUserPreferences().soundEffectsEnabled !== false;
+};
+
+export const setSoundEffectsEnabled = (enabled: boolean): void => {
+  updateUserPreference('soundEffectsEnabled', enabled);
+};
+
 // Payment links preference functions
 export const getDisableContactCollection = (): boolean => {
   return loadUserPreferences().disableContactCollection || false;
@@ -232,7 +298,134 @@ export const setOpenPayFeeAccount = (account: string): void => {
   updateUserPreference('openPayFeeAccount', account);
 };
 
+// Profile detail functions
+export const getFullName = (): string => {
+  return loadUserPreferences().fullName || '';
+};
+
+export const setFullName = (fullName: string): void => {
+  updateUserPreference('fullName', fullName);
+};
+
+export const getUsername = (): string => {
+  return loadUserPreferences().username || '';
+};
+
+export const setUsername = (username: string): void => {
+  updateUserPreference('username', username);
+};
+
+export const getEmail = (): string => {
+  return loadUserPreferences().email || '';
+};
+
+export const setEmail = (email: string): void => {
+  updateUserPreference('email', email);
+};
+
+export const getPhone = (): string => {
+  return loadUserPreferences().phone || '';
+};
+
+export const setPhone = (phone: string): void => {
+  updateUserPreference('phone', phone);
+};
+
+export const getDateOfBirth = (): string => {
+  return loadUserPreferences().dateOfBirth || '';
+};
+
+export const setDateOfBirth = (dateOfBirth: string): void => {
+  updateUserPreference('dateOfBirth', dateOfBirth);
+};
+
+export const getCountry = (): string => {
+  return loadUserPreferences().country || '';
+};
+
+export const setCountry = (country: string): void => {
+  updateUserPreference('country', country);
+};
+
+export const getTimezone = (): string => {
+  return loadUserPreferences().timezone || 'UTC';
+};
+
+export const setTimezone = (timezone: string): void => {
+  updateUserPreference('timezone', timezone);
+};
+
+// App preference functions
+export const getDefaultCurrency = (): string => {
+  return loadUserPreferences().defaultCurrency || 'USD';
+};
+
+export const setDefaultCurrency = (currency: string): void => {
+  updateUserPreference('defaultCurrency', currency);
+};
+
+export const getQrCodeSize = (): 'small' | 'medium' | 'large' => {
+  return loadUserPreferences().qrCodeSize || 'medium';
+};
+
+export const setQrCodeSize = (size: 'small' | 'medium' | 'large'): void => {
+  updateUserPreference('qrCodeSize', size);
+};
+
+export const getShowBalance = (): boolean => {
+  return loadUserPreferences().showBalance !== false;
+};
+
+export const setShowBalance = (show: boolean): void => {
+  updateUserPreference('showBalance', show);
+};
+
+export const getEnableTwoFactor = (): boolean => {
+  return loadUserPreferences().enableTwoFactor || false;
+};
+
+export const setEnableTwoFactor = (enabled: boolean): void => {
+  updateUserPreference('enableTwoFactor', enabled);
+};
+
+export const getPreferredPaymentMethod = (): string => {
+  return loadUserPreferences().preferredPaymentMethod || 'wallet';
+};
+
+export const setPreferredPaymentMethod = (method: string): void => {
+  updateUserPreference('preferredPaymentMethod', method);
+};
+
 // Helper to check if we should persist preferences
 export const shouldPersistPreferences = (): boolean => {
   return canUseFunctionalCookies();
+};
+
+// Batch update function for multiple preferences
+export const updateMultiplePreferences = (preferences: Partial<UserPreferences>): void => {
+  if (typeof window === "undefined") return;
+  
+  try {
+    const current = loadUserPreferences();
+    const updated = {
+      ...current,
+      ...preferences,
+      lastUpdated: new Date().toISOString(),
+    };
+    
+    localStorage.setItem(PREFERENCES_KEY, JSON.stringify(updated));
+  } catch (error) {
+    console.error('Failed to update user preferences:', error);
+  }
+};
+
+// Reset all preferences to defaults
+export const resetAllPreferences = (): void => {
+  if (typeof window === "undefined") return;
+  
+  try {
+    localStorage.setItem(PREFERENCES_KEY, JSON.stringify(DEFAULT_PREFERENCES));
+  } catch (error) {
+    console.error('Failed to reset user preferences:', error);
+  }
 };
