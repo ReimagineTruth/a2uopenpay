@@ -1277,7 +1277,7 @@ const Dashboard = () => {
             </div>
             <div className="text-left">
               <h3 className="font-semibold text-foreground">OpenApp Utilities</h3>
-              <p className="text-sm text-muted-foreground">Access OpenApp platform and tools</p>
+              <p className="text-base text-muted-foreground">Access OpenApp platform and tools</p>
             </div>
           </div>
           <ChevronDown className="h-5 w-5 text-muted-foreground" />
@@ -1296,7 +1296,7 @@ const Dashboard = () => {
                 : `${getGreeting()}, ${userName.split(" ")[0] || "there"}!`}
         </h1>
         {activeSection !== "cards" && activeSection !== "buy" && activeSection !== "swap" && username && (
-          <p className="text-sm text-muted-foreground">@{username}</p>
+          <p className="text-base text-muted-foreground">@{username}</p>
         )}
       </div>
 
@@ -1315,7 +1315,7 @@ const Dashboard = () => {
               <button
                 key={item.key}
                 onClick={() => setActiveSection(item.key)}
-                className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
+                className={`rounded-xl px-4 py-2 text-base font-semibold transition ${
                   activeSection === item.key
                     ? "bg-paypal-blue text-white"
                     : "text-foreground hover:bg-secondary/70"
@@ -1326,7 +1326,7 @@ const Dashboard = () => {
             ))}
           </div>
         </div>
-        <p className="mt-2 text-xs text-muted-foreground">Display currency: {currencyTag}</p>
+        <p className="mt-2 text-sm text-muted-foreground">Display currency: {currencyTag}</p>
       </div>
 
       {activeSection === "savings" && (
@@ -1338,21 +1338,21 @@ const Dashboard = () => {
               </div>
               <div>
                 <p className="text-3xl font-bold">{balanceHidden ? "****" : formatCurrency(savings?.savings_balance ?? 0)}</p>
-                <p className="text-sm text-white/85">Savings balance</p>
+                <p className="text-base text-white/85">Savings balance</p>
               </div>
             </div>
             <div className="mt-4 grid gap-2 text-white/90 sm:grid-cols-3">
               <div className="rounded-xl bg-white/10 px-3 py-2">
-                <p className="text-[11px] uppercase tracking-wide text-white/80">Wallet balance</p>
-                <p className="text-sm font-semibold">{balanceHidden ? "****" : formatCurrency(savings?.wallet_balance ?? balance)}</p>
+                <p className="text-xs uppercase tracking-wide text-white/80">Wallet balance</p>
+                <p className="text-base font-semibold">{balanceHidden ? "****" : formatCurrency(savings?.wallet_balance ?? balance)}</p>
               </div>
               <div className="rounded-xl bg-white/10 px-3 py-2">
-                <p className="text-[11px] uppercase tracking-wide text-white/80">Savings balance</p>
-                <p className="text-sm font-semibold">{balanceHidden ? "****" : formatCurrency(savings?.savings_balance ?? 0)}</p>
+                <p className="text-xs uppercase tracking-wide text-white/80">Savings balance</p>
+                <p className="text-base font-semibold">{balanceHidden ? "****" : formatCurrency(savings?.savings_balance ?? 0)}</p>
               </div>
               <div className="rounded-xl bg-white/10 px-3 py-2">
-                <p className="text-[11px] uppercase tracking-wide text-white/80">Estimated APY</p>
-                <p className="text-sm font-semibold">{(savings?.apy ?? 0).toFixed(2)}%</p>
+                <p className="text-xs uppercase tracking-wide text-white/80">Estimated APY</p>
+                <p className="text-base font-semibold">{(savings?.apy ?? 0).toFixed(2)}%</p>
               </div>
             </div>
             <div className="mt-4 flex justify-end">
@@ -1360,7 +1360,7 @@ const Dashboard = () => {
                 type="button"
                 onClick={toggleBalanceHidden}
                 aria-label={balanceHidden ? "Show balance" : "Hide balance"}
-                className="paypal-surface flex h-9 items-center gap-2 rounded-full px-3 text-sm font-semibold text-foreground"
+                className="paypal-surface flex h-9 items-center gap-2 rounded-full px-3 text-base font-semibold text-foreground"
               >
                 {balanceHidden ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
                 {balanceHidden ? "Show balance" : "Hide balance"}
