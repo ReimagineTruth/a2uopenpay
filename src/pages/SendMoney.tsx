@@ -181,9 +181,8 @@ const SendMoney = () => {
         const data = state.actionData;
         console.log('Restoring action data from PIN:', data);
         
-        // Don't execute send immediately - just show the transaction confirmation modal
-        // This allows user to review and confirm before sending
-        // void handleSend(data.selectedUser, data.amount, data.note);
+        // Execute send immediately
+        void handleSend(data.selectedUser, data.amount, data.note);
 
         // Also update local state so UI is consistent if needed
         if (data.selectedUser) setSelectedUser(data.selectedUser);
@@ -191,11 +190,8 @@ const SendMoney = () => {
         if (data.note) setNote(data.note);
         if (data.step) setStep(data.step);
         
-        // Always show transaction confirmation modal after PIN verification
-        setShowSendConfirm(true);
-        
-        // Clear location state immediately to prevent re-execution
-        navigate(location.pathname + location.search, { replace: true, state: {} });
+        // Don't clear location state - let it persist for PIN verification
+        // The state will be cleared naturally when user navigates away
       }
     };
     checkPinVerification();
