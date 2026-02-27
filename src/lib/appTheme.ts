@@ -6,7 +6,7 @@ const isThemeMode = (value: string | null): value is AppThemeMode =>
   value === "light" || value === "dark" || value === "system";
 
 export const getStoredAppTheme = (): AppThemeMode => {
-  if (typeof window === "undefined") return "system";
+  if (typeof window === "undefined") return "light";
   
   // Try to get from new preferences system first
   try {
@@ -19,7 +19,7 @@ export const getStoredAppTheme = (): AppThemeMode => {
     if (isThemeMode(saved)) return saved;
   }
   
-  return "system";
+  return "light";
 };
 
 export const applyAppTheme = (theme: AppThemeMode) => {

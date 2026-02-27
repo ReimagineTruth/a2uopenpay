@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import BrandLogo from "@/components/BrandLogo";
 import { supabase } from "@/integrations/supabase/client";
 import { setAppCookie } from "@/lib/userPreferences";
+import AuthFooter from "@/components/AuthFooter";
 
 const PiAuthPage = () => {
   const [piUser, setPiUser] = useState<{ uid: string; username: string } | null>(null);
@@ -260,26 +261,69 @@ const PiAuthPage = () => {
             <p className="mt-2 text-xs text-muted-foreground">
               Use Email Sign In when using OpenPay App, Desktop, Tablet, or Browser. Enjoy full-screen experience, notifications, POS, Merchant Portal access, and more.
             </p>
-            {piUser && (
-              <p className="mt-3 text-sm text-foreground">
-                Connected as <span className="font-semibold">@{piUser.username}</span> ({piUser.uid})
-              </p>
-            )}
-          </div>
+        </div>
+        <p className="mb-1 text-lg font-semibold text-white">OpenPay</p>
+        <p className="text-sm font-medium text-white/85">Welcome to OpenPay</p>
+      </div>
 
-          <p className="mt-4 text-center text-xs text-muted-foreground">
-            By continuing, you agree to our <Link to="/terms" className="text-paypal-blue font-medium">Terms</Link> and{" "}
-            <Link to="/privacy" className="text-paypal-blue font-medium">Privacy Policy</Link>.
+      <div className="paypal-surface w-full rounded-3xl p-7 shadow-2xl shadow-black/15">
+        <div className="mb-4">
+          <h1 className="paypal-heading text-xl">Welcome</h1>
+        </div>
+
+        <div className="rounded-2xl border border-border/70 bg-white p-3">
+          <h2 className="text-base font-semibold text-foreground">Pi Browser</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Connect your Pi account securely with Pi authentication.
           </p>
-          <p className="mt-2 text-center text-xs text-muted-foreground">
-            Learn more: <Link to="/about-openpay" className="text-paypal-blue font-medium">About OpenPay</Link> -{" "}
-            <Link to="/legal" className="text-paypal-blue font-medium">Legal</Link>
+          {!!searchParams.get("ref") && (
+            <p className="mt-1 text-xs text-paypal-blue">
+              Referral code detected: {(searchParams.get("ref") || "").trim().toLowerCase()}
+            </p>
+          )}
+          {!sdkReady && (
+            <p className="mt-1 text-xs text-destructive">
+              Pi SDK is unavailable. Please open this app in Pi Browser.
+            </p>
+          )}
+          <Button
+            onClick={handlePiAuth}
+            disabled={busyAuth}
+            className="mt-3 h-11 w-full rounded-2xl bg-paypal-blue text-white hover:bg-[#004dc5]"
+          >
+            {busyAuth ? "Authenticating..." : "Authenticate with Pi"}
+          </Button>
+          <Button
+            asChild
+            variant="outline"
+            className="mt-2 h-11 w-full rounded-2xl"
+          >
+            <Link to="/sign-in?mode=signin">Use Email Sign In</Link>
+          </Button>
+          <Button
+            asChild
+            type="button"
+            variant="outline"
+            className="mt-2 h-11 w-full rounded-2xl"
+          >
+            <a href="https://openpaylandingpage.vercel.app/" target="_blank" rel="noreferrer">
+              Landing Page
+            </a>
+          </Button>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Use Email Sign In when using OpenPay App, Desktop, Tablet, or Browser. Enjoy full-screen experience, notifications, POS, Merchant Portal access, and more.
           </p>
+          {piUser && (
+            <p className="mt-3 text-sm text-foreground">
+              Connected as <span className="font-semibold">@{piUser.username}</span> ({piUser.uid})
+            </p>
+          )}
         </div>
       </div>
+      <AuthFooter />
     </div>
-  );
-};
+  </div>
+);
 
 export default PiAuthPage;
 

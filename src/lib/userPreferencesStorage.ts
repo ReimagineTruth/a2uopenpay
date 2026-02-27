@@ -44,7 +44,7 @@ const CONSENT_TIMESTAMP_KEY = 'openpay_consent_timestamp';
 
 // Default preferences
 const DEFAULT_PREFERENCES: UserPreferences = {
-  theme: 'system',
+  theme: 'light',
   language: 'en',
   autoLockEnabled: true,
   autoLockTimeout: 15,
@@ -184,7 +184,7 @@ export const clearAllUserPreferences = (): void => {
 
 // Export individual preference getters/setters for convenience
 export const getTheme = (): string => {
-  return loadUserPreferences().theme || 'system';
+  return loadUserPreferences().theme || 'light';
 };
 
 export const setTheme = (theme: 'light' | 'dark' | 'system'): void => {

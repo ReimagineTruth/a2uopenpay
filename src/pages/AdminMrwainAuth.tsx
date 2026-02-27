@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import BrandLogo from "@/components/BrandLogo";
+import AuthFooter from "@/components/AuthFooter";
 
 const AdminMrwainAuth = () => {
   const navigate = useNavigate();
@@ -143,14 +144,7 @@ const AdminMrwainAuth = () => {
             </Button>
           </form>
 
-          <p className="mt-4 text-center text-xs text-muted-foreground">
-            By continuing, you agree to our <Link to="/terms" className="text-paypal-blue font-medium">Terms</Link> and{" "}
-            <Link to="/privacy" className="text-paypal-blue font-medium">Privacy Policy</Link>.
-          </p>
-          <p className="mt-2 text-center text-xs text-muted-foreground">
-            Learn more: <Link to="/about-openpay" className="text-paypal-blue font-medium">About OpenPay</Link> -{" "}
-            <Link to="/legal" className="text-paypal-blue font-medium">Legal</Link>
-          </p>
+          <AuthFooter />
         </div>
       </div>
     </div>
