@@ -5,7 +5,6 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
-import { loadAppSecuritySettings, isPinSetupCompleted } from "@/lib/appSecurity";
 import { playGoogleWalletSuccessSound } from "@/lib/soundEffects";
 
 type TopUpAccountDetailsProps = {
@@ -272,32 +271,15 @@ const TopUpAccountDetails = ({
   const handleConfirmSubmit = async () => {
     setShowConfirmModal(false);
     const { data: { user } } = await supabase.auth.getUser();
-    const settings = user ? loadAppSecuritySettings(user.id) : null;
-    const pinSetupCompleted = user ? isPinSetupCompleted(user.id) : false;
     playGoogleWalletSuccessSound();
-    
-    // Navigate to PIN confirmation page if user has PIN set up
-    if (pinSetupCompleted && settings?.pinHash) {
-      navigate("/confirm-pin", {
-        state: {
-          title: "Confirm your OpenPay PIN",
-          returnTo: location.pathname + location.search,
-          actionData: {
-            kind: "topup_submit"
-          }
-        },
-      });
-    } else {
-      // Proceed directly with topup if no PIN set up
-      await submitTopUpRequest();
-    }
+    // Proceed directly with topup without PIN requirement
+    await submitTopUpRequest();
   };
 
   useEffect(() => {
     const state = location.state as any;
-    if (state?.pinVerified && state?.actionData?.kind === "topup_submit") {
+    if (state?.actionData?.kind === "topup_submit") {
       void (async () => {
-        playGoogleWalletSuccessSound();
         await submitTopUpRequest();
         navigate(location.pathname + location.search, { replace: true, state: {} });
       })();
