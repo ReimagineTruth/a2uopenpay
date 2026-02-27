@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { SlideToConfirm } from "@/components/ui/slide-to-confirm";
 import { ArrowLeft, Search, Info, ScanLine, Bookmark, BookmarkCheck, Loader2, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -105,8 +106,13 @@ const SendMoney = () => {
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
+  const [purpose, setPurpose] = useState("");
+  const [customPurpose, setCustomPurpose] = useState("");
+  const [showPurposeSelector, setShowPurposeSelector] = useState(false);
+  const [paymentPurposes, setPaymentPurposes] = useState<any[]>([]);
   const [isPosCheckoutSession, setIsPosCheckoutSession] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [slideConfirmLoading, setSlideConfirmLoading] = useState(false);
   const [isInitialLoadDone, setIsInitialLoadDone] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [showSendConfirm, setShowSendConfirm] = useState(false);
@@ -116,6 +122,8 @@ const SendMoney = () => {
   const [myFullName, setMyFullName] = useState("");
   const [accountLookupResult, setAccountLookupResult] = useState<UserProfile | null>(null);
   const [accountLookupLoading, setAccountLookupLoading] = useState(false);
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [userId, setUserId] = useState<string>("");
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -197,162 +205,339 @@ const SendMoney = () => {
     checkPinVerification();
   }, [location.state, navigate, location.pathname, location.search, isInitialLoadDone]);
 
-  useEffect(() => {
-    const load = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { navigate("/signin"); return; }
-
-      const { data: wallet } = await supabase
-        .from("wallets").select("balance").eq("user_id", user.id).single();
-      setBalance(wallet?.balance || 0);
-
-      const { data: myProfile } = await supabase
-        .from("profiles")
-        .select("full_name, avatar_url")
-        .eq("id", user.id)
-        .single();
-      setMyAvatarUrl(myProfile?.avatar_url || null);
-      setMyFullName(myProfile?.full_name || "");
-
-      const { data: contactRows } = await supabase
-        .from("contacts").select("contact_id").eq("user_id", user.id);
-      const contactIds = contactRows?.map(c => c.contact_id) || [];
-      setContactIds(contactIds);
-
-      const { data: profiles } = await supabase
-        .from("profiles").select("id, full_name, username, avatar_url").neq("id", user.id);
-
-      if (profiles) {
-        setAllUsers(profiles);
-        setContacts(profiles.filter(p => contactIds.includes(p.id)));
-      }
-
+  const refreshTransactions = useCallback(async () => {
+    if (!userId) return;
+    
+    try {
       const { data: txs } = await supabase
         .from("transactions")
-        .select("sender_id, receiver_id, created_at")
-        .eq("sender_id", user.id)
+        .select("*")
+        .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
         .order("created_at", { ascending: false })
-        .limit(50);
+        .limit(10);
 
-      if (txs && profiles) {
-        const seen = new Set<string>();
-        const recent: RecentRecipient[] = [];
-        for (const tx of txs) {
-          const recipientId = tx.receiver_id;
-          if (!recipientId || seen.has(recipientId) || recipientId === user.id) continue;
-          const profile = profiles.find((p) => p.id === recipientId);
-          if (!profile) continue;
-          seen.add(recipientId);
-          recent.push({
-            ...profile,
-            last_sent_at: tx.created_at,
-          });
-          if (recent.length >= 8) break;
-        }
-        setRecentRecipients(recent);
+      if (txs) {
+        const enriched = await Promise.all(
+          txs.map(async (tx) => {
+            const otherId = tx.sender_id === userId ? tx.receiver_id : tx.sender_id;
+            const { data: p } = await supabase
+              .from("profiles")
+              .select("full_name, username, avatar_url")
+              .eq("id", otherId)
+              .single();
+            return {
+              ...tx,
+              other_name: p?.full_name || "Unknown",
+              other_username: p?.username || null,
+              other_avatar_url: p?.avatar_url || null,
+              is_sent: tx.sender_id === userId,
+              is_topup: tx.sender_id === userId && tx.receiver_id === userId,
+            };
+          }),
+        );
+        setTransactions(enriched);
+      }
+    } catch (error) {
+      console.error("Failed to refresh transactions:", error);
+      toast.error("Failed to refresh transactions");
+    }
+  }, [userId]);
+
+  const handleSend = async (overrideUser?: UserProfile, overrideAmount?: string, overrideNote?: string) => {
+    const activeUser = overrideUser || selectedUser;
+    const activeAmount = overrideAmount || amount;
+    const activeNote = overrideNote !== undefined ? overrideNote : note;
+
+    const parsedAmount = parseFloat(activeAmount);
+    if (!activeUser || !activeAmount || parsedAmount <= 0) { toast.error("Enter a valid amount"); return; }
+    const usdAmount = parsedAmount / currency.rate;
+    if (usdAmount > balance) { toast.error("Amount exceeds your available balance"); return; }
+    setLoading(true);
+
+    if (checkoutSessionToken) {
+      const { data: checkoutTxId, error: checkoutError } = await (supabase as any).rpc("pay_merchant_checkout_with_wallet", {
+        p_session_token: checkoutSessionToken,
+        p_note: activeNote || "Completed via OpenPay wallet /send flow",
+        p_customer_name: checkoutCustomerName || null,
+        p_customer_email: checkoutCustomerEmail || null,
+        p_customer_phone: checkoutCustomerPhone || null,
+        p_customer_address: checkoutCustomerAddress || null,
+      });
+
+      if (checkoutError) {
+        setLoading(false);
+        toast.error(checkoutError.message || "Checkout payment failed");
+        return;
       }
 
-      const toId = searchParams.get("to");
-      const initialSearch = searchParams.get("search") || "";
-      const qrAmount = searchParams.get("amount");
-      const qrCurrency = (searchParams.get("currency") || "").toUpperCase();
-      const qrNote = searchParams.get("note");
-      if (initialSearch) {
-        setSearchQuery(initialSearch);
-      }
-      if (toId && profiles) {
-        const found = profiles.find(p => p.id === toId);
-        if (found) {
-          setSelectedUser(found);
-          if (qrAmount && Number.isFinite(Number(qrAmount)) && Number(qrAmount) > 0) {
-            setAmount(Number(qrAmount).toFixed(2));
-          }
-          if (qrNote) {
-            setNote(qrNote);
-          }
-          if (qrCurrency) {
-            const foundCurrency = currencies.find((c) => c.code === qrCurrency);
-            if (foundCurrency) setCurrency(foundCurrency);
-          }
-          setStep("amount");
-        }
-      }
+      const txId = String(checkoutTxId || "");
+      const isPosRedirect = isPosCheckoutSession || activeNote.toLowerCase().includes("pos");
+      const nextPath = isPosRedirect ? "/pos-thank-you" : "/merchant-checkout/thank-you";
+      navigate(`${nextPath}?session=${encodeURIComponent(checkoutSessionToken)}&tx=${encodeURIComponent(txId)}`, { replace: true });
+      setLoading(false);
+      return;
+    }
 
-      if (checkoutSessionToken) {
-        const { data: checkoutPayload } = await (supabase as any).rpc("get_public_merchant_checkout_session", {
-          p_session_token: checkoutSessionToken,
-        });
-        const checkoutRow = Array.isArray(checkoutPayload) ? checkoutPayload[0] : checkoutPayload;
-        const typedCheckout: {
-          total_amount?: number;
-          currency?: string;
-          merchant_user_id?: string;
-          items?: Array<{ item_name?: string }>;
-        } = (checkoutRow || {}) as any;
-        if (checkoutRow) {
-          const checkoutAmount = Number(typedCheckout.total_amount || 0);
-          const checkoutCurrency = String(typedCheckout.currency || "").toUpperCase();
-          const checkoutMerchantId = String(typedCheckout.merchant_user_id || "");
-          const checkoutItems = Array.isArray(typedCheckout.items) ? typedCheckout.items : [];
-          const firstItemName = String(checkoutItems[0]?.item_name || "").toLowerCase();
-          const qrNoteHint = String(searchParams.get("note") || "").toLowerCase();
-          const isPosHint = firstItemName.includes("pos payment") || qrNoteHint.includes("pos");
-          setIsPosCheckoutSession(isPosHint);
-
-          if (checkoutAmount > 0) {
-            setAmount(checkoutAmount.toFixed(2));
-          }
-          if (checkoutCurrency) {
-            const foundCurrency = currencies.find((c) => c.code === checkoutCurrency);
-            if (foundCurrency) setCurrency(foundCurrency);
-          }
-          if (checkoutMerchantId && profiles) {
-            const merchantProfile = profiles.find((p) => p.id === checkoutMerchantId);
-            if (merchantProfile) {
-              setSelectedUser(merchantProfile);
-              setStep("amount");
-            }
-          }
-        }
+    const transferViaSecureRpcFallback = async () => {
+      const { data: txId, error: rpcError } = await supabase.rpc("transfer_funds_authenticated", {
+        p_receiver_id: activeUser.id,
+        p_amount: usdAmount,
+        p_note: activeNote || "",
+      });
+      if (rpcError) {
+        const rpcMessage =
+          typeof (rpcError as { message?: unknown })?.message === "string"
+            ? (rpcError as { message: string }).message
+            : "Fallback transfer failed";
+        throw new Error(rpcMessage);
       }
-
-      // Handle POS session token
-      if (posSessionToken) {
-        const { data: posPayload } = await (supabase as any)
-          .from("merchant_checkout_sessions")
-          .select("*")
-          .eq("session_token", posSessionToken)
-          .eq("status", "open")
-          .gte("expires_at", new Date().toISOString())
-          .maybeSingle();
-
-        if (posPayload) {
-          const posAmount = Number(posPayload.total_amount || 0);
-          const posCurrency = String(posPayload.currency || "").toUpperCase();
-          const posMerchantId = String(posPayload.merchant_user_id || "");
-          
-          setIsPosCheckoutSession(true);
-          
-          if (posAmount > 0) {
-            setAmount(posAmount.toFixed(2));
-          }
-          if (posCurrency) {
-            const foundCurrency = currencies.find((c) => c.code === posCurrency);
-            if (foundCurrency) setCurrency(foundCurrency);
-          }
-          if (posMerchantId && profiles) {
-            const merchantProfile = profiles.find((p) => p.id === posMerchantId);
-            if (merchantProfile) {
-              setSelectedUser(merchantProfile);
-              setStep("amount");
-            }
-          }
-        }
-      }
-      setIsInitialLoadDone(true);
+      return String(txId || "");
     };
-    load();
-  }, [checkoutSessionToken, posSessionToken, currencies, navigate, searchParams, setCurrency]);
+
+    let txId = "";
+    let usedFallback = false;
+
+    const { data, error } = await supabase.functions.invoke("send-money", {
+      body: { receiver_id: activeUser.id, amount: usdAmount, note: activeNote, purpose: purpose || null },
+    });
+
+    if (error) {
+      try {
+        txId = await transferViaSecureRpcFallback();
+        usedFallback = true;
+      } catch (fallbackError) {
+        const edgeErrorMessage = await getFunctionErrorMessage(error, "Transfer failed");
+        const fallbackErrorMessage =
+          fallbackError instanceof Error
+            ? fallbackError.message
+            : typeof (fallbackError as { message?: unknown })?.message === "string"
+              ? String((fallbackError as { message: string }).message)
+              : "Fallback transfer failed";
+        setLoading(false);
+        toast.error(`${edgeErrorMessage}. ${fallbackErrorMessage}`);
+        return;
+      }
+    } else {
+      txId = (data as { transaction_id?: string } | null)?.transaction_id || "";
+    }
+
+    setLoading(false);
+    setReceiptData({
+      transactionId: txId,
+      ledgerTransactionId: txId,
+      type: "send",
+      amount: usdAmount,
+      otherPartyName: activeUser.full_name,
+      otherPartyUsername: activeUser.username || undefined,
+      note: activeNote || undefined,
+      date: new Date(),
+    });
+    console.log('Receipt data set:', {
+      transactionId: txId,
+      amount: usdAmount,
+      otherPartyName: activeUser.full_name
+    });
+    setReceiptOpen(true);
+    console.log('Receipt modal opened:', true);
+    playSendSuccessSound();
+    if (usedFallback) {
+      toast.success(`${currency.symbol}${parseFloat(activeAmount).toFixed(2)} sent to ${activeUser.full_name}! (fallback route)`);
+    } else {
+      toast.success(`${currency.symbol}${parseFloat(activeAmount).toFixed(2)} sent to ${activeUser.full_name}!`);
+    }
+  };
+
+  const loadDashboard = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { 
+      setUserId(user.id);
+      navigate("/signin"); 
+      return; 
+    }
+
+    const { data: wallet } = await supabase
+      .from("wallets").select("balance").eq("user_id", user.id).single();
+    setBalance(wallet?.balance || 0);
+
+    const { data: myProfile } = await supabase
+      .from("profiles")
+      .select("full_name, avatar_url")
+      .eq("id", user.id)
+      .single();
+    setMyAvatarUrl(myProfile?.avatar_url || null);
+    setMyFullName(myProfile?.full_name || "");
+
+    const { data: contactRows } = await supabase
+      .from("contacts").select("contact_id").eq("user_id", user.id);
+    const contactIds = contactRows?.map(c => c.contact_id) || [];
+    setContactIds(contactIds);
+
+    const { data: profiles } = await supabase
+      .from("profiles").select("id, full_name, username, avatar_url").neq("id", user.id);
+
+    if (profiles) {
+      setAllUsers(profiles);
+      setContacts(profiles.filter(p => contactIds.includes(p.id)));
+    }
+
+    const { data: txs } = await supabase
+      .from("transactions")
+      .select("sender_id, receiver_id, created_at")
+      .eq("sender_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    if (txs && profiles) {
+      const seen = new Set<string>();
+      const recent: RecentRecipient[] = [];
+      for (const tx of txs) {
+        const recipientId = tx.receiver_id;
+        if (!recipientId || seen.has(recipientId) || recipientId === user.id) continue;
+        const profile = profiles.find((p) => p.id === recipientId);
+        if (!profile) continue;
+        seen.add(recipientId);
+        recent.push({
+          ...profile,
+          last_sent_at: tx.created_at,
+        });
+        if (recent.length >= 8) break;
+      }
+      setRecentRecipients(recent);
+    }
+
+    const toId = searchParams.get("to");
+    const initialSearch = searchParams.get("search") || "";
+    const qrAmount = searchParams.get("amount");
+    const qrCurrency = (searchParams.get("currency") || "").toUpperCase();
+    const qrNote = searchParams.get("note");
+    if (initialSearch) {
+      setSearchQuery(initialSearch);
+    }
+    if (toId && profiles) {
+      const found = profiles.find(p => p.id === toId);
+      if (found) {
+        setSelectedUser(found);
+        if (qrAmount && Number.isFinite(Number(qrAmount)) && Number(qrAmount) > 0) {
+          setAmount(Number(qrAmount).toFixed(2));
+        }
+        if (qrNote) {
+          setNote(qrNote);
+        }
+        if (qrCurrency) {
+          const foundCurrency = currencies.find((c) => c.code === qrCurrency);
+          if (foundCurrency) setCurrency(foundCurrency);
+        }
+        setStep("amount");
+      }
+    }
+
+    if (checkoutSessionToken) {
+      const { data: checkoutPayload } = await (supabase as any).rpc("get_public_merchant_checkout_session", {
+        p_session_token: checkoutSessionToken,
+      });
+      const checkoutRow = Array.isArray(checkoutPayload) ? checkoutPayload[0] : checkoutPayload;
+      const typedCheckout: {
+        total_amount?: number;
+        currency?: string;
+        merchant_user_id?: string;
+        items?: Array<{ item_name?: string }>;
+      } = (checkoutRow || {}) as any;
+      if (checkoutRow) {
+        const checkoutAmount = Number(typedCheckout.total_amount || 0);
+        const checkoutCurrency = String(typedCheckout.currency || "").toUpperCase();
+        const checkoutMerchantId = String(typedCheckout.merchant_user_id || "");
+        const checkoutItems = Array.isArray(typedCheckout.items) ? typedCheckout.items : [];
+        const firstItemName = String(checkoutItems[0]?.item_name || "").toLowerCase();
+        const qrNoteHint = String(searchParams.get("note") || "").toLowerCase();
+        const isPosHint = firstItemName.includes("pos payment") || qrNoteHint.includes("pos");
+        setIsPosCheckoutSession(isPosHint);
+
+        if (checkoutAmount > 0) {
+          setAmount(checkoutAmount.toFixed(2));
+        }
+        if (checkoutCurrency) {
+          const foundCurrency = currencies.find((c) => c.code === checkoutCurrency);
+          if (foundCurrency) setCurrency(foundCurrency);
+        }
+        if (checkoutMerchantId && profiles) {
+          const merchantProfile = profiles.find((p) => p.id === checkoutMerchantId);
+          if (merchantProfile) {
+            setSelectedUser(merchantProfile);
+            setStep("amount");
+          }
+        }
+      }
+    }
+
+    // Handle POS session token
+    if (posSessionToken) {
+      const { data: posPayload } = await (supabase as any)
+        .from("merchant_checkout_sessions")
+        .select("*")
+        .eq("session_token", posSessionToken)
+        .eq("status", "open")
+        .gte("expires_at", new Date().toISOString())
+        .maybeSingle();
+
+      if (posPayload) {
+        const posAmount = Number(posPayload.total_amount || 0);
+        const posCurrency = String(posPayload.currency || "").toUpperCase();
+        const posMerchantId = String(posPayload.merchant_user_id || "");
+        
+        setIsPosCheckoutSession(true);
+        
+        if (posAmount > 0) {
+          setAmount(posAmount.toFixed(2));
+        }
+        if (posCurrency) {
+          const foundCurrency = currencies.find((c) => c.code === posCurrency);
+          if (foundCurrency) setCurrency(foundCurrency);
+        }
+        if (posMerchantId && profiles) {
+          const merchantProfile = profiles.find((p) => p.id === posMerchantId);
+          if (merchantProfile) {
+            setSelectedUser(merchantProfile);
+            setStep("amount");
+          }
+        }
+      }
+    }
+
+    // Load payment purposes
+    try {
+      const { data: purposes } = await (supabase as any)
+        .from("payment_purposes")
+        .select("*")
+        .eq("is_active", true)
+        .order("sort_order");
+      
+      setPaymentPurposes(purposes || []);
+    } catch (error) {
+      console.warn("Failed to load payment purposes, using fallback:", error);
+      // Fallback purposes when database table doesn't exist yet
+      const fallbackPurposes = [
+        { id: '1', name: 'Rent', category: 'Living Expenses', icon: 'home', color: 'blue' },
+        { id: '2', name: 'Car Payment', category: 'Transportation', icon: 'car', color: 'green' },
+        { id: '3', name: 'Groceries', category: 'Food & Dining', icon: 'shopping-cart', color: 'orange' },
+        { id: '4', name: 'Restaurant', category: 'Food & Dining', icon: 'utensils', color: 'orange' },
+        { id: '5', name: 'Gas/Fuel', category: 'Transportation', icon: 'fuel', color: 'green' },
+        { id: '6', name: 'Electricity', category: 'Utilities', icon: 'lightbulb', color: 'yellow' },
+        { id: '7', name: 'Water', category: 'Utilities', icon: 'droplet', color: 'yellow' },
+        { id: '8', name: 'Internet', category: 'Utilities', icon: 'wifi', color: 'yellow' },
+        { id: '9', name: 'Phone', category: 'Utilities', icon: 'phone', color: 'yellow' },
+        { id: '10', name: 'Insurance', category: 'Living Expenses', icon: 'shield', color: 'blue' },
+        { id: '11', name: 'Subscription', category: 'Other', icon: 'credit-card', color: 'slate' },
+        { id: '12', name: 'General', category: 'Other', icon: 'more-horizontal', color: 'slate' }
+      ];
+      setPaymentPurposes(fallbackPurposes);
+    }
+
+    setIsInitialLoadDone(true);
+  }, [navigate, searchParams, setCurrency]);
+
+  useEffect(() => {
+    loadDashboard();
+  }, [loadDashboard]);
 
   const normalizedSearch = searchQuery.trim().toLowerCase();
   const normalizedSearchRaw = searchQuery.trim();
@@ -452,110 +637,6 @@ const SendMoney = () => {
     setAmount((prev) => (prev.length > 0 ? prev.slice(0, -1) : ""));
   };
 
-  const handleSend = async (overrideUser?: UserProfile, overrideAmount?: string, overrideNote?: string) => {
-    const activeUser = overrideUser || selectedUser;
-    const activeAmount = overrideAmount || amount;
-    const activeNote = overrideNote !== undefined ? overrideNote : note;
-
-    const parsedAmount = parseFloat(activeAmount);
-    if (!activeUser || !activeAmount || parsedAmount <= 0) { toast.error("Enter a valid amount"); return; }
-    const usdAmount = parsedAmount / currency.rate;
-    if (usdAmount > balance) { toast.error("Amount exceeds your available balance"); return; }
-    setLoading(true);
-
-    if (checkoutSessionToken) {
-      const { data: checkoutTxId, error: checkoutError } = await (supabase as any).rpc("pay_merchant_checkout_with_wallet", {
-        p_session_token: checkoutSessionToken,
-        p_note: activeNote || "Completed via OpenPay wallet /send flow",
-        p_customer_name: checkoutCustomerName || null,
-        p_customer_email: checkoutCustomerEmail || null,
-        p_customer_phone: checkoutCustomerPhone || null,
-        p_customer_address: checkoutCustomerAddress || null,
-      });
-
-      if (checkoutError) {
-        setLoading(false);
-        toast.error(checkoutError.message || "Checkout payment failed");
-        return;
-      }
-
-      const txId = String(checkoutTxId || "");
-      const isPosRedirect = isPosCheckoutSession || activeNote.toLowerCase().includes("pos");
-      const nextPath = isPosRedirect ? "/pos-thank-you" : "/merchant-checkout/thank-you";
-      navigate(`${nextPath}?session=${encodeURIComponent(checkoutSessionToken)}&tx=${encodeURIComponent(txId)}`, { replace: true });
-      setLoading(false);
-      return;
-    }
-
-    const transferViaSecureRpcFallback = async () => {
-      const { data: txId, error: rpcError } = await supabase.rpc("transfer_funds_authenticated", {
-        p_receiver_id: activeUser.id,
-        p_amount: usdAmount,
-        p_note: activeNote || "",
-      });
-      if (rpcError) {
-        const rpcMessage =
-          typeof (rpcError as { message?: unknown })?.message === "string"
-            ? (rpcError as { message: string }).message
-            : "Fallback transfer failed";
-        throw new Error(rpcMessage);
-      }
-      return String(txId || "");
-    };
-
-    let txId = "";
-    let usedFallback = false;
-
-    const { data, error } = await supabase.functions.invoke("send-money", {
-      body: { receiver_id: activeUser.id, amount: usdAmount, note: activeNote },
-    });
-
-    if (error) {
-      try {
-        txId = await transferViaSecureRpcFallback();
-        usedFallback = true;
-      } catch (fallbackError) {
-        const edgeErrorMessage = await getFunctionErrorMessage(error, "Transfer failed");
-        const fallbackErrorMessage =
-          fallbackError instanceof Error
-            ? fallbackError.message
-            : typeof (fallbackError as { message?: unknown })?.message === "string"
-              ? String((fallbackError as { message: string }).message)
-              : "Fallback transfer failed";
-        setLoading(false);
-        toast.error(`${edgeErrorMessage}. ${fallbackErrorMessage}`);
-        return;
-      }
-    } else {
-      txId = (data as { transaction_id?: string } | null)?.transaction_id || "";
-    }
-
-    setLoading(false);
-    setReceiptData({
-      transactionId: txId,
-      ledgerTransactionId: txId,
-      type: "send",
-      amount: usdAmount,
-      otherPartyName: activeUser.full_name,
-      otherPartyUsername: activeUser.username || undefined,
-      note: activeNote || undefined,
-      date: new Date(),
-    });
-    console.log('Receipt data set:', {
-      transactionId: txId,
-      amount: usdAmount,
-      otherPartyName: activeUser.full_name
-    });
-    setReceiptOpen(true);
-    console.log('Receipt modal opened:', true);
-    playSendSuccessSound();
-    if (usedFallback) {
-      toast.success(`${currency.symbol}${parseFloat(activeAmount).toFixed(2)} sent to ${activeUser.full_name}! (fallback route)`);
-    } else {
-      toast.success(`${currency.symbol}${parseFloat(activeAmount).toFixed(2)} sent to ${activeUser.full_name}!`);
-    }
-  };
-
   const handleOpenSendConfirm = () => {
     const parsedAmount = parseFloat(amount);
     if (!selectedUser || !amount || parsedAmount <= 0) {
@@ -642,6 +723,16 @@ const SendMoney = () => {
               className="w-full bg-transparent text-center text-lg text-white placeholder:text-white/50 focus:outline-none"
             />
           </div>
+
+          {/* Purpose Selection */}
+          <div className="mt-4 w-full max-w-[320px]">
+            <button
+              onClick={() => setShowPurposeSelector(true)}
+              className="w-full rounded-full bg-white/10 px-4 py-2 text-center text-sm text-white placeholder:text-white/50 hover:bg-white/20 transition-colors"
+            >
+              {purpose ? `Purpose: ${purpose}` : "Add purpose (optional)"}
+            </button>
+          </div>
         </div>
 
         {/* Number Pad */}
@@ -718,48 +809,46 @@ const SendMoney = () => {
               Only transact with users you know. Approve only if you expected this transaction. If you do not recognize the user, cancel now.
             </p>
 
-            <div className="mt-4 flex gap-2">
-              <Button variant="outline" className="h-11 flex-1 rounded-2xl" onClick={() => setShowSendConfirm(false)}>
+            <div className="mt-4 space-y-3">
+              <Button variant="outline" className="h-11 w-full rounded-2xl" onClick={() => setShowSendConfirm(false)}>
                 Cancel
               </Button>
-              <Button
-                className="h-11 flex-1 rounded-2xl bg-paypal-blue text-white hover:bg-[#004dc5]"
-                disabled={loading}
-                onClick={async () => {
-                  const { data: { user } } = await supabase.auth.getUser();
-                  const settings = user ? loadAppSecuritySettings(user.id) : null;
-                  const pinSetupCompleted = user ? isPinSetupCompleted(user.id) : false;
-                  setShowSendConfirm(false);
-                  
-                  // Navigate to PIN confirmation page if user has PIN set up
-                  if (pinSetupCompleted && settings?.pinHash) {
-                    navigate("/confirm-pin", {
-                      state: {
-                        title: "Confirm your OpenPay PIN",
-                        returnTo: "/send",
-                        actionData: {
-                          selectedUser,
-                          amount,
-                          note,
-                          step: "confirm"
-                        }
-                      },
-                    });
-                  } else {
-                    // Proceed directly with send if no PIN set up
-                    await handleSend();
+              <SlideToConfirm
+                onConfirm={async () => {
+                  setSlideConfirmLoading(true);
+                  try {
+                    const { data: { user } } = await supabase.auth.getUser();
+                    const settings = user ? loadAppSecuritySettings(user.id) : null;
+                    const pinSetupCompleted = user ? isPinSetupCompleted(user.id) : false;
+                    setShowSendConfirm(false);
+                    
+                    // Navigate to PIN confirmation page if user has PIN set up
+                    if (pinSetupCompleted && settings?.pinHash) {
+                      navigate("/confirm-pin", {
+                        state: {
+                          title: "Confirm your OpenPay PIN",
+                          returnTo: "/send",
+                          actionData: {
+                            selectedUser,
+                            amount,
+                            note,
+                            step: "confirm"
+                          }
+                        },
+                      });
+                    } else {
+                      // Proceed directly with send if no PIN set up
+                      await handleSend();
+                    }
+                  } finally {
+                    setSlideConfirmLoading(false);
                   }
                 }}
-              >
-                {loading ? (
-                  <span className="inline-flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Sending...
-                  </span>
-                ) : (
-                  "Confirm & Send"
-                )}
-              </Button>
+                loading={slideConfirmLoading}
+                disabled={loading || slideConfirmLoading}
+                text="Slide to confirm & send"
+                onPaymentComplete={refreshTransactions}
+              />
             </div>
           </DialogContent>
         </Dialog>
@@ -922,6 +1011,82 @@ const SendMoney = () => {
               <Button onClick={handleConfirmUser} className="mt-4 h-14 w-full rounded-full bg-paypal-blue text-lg font-semibold text-white hover:bg-[#004dc5]">Continue</Button>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Purpose Selector Dialog */}
+      <Dialog open={showPurposeSelector} onOpenChange={setShowPurposeSelector}>
+        <DialogContent className="rounded-3xl max-h-[80vh] overflow-y-auto">
+          <DialogTitle className="text-xl font-bold">Select Payment Purpose</DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground">
+            Choose a purpose to help track your spending in analytics
+          </DialogDescription>
+          
+          <div className="mt-4 space-y-4">
+            {/* Group purposes by category */}
+            {Array.from(new Set(paymentPurposes.map(p => p.category))).map(category => (
+              <div key={category}>
+                <h4 className="text-sm font-semibold text-muted-foreground mb-2">{category}</h4>
+                <div className="grid grid-cols-2 gap-2">
+                  {paymentPurposes
+                    .filter(p => p.category === category)
+                    .map(purposeOption => (
+                      <button
+                        key={purposeOption.id}
+                        onClick={() => {
+                          setPurpose(purposeOption.name);
+                          setShowPurposeSelector(false);
+                        }}
+                        className={`p-3 rounded-xl border text-left transition-colors ${
+                          purpose === purposeOption.name
+                            ? 'border-paypal-blue bg-paypal-blue/10'
+                            : 'border-border hover:bg-secondary/50'
+                        }`}
+                      >
+                        <div className="font-medium text-sm">{purposeOption.name}</div>
+                      </button>
+                    ))}
+                </div>
+              </div>
+            ))}
+            
+            {/* Custom purpose option */}
+            <div className="pt-4 border-t border-border">
+              <h4 className="text-sm font-semibold text-muted-foreground mb-2">Custom Purpose</h4>
+              <input
+                type="text"
+                placeholder="Enter custom purpose..."
+                value={customPurpose}
+                onChange={(e) => setCustomPurpose(e.target.value)}
+                className="w-full p-3 rounded-xl border border-border focus:border-paypal-blue focus:outline-none"
+              />
+              <button
+                onClick={() => {
+                  if (customPurpose.trim()) {
+                    setPurpose(customPurpose.trim());
+                    setCustomPurpose("");
+                    setShowPurposeSelector(false);
+                  }
+                }}
+                disabled={!customPurpose.trim()}
+                className="mt-2 w-full p-3 rounded-xl bg-paypal-blue text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Use Custom Purpose
+              </button>
+            </div>
+            
+            {/* Clear purpose option */}
+            <button
+              onClick={() => {
+                setPurpose("");
+                setCustomPurpose("");
+                setShowPurposeSelector(false);
+              }}
+              className="w-full p-3 rounded-xl border border-border text-muted-foreground hover:bg-secondary/50 transition-colors"
+            >
+              Remove Purpose
+            </button>
+          </div>
         </DialogContent>
       </Dialog>
 
