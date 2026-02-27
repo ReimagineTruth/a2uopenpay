@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import BottomNav from "@/components/BottomNav";
-import { Bell, Check, ChevronDown, CircleDollarSign, Copy, CreditCard, Eye, EyeOff, FileText, HandCoins, PiggyBank, QrCode, RefreshCw, Settings, Store, Users } from "lucide-react";
+import { Bell, Check, ChevronDown, CircleDollarSign, Copy, CreditCard, Eye, EyeOff, ExternalLink, FileText, HandCoins, PiggyBank, QrCode, RefreshCw, Settings, Store, Users } from "lucide-react";
 import { format } from "date-fns";
 import CurrencySelector from "@/components/CurrencySelector";
 import { useCurrency } from "@/contexts/CurrencyContext";
@@ -1256,6 +1256,20 @@ const Dashboard = () => {
           </button>
           <button onClick={() => navigate("/settings")} aria-label="Open settings" className="paypal-surface flex h-10 w-10 items-center justify-center rounded-full">
             <Settings className="h-5 w-5 text-foreground" />
+          </button>
+        </div>
+      </div>
+
+      {/* Utility Buttons */}
+      <div className="px-4 mt-2">
+        <div className="flex justify-end">
+          <button 
+            onClick={() => navigate("/openapp")} 
+            aria-label="Open OpenApp utilities" 
+            className="paypal-surface flex h-10 w-10 items-center justify-center rounded-full"
+            title="OpenApp Utilities"
+          >
+            <ExternalLink className="h-5 w-5 text-foreground" />
           </button>
         </div>
       </div>
