@@ -321,7 +321,7 @@ const MerchantPosPage = () => {
         setPaymentStatus("failed");
         pushNotification("Payment failed or expired", "error");
       }
-    }, 4000);
+    }, 3000);
 
     return () => window.clearInterval(timer);
   }, [currentSession, navigate, paymentStatus]);
