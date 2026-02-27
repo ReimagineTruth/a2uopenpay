@@ -5,6 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import { format } from "date-fns";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import TransactionReceipt, { type ReceiptData } from "@/components/TransactionReceipt";
+import { toast } from "sonner";
 
 interface Transaction {
   id: string;
@@ -19,6 +20,7 @@ interface Transaction {
   other_avatar_url?: string | null;
   is_sent?: boolean;
   is_topup?: boolean;
+  is_withdrawal?: boolean;
 }
 interface MerchantActivityEntry {
   activity_id: string;
@@ -39,6 +41,15 @@ interface MerchantActivityRpcRow {
   note?: string | null;
   created_at?: string | null;
   source?: string | null;
+}
+interface WithdrawalActivityRow {
+  id: string;
+  user_id: string;
+  amount: number;
+  currency: string;
+  status: string;
+  created_at: string;
+  note?: string;
 }
 
 const toPreviewText = (value: string, max = 68) => {
@@ -80,7 +91,7 @@ const ActivityPage = () => {
         return;
       }
 
-      const [{ data: txs }, { data: wallet }, { data: merchantRows }] = await Promise.all([
+      const [{ data: txs }, { data: wallet }, { data: merchantRows }, { data: withdrawalRows }] = await Promise.all([
         supabase
           .from("transactions")
           .select("id, sender_id, receiver_id, amount, note, status, created_at")
@@ -93,6 +104,12 @@ const ActivityPage = () => {
           .eq("user_id", user.id)
           .single(),
         db.rpc("get_my_merchant_activity", { p_mode: null, p_limit: 20, p_offset: 0 }),
+        supabase
+          .from("swap_withdrawals")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(20),
       ]);
 
       if (txs) {
