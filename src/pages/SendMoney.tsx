@@ -181,9 +181,9 @@ const SendMoney = () => {
         const data = state.actionData;
         console.log('Restoring action data from PIN:', data);
         
-        // Execute the send action IMMEDIATELY with the data from PIN state
-        // This is the most reliable way as it avoids waiting for React state updates
-        void handleSend(data.selectedUser, data.amount, data.note);
+        // Don't execute send immediately - just show the transaction confirmation modal
+        // This allows user to review and confirm before sending
+        // void handleSend(data.selectedUser, data.amount, data.note);
 
         // Also update local state so UI is consistent if needed
         if (data.selectedUser) setSelectedUser(data.selectedUser);
