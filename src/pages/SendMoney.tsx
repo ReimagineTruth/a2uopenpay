@@ -13,7 +13,7 @@ import TransactionReceipt, { type ReceiptData } from "@/components/TransactionRe
 import NumberPad from "@/components/NumberPad";
 import { loadAppSecuritySettings, isPinSetupCompleted } from "@/lib/appSecurity";
 import SplashScreen from "@/components/SplashScreen";
-import PinReminderModal from "@/components/PinReminderModal";
+import TransactionPinModal from "@/components/TransactionPinModal";
  
 type PinReturnState = {
   pinVerified?: boolean;
@@ -755,15 +755,16 @@ const SendMoney = () => {
             </div>
           </DialogContent>
         </Dialog>
-        <PinReminderModal
+        <TransactionPinModal
           open={showPinReminder}
           onOpenChange={setShowPinReminder}
-          onProceed={async () => {
+          onSuccess={async () => {
             const fn = pinNextAction;
             setShowPinReminder(false);
             setPinNextAction(null);
             if (fn) await fn();
           }}
+          title="Enter your PIN to send payment"
         />
       </div>
     );
@@ -927,15 +928,16 @@ const SendMoney = () => {
         </DialogContent>
       </Dialog>
 
-      <PinReminderModal
+      <TransactionPinModal
         open={showPinReminder}
         onOpenChange={setShowPinReminder}
-        onProceed={async () => {
+        onSuccess={async () => {
           const fn = pinNextAction;
           setShowPinReminder(false);
           setPinNextAction(null);
           if (fn) await fn();
         }}
+        title="Enter your PIN to send payment"
       />
 
     </div>
