@@ -17,7 +17,7 @@ const AboutOpenPayPage = () => {
         <h1 className="text-xl font-bold text-paypal-dark">About OpenPay</h1>
       </div>
 
-      <div className="paypal-surface rounded-3xl p-5 space-y-4 text-sm text-foreground">
+      <div className="paypal-surface rounded-3xl p-5 space-y-4 text-base text-foreground">
         <p className="text-base font-semibold text-paypal-dark">A professional payment experience for Pi users.</p>
         <p>
           OpenPay is built for fast, simple payments between people and businesses. Inside the app, we show a
@@ -30,7 +30,7 @@ const AboutOpenPayPage = () => {
 
         <div>
           <p className="font-semibold text-foreground">What OpenPay supports</p>
-          <ul className="mt-2 space-y-2 text-sm text-muted-foreground">
+          <ul className="mt-2 space-y-2 text-base text-muted-foreground">
             <li>Secure Pi-auth sign in and on-device security controls.</li>
             <li>Express send, receive via QR, and payment requests.</li>
             <li>Transparent activity history with receipt records.</li>
@@ -39,18 +39,18 @@ const AboutOpenPayPage = () => {
 
         <div>
           <p className="font-semibold text-foreground">Current limitations</p>
-          <ul className="mt-2 space-y-2 text-sm text-muted-foreground">
+          <ul className="mt-2 space-y-2 text-base text-muted-foreground">
             <li>No direct transfers to external banks or third-party wallets.</li>
             <li>Availability depends on Pi infrastructure and supported regions.</li>
           </ul>
         </div>
 
-        <div className="rounded-2xl border border-border/70 bg-secondary/50 p-3 text-xs text-muted-foreground">
+        <div className="rounded-2xl border border-border/70 bg-secondary/50 p-3 text-sm text-muted-foreground">
           OpenPay is currently free for supported core features. Future integrations may be introduced based on
           technical and legal availability.
         </div>
 
-        <div className="rounded-2xl border border-paypal-light-blue/40 bg-paypal-light-blue/10 p-3 text-xs text-muted-foreground">
+        <div className="rounded-2xl border border-paypal-light-blue/40 bg-paypal-light-blue/10 p-3 text-sm text-muted-foreground">
           OpenPay is an independent platform built for the Pi Network ecosystem and is not affiliated with any
           government authority or central bank. OpenPay is powered by the Pi digital currency. For more information,
           visit{" "}

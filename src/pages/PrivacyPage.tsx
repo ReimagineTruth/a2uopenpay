@@ -13,8 +13,8 @@ const PrivacyPage = () => {
         <h1 className="text-xl font-bold text-paypal-dark">Privacy Policy</h1>
       </div>
 
-      <div className="paypal-surface rounded-3xl p-5 text-sm text-foreground">
-        <p className="text-xs uppercase tracking-wide text-muted-foreground">Last updated: February 16, 2026</p>
+      <div className="paypal-surface rounded-3xl p-5 text-base text-foreground">
+        <p className="text-sm uppercase tracking-wide text-muted-foreground">Last updated: February 16, 2026</p>
 
         <div className="mt-4 space-y-2">
           <h2 className="text-base font-bold text-paypal-dark">1. Who We Are</h2>

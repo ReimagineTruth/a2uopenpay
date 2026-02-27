@@ -219,21 +219,21 @@ const OpenPayApiDocsPage = () => {
 
   const Card = ({ title, body }: { title: string; body: string }) => (
     <div className="rounded-2xl border border-border bg-white p-4">
-      <p className="text-sm font-semibold text-foreground">{title}</p>
-      <p className="mt-1 text-xs text-muted-foreground">{body}</p>
+      <p className="text-base font-semibold text-foreground">{title}</p>
+      <p className="mt-1 text-sm text-muted-foreground">{body}</p>
     </div>
   );
 
   const Snippet = ({ title, code }: { title: string; code: string }) => (
     <div className="rounded-2xl border border-border bg-white p-4">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <p className="text-sm font-semibold text-foreground">{title}</p>
-        <Button variant="outline" className="h-8 rounded-lg px-2 text-xs" onClick={() => handleCopy(code, title)}>
+        <p className="text-base font-semibold text-foreground">{title}</p>
+        <Button variant="outline" className="h-8 rounded-lg px-2 text-sm" onClick={() => handleCopy(code, title)}>
           <Copy className="mr-1 h-3.5 w-3.5" />
           Copy
         </Button>
       </div>
-      <pre className="overflow-x-auto rounded-xl bg-slate-950 p-3 text-xs text-slate-100">
+      <pre className="overflow-x-auto rounded-xl bg-slate-950 p-3 text-sm text-slate-100">
         <code>{code}</code>
       </pre>
     </div>
@@ -251,13 +251,13 @@ const OpenPayApiDocsPage = () => {
         </button>
         <div>
           <h1 className="text-xl font-bold text-paypal-dark">OpenPay API Docs</h1>
-          <p className="text-xs text-muted-foreground">Third-party integration guide (API key + checkout + links)</p>
+          <p className="text-sm text-muted-foreground">Third-party integration guide (API key + checkout + links)</p>
         </div>
       </div>
 
       <div className="rounded-3xl border border-white/30 bg-gradient-to-br from-paypal-blue to-[#0073e6] p-5 text-white shadow-xl shadow-[#004bba]/20">
-        <p className="text-sm font-semibold uppercase tracking-wide">Integration Overview</p>
-        <p className="mt-2 text-sm text-white/90">
+        <p className="text-base font-semibold uppercase tracking-wide">Integration Overview</p>
+        <p className="mt-2 text-base text-white/90">
           External systems can integrate OpenPay by calling Supabase RPC endpoints with merchant secret keys (`osk_*`) and mode (`sandbox`/`live`).
           No extra database migration is required for core API key + checkout + payment-link integration.
         </p>
@@ -274,7 +274,7 @@ const OpenPayApiDocsPage = () => {
           <Link2 className="h-4 w-4 text-paypal-blue" />
           <h2 className="font-semibold text-foreground">Step-by-Step Integration Guide</h2>
         </div>
-        <div className="grid gap-3 text-sm text-muted-foreground">
+        <div className="grid gap-3 text-base text-muted-foreground">
           <div className="rounded-2xl border border-border p-3">
             <p className="font-semibold text-foreground">Step 1: Open merchant portal</p>
             <p className="mt-1">Go to `/merchant-onboarding`, choose sandbox or live mode, and confirm your merchant profile is complete.</p>
@@ -323,7 +323,7 @@ const OpenPayApiDocsPage = () => {
               key={key}
               type="button"
               onClick={() => setPreviewTab(key)}
-              className={`rounded-lg px-3 py-2 text-sm ${previewTab === key ? "bg-white font-semibold text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+              className={`rounded-lg px-3 py-2 text-base ${previewTab === key ? "bg-white font-semibold text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
             >
               {label}
             </button>
@@ -333,8 +333,8 @@ const OpenPayApiDocsPage = () => {
         {previewTab === "button" && (
           <div className="space-y-3">
             <div className="rounded-2xl border border-border bg-white p-4">
-              <p className="text-sm font-semibold text-foreground">HTML Button Code</p>
-              <pre className="mt-2 overflow-x-auto rounded-xl bg-slate-950 p-3 text-xs text-slate-100"><code>{sampleButtonCode}</code></pre>
+              <p className="text-base font-semibold text-foreground">HTML Button Code</p>
+              <pre className="mt-2 overflow-x-auto rounded-xl bg-slate-950 p-3 text-sm text-slate-100"><code>{sampleButtonCode}</code></pre>
             </div>
             <div className="rounded-xl bg-secondary/30 p-6 text-center">
               <a href={sampleLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-[10px] bg-paypal-blue px-6 py-3 font-bold text-white">
@@ -348,8 +348,8 @@ const OpenPayApiDocsPage = () => {
         {previewTab === "widget" && (
           <div className="space-y-3">
             <div className="rounded-2xl border border-border bg-white p-4">
-              <p className="text-sm font-semibold text-foreground">Widget HTML</p>
-              <pre className="mt-2 max-h-64 overflow-auto rounded-xl bg-slate-950 p-3 text-xs text-slate-100"><code>{sampleWidgetCode}</code></pre>
+              <p className="text-base font-semibold text-foreground">Widget HTML</p>
+              <pre className="mt-2 max-h-64 overflow-auto rounded-xl bg-slate-950 p-3 text-sm text-slate-100"><code>{sampleWidgetCode}</code></pre>
             </div>
             <div className="rounded-xl bg-secondary/20 p-4">
               <div className="mx-auto max-w-sm rounded-xl border border-border bg-white p-4 shadow-sm">
@@ -359,8 +359,8 @@ const OpenPayApiDocsPage = () => {
                 </div>
                 <p className="text-sm text-muted-foreground">Pay link</p>
                 <p className="text-xl font-semibold text-foreground">OpenPay Payment</p>
-                <p className="mt-1 text-sm text-muted-foreground">Secure checkout powered by OpenPay</p>
-                <button className="mt-4 h-10 w-full rounded-full bg-paypal-blue text-sm font-semibold text-white">Pay now</button>
+                <p className="mt-1 text-base text-muted-foreground">Secure checkout powered by OpenPay</p>
+                <button className="mt-4 h-10 w-full rounded-full bg-paypal-blue text-base font-semibold text-white">Pay now</button>
               </div>
             </div>
           </div>
@@ -369,8 +369,8 @@ const OpenPayApiDocsPage = () => {
         {previewTab === "iframe" && (
           <div className="space-y-3">
             <div className="rounded-2xl border border-border bg-white p-4">
-              <p className="text-sm font-semibold text-foreground">iFrame Embed Code</p>
-              <pre className="mt-2 overflow-x-auto rounded-xl bg-slate-950 p-3 text-xs text-slate-100"><code>{sampleIframeCode}</code></pre>
+              <p className="text-base font-semibold text-foreground">iFrame Embed Code</p>
+              <pre className="mt-2 overflow-x-auto rounded-xl bg-slate-950 p-3 text-sm text-slate-100"><code>{sampleIframeCode}</code></pre>
             </div>
             <div className="rounded-xl border border-border bg-white p-2">
               <iframe
@@ -386,12 +386,12 @@ const OpenPayApiDocsPage = () => {
         {previewTab === "direct" && (
           <div className="space-y-3">
             <div className="rounded-2xl border border-border bg-white p-4">
-              <p className="text-sm font-semibold text-foreground">Direct Link</p>
-              <p className="mt-1 break-all text-xs text-muted-foreground">{sampleLink}</p>
+              <p className="text-base font-semibold text-foreground">Direct Link</p>
+              <p className="mt-1 break-all text-sm text-muted-foreground">{sampleLink}</p>
             </div>
             <div className="rounded-xl bg-secondary/20 p-4">
-              <p className="text-sm text-muted-foreground">Use direct link for messages, social media, app deep-link pages, or email campaigns.</p>
-              <a href={sampleLink} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex rounded-full bg-paypal-blue px-4 py-2 text-sm font-semibold text-white">
+              <p className="text-base text-muted-foreground">Use direct link for messages, social media, app deep-link pages, or email campaigns.</p>
+              <a href={sampleLink} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex rounded-full bg-paypal-blue px-4 py-2 text-base font-semibold text-white">
                 Open payment page
               </a>
             </div>
@@ -401,8 +401,8 @@ const OpenPayApiDocsPage = () => {
         {previewTab === "qr" && (
           <div className="space-y-3">
             <div className="rounded-2xl border border-border bg-white p-4">
-              <p className="text-sm font-semibold text-foreground">QR Code</p>
-              <p className="mt-1 text-xs text-muted-foreground">Scan to open payment page on mobile instantly.</p>
+              <p className="text-base font-semibold text-foreground">QR Code</p>
+              <p className="mt-1 text-sm text-muted-foreground">Scan to open payment page on mobile instantly.</p>
             </div>
             <div className="flex justify-center rounded-xl bg-white p-4">
               <QRCodeSVG
@@ -422,7 +422,7 @@ const OpenPayApiDocsPage = () => {
           <KeyRound className="h-4 w-4 text-paypal-blue" />
           <h2 className="font-semibold text-foreground">Authentication Model</h2>
         </div>
-        <div className="grid gap-2 text-sm text-muted-foreground">
+        <div className="grid gap-2 text-base text-muted-foreground">
           <p><span className="font-semibold text-foreground">Publishable key:</span> <code>opk_{"{mode}"}_...</code> (public usage allowed).</p>
           <p><span className="font-semibold text-foreground">Secret key:</span> <code>osk_{"{mode}"}_...</code> (backend/server only).</p>
           <p><span className="font-semibold text-foreground">RPC auth header:</span> <code>Authorization: Bearer ...</code> with user access token or service role token.</p>
