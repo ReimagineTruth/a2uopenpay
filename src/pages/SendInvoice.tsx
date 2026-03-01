@@ -38,7 +38,17 @@ interface Invoice {
 const SendInvoice = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { format: formatCurrency } = useCurrency();
+  const { format: formatCurrency, currencies, currency } = useCurrency();
+  const PURE_PI_ICON_URL = "https://i.ibb.co/BV8PHjB4/Pi-200x200.png";
+  const OPENPAY_ICON_URL = "/openpay-o.svg";
+  const [invoiceCurrencyCode, setInvoiceCurrencyCode] = useState<string>(currency.code);
+  const [payCurrencyCode, setPayCurrencyCode] = useState<string>(currency.code);
+  const getPiCodeLabel = (code: string) => {
+    const upper = String(code || "").toUpperCase();
+    if (upper === "PI") return "PI";
+    if (upper === "OUSD") return "OPEN USD";
+    return `PI ${upper}`;
+  };
   const [userId, setUserId] = useState<string | null>(null);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -221,11 +231,13 @@ const SendInvoice = () => {
     }
 
     setLoading(true);
+    const currencyNote = `Currency: ${getPiCodeLabel(invoiceCurrencyCode)}`;
+    const fullDescription = [description.trim(), currencyNote].filter(Boolean).join(" | ");
     const { error } = await supabase.from("invoices").insert({
       sender_id: userId,
       recipient_id: recipientId,
       amount: parsedAmount,
-      description: description.trim() || "",
+      description: fullDescription || "",
       due_date: dueDate || null,
       status: "pending",
     });
@@ -247,12 +259,20 @@ const SendInvoice = () => {
 
   const submitPay = async (invoice: Invoice, sender?: Profile | null) => {
     setLoading(true);
+    const payMeta = currencies.find((c) => c.code === payCurrencyCode);
+    const rate = payMeta?.rate ?? 1;
+    const senderAmount = Number(invoice.amount || 0) * rate;
     const { data, error } = await supabase.functions.invoke("send-money", {
       body: {
         receiver_id: invoice.sender_id,
         receiver_email: "__by_id__",
         amount: invoice.amount,
         note: invoice.description || "Invoice payment",
+        currency_code: payCurrencyCode,
+        sender_amount: senderAmount,
+        sender_currency_code: payCurrencyCode,
+        receiver_amount: invoice.amount,
+        receiver_currency_code: "OUSD",
       },
     });
 
@@ -512,6 +532,29 @@ const SendInvoice = () => {
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
           />
+          <div>
+            <p className="mb-1 text-sm text-muted-foreground">Invoice currency</p>
+            <div className="relative">
+              {(invoiceCurrencyCode === "PI" || invoiceCurrencyCode === "OUSD") && (
+                <img
+                  src={invoiceCurrencyCode === "PI" ? PURE_PI_ICON_URL : OPENPAY_ICON_URL}
+                  alt={invoiceCurrencyCode === "PI" ? "Pure Pi" : "Open USD"}
+                  className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 rounded-full object-cover"
+                />
+              )}
+              <select
+                value={invoiceCurrencyCode}
+                onChange={(e) => setInvoiceCurrencyCode(e.target.value)}
+                className={`h-10 w-full rounded-xl border border-input bg-white text-sm text-foreground ${invoiceCurrencyCode === "PI" || invoiceCurrencyCode === "OUSD" ? "pl-10 pr-3" : "px-3"}`}
+              >
+                {currencies.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {`${c.code === "PI" ? "PI " : c.code === "OUSD" ? "" : `${c.flag} `}${getPiCodeLabel(c.code)} - ${c.name}`}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
           <Input
             type="date"
             value={dueDate}
@@ -529,6 +572,29 @@ const SendInvoice = () => {
 
         <div className="bg-card rounded-2xl border border-border p-4 space-y-3">
           <h2 className="font-semibold text-foreground">Received invoices</h2>
+          <div>
+            <p className="mb-1 text-sm text-muted-foreground">Payment currency</p>
+            <div className="relative">
+              {(payCurrencyCode === "PI" || payCurrencyCode === "OUSD") && (
+                <img
+                  src={payCurrencyCode === "PI" ? PURE_PI_ICON_URL : OPENPAY_ICON_URL}
+                  alt={payCurrencyCode === "PI" ? "Pure Pi" : "Open USD"}
+                  className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 rounded-full object-cover"
+                />
+              )}
+              <select
+                value={payCurrencyCode}
+                onChange={(e) => setPayCurrencyCode(e.target.value)}
+                className={`h-10 w-full rounded-xl border border-input bg-white text-sm text-foreground ${payCurrencyCode === "PI" || payCurrencyCode === "OUSD" ? "pl-10 pr-3" : "px-3"}`}
+              >
+                {currencies.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {`${c.code === "PI" ? "PI " : c.code === "OUSD" ? "" : `${c.flag} `}${getPiCodeLabel(c.code)} - ${c.name}`}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
           {received.length === 0 && <p className="text-sm text-muted-foreground">No received invoices</p>}
           {received.map((invoice) => {
             const sender = profileMap.get(invoice.sender_id);

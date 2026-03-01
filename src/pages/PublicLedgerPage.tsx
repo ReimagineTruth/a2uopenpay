@@ -13,6 +13,10 @@ type PublicLedgerEntry = {
   occurred_at: string;
   event_type: string;
   currency_code?: string;
+  sender_amount?: number;
+  sender_currency_code?: string;
+  receiver_amount?: number;
+  receiver_currency_code?: string;
   payload?: any;
   sender_name?: string;
   sender_username?: string;
@@ -61,6 +65,12 @@ const PublicLedgerPage = () => {
   const [hasMore, setHasMore] = useState(false);
 
   const getInitials = (name: string) => (name || "U").split(" ").filter(Boolean).map(n => n[0]).join("").slice(0, 2).toUpperCase();
+  const getPiCodeLabel = (code: string) => {
+    const upper = String(code || "").toUpperCase();
+    if (upper === "PI") return "PI";
+    if (upper === "OUSD") return "OPEN USD";
+    return `PI ${upper}`;
+  };
 
   const renderProfile = (name?: string, avatar?: string, username?: string) => {
     if (!name && !username) return null;
@@ -190,6 +200,22 @@ const PublicLedgerPage = () => {
             const currencyMeta = currencies.find((currency) => currency.code === currencyCode);
             const currencyFlag = currencyMeta?.flag || (currencyCode === "PI" ? "PI" : "OP");
             const currencySymbol = currencyMeta?.symbol || (currencyCode === "PI" ? "π" : "$");
+            const currencyLabel = getPiCodeLabel(currencyCode);
+            const senderCurrencyCode = String(row.sender_currency_code || row.payload?.sender_currency_code || currencyCode || "OUSD").toUpperCase();
+            const receiverCurrencyCode = String(row.receiver_currency_code || row.payload?.receiver_currency_code || currencyCode || "OUSD").toUpperCase();
+            const senderAmountRaw = row.sender_amount ?? row.payload?.sender_amount ?? row.amount;
+            const receiverAmountRaw = row.receiver_amount ?? row.payload?.receiver_amount ?? row.amount;
+            const senderAmountValue = Number(senderAmountRaw || 0);
+            const receiverAmountValue = Number(receiverAmountRaw || 0);
+            const senderMeta = currencies.find((currency) => currency.code === senderCurrencyCode);
+            const receiverMeta = currencies.find((currency) => currency.code === receiverCurrencyCode);
+            const senderSymbol = senderMeta?.symbol || (senderCurrencyCode === "PI" ? "π" : "$");
+            const receiverSymbol = receiverMeta?.symbol || (receiverCurrencyCode === "PI" ? "π" : "$");
+            const senderFlag = senderMeta?.flag || (senderCurrencyCode === "PI" ? "PI" : "OP");
+            const receiverFlag = receiverMeta?.flag || (receiverCurrencyCode === "PI" ? "PI" : "OP");
+            const senderLabel = getPiCodeLabel(senderCurrencyCode);
+            const receiverLabel = getPiCodeLabel(receiverCurrencyCode);
+            const showTransferAmounts = Number.isFinite(senderAmountValue) && Number.isFinite(receiverAmountValue);
             const currencyIcon = currencySymbol;
             const primaryName = row.receiver_name || row.sender_name || "";
             const primaryAvatar = row.receiver_avatar || row.sender_avatar || "";
@@ -230,10 +256,10 @@ const PublicLedgerPage = () => {
                   )}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-semibold text-foreground">{isTopup ? "Credit" : isWithdraw ? "Debit" : "Transaction"}</p>
+                      <p className="font-semibold text-foreground">{isTopup ? "Top Up" : isWithdraw ? "Swap" : "Transaction"}</p>
                       {currencyCode && (
                         <span className="rounded-md bg-secondary px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground uppercase">
-                          {currencyFlag} {currencyCode}
+                          {currencyFlag} {currencyLabel}
                         </span>
                       )}
                       {(primaryName || primaryUsername) && (
@@ -245,6 +271,11 @@ const PublicLedgerPage = () => {
                     <p className="text-[10px] text-muted-foreground">
                       {format(new Date(row.occurred_at), "MMM d, yyyy HH:mm")} • {(row.event_type || "").replace(/_/g, " ")}
                     </p>
+                    {showTransferAmounts && (
+                      <p className="text-[11px] text-muted-foreground mt-1">
+                        Sender: {senderFlag} {senderLabel} {senderSymbol}{senderAmountValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} → Receiver: {receiverFlag} {receiverLabel} {receiverSymbol}{receiverAmountValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </p>
+                    )}
                     
                     <div className="mt-2 flex items-center gap-2 flex-wrap">
                       {row.sender_name && renderProfile(row.sender_name, row.sender_avatar, row.sender_username)}

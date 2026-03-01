@@ -4,6 +4,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Max-Age": "86400",
 };
 
 serve(async (req: Request) => {
@@ -30,7 +32,17 @@ serve(async (req: Request) => {
     if (userError || !user) throw new Error("Unauthorized");
 
     const body = await req.json();
-    const { receiver_id, receiver_email, amount, note, currency_code } = body;
+    const {
+      receiver_id,
+      receiver_email,
+      amount,
+      note,
+      currency_code,
+      sender_amount,
+      sender_currency_code,
+      receiver_amount,
+      receiver_currency_code,
+    } = body;
     const parsedAmount = Number(amount);
     if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) throw new Error("Invalid amount");
 
@@ -38,7 +50,7 @@ serve(async (req: Request) => {
 
     // If receiver_email provided (and not the bypass marker), find by email
     if (receiver_email && receiver_email !== "__by_id__") {
-      const { data: receiverAuth } = await supabase.auth.admin.listUsers();
+      const receiverAuth = await supabase.auth.admin.listUsers();
       const receiver = receiverAuth?.users?.find((u: { email?: string; id: string }) => u.email === receiver_email);
       if (!receiver) throw new Error("Recipient not found");
       receiverId = receiver.id;
@@ -53,6 +65,10 @@ serve(async (req: Request) => {
       p_amount: parsedAmount,
       p_note: note || "",
       p_currency_code: typeof currency_code === "string" ? currency_code : "OUSD",
+      p_sender_amount: typeof sender_amount === "number" ? sender_amount : null,
+      p_sender_currency_code: typeof sender_currency_code === "string" ? sender_currency_code : null,
+      p_receiver_amount: typeof receiver_amount === "number" ? receiver_amount : null,
+      p_receiver_currency_code: typeof receiver_currency_code === "string" ? receiver_currency_code : null,
     });
     if (transferError) throw transferError;
 

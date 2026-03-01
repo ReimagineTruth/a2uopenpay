@@ -160,13 +160,14 @@ serve(async (req: Request) => {
       if (profileError) throw profileError;
 
       const fallbackAccountNumber = `OP${String(user.id).replace(/-/g, "").toUpperCase()}`;
-      const fallbackAccountUsername = String(profile?.username || "")
+      const profileRow = profile as { full_name?: string; username?: string } | null;
+      const fallbackAccountUsername = String(profileRow?.username || "")
         .trim()
         .replace(/^@+/, "")
         .toLowerCase() || "openpay";
-      const fallbackAccountName = String(profile?.full_name || "").trim() || "OpenPay User";
+      const fallbackAccountName = String(profileRow?.full_name || "").trim() || "OpenPay User";
 
-      const { data: account, error: accountUpsertError } = await supabase
+      const { data: account, error: accountUpsertError } = await (supabase as any)
         .from("user_accounts")
         .upsert(
           {
@@ -195,7 +196,7 @@ serve(async (req: Request) => {
       }
     }
 
-    const { error: creditLogError } = await supabase
+    const creditInsertRes = await supabase
       .from("pi_payment_credits")
       .insert({
         payment_id: paymentId,
@@ -204,6 +205,7 @@ serve(async (req: Request) => {
         txid: piTxid || txid || null,
         status: "completed",
       });
+    const creditLogError = (creditInsertRes as any)?.error;
     if (creditLogError) {
       if (creditLogError.code === "23505" || creditLogError.message?.toLowerCase().includes("duplicate")) {
         return jsonResponse({ success: true, paymentId, alreadyCredited: true });
@@ -218,12 +220,14 @@ serve(async (req: Request) => {
       .single();
     if (walletError) throw walletError;
 
-    const { error } = await supabase
+    const walletRow = wallet as { balance?: number } | null;
+    const walletUpdateRes = await supabase
       .from("wallets")
-      .update({ balance: (wallet?.balance || 0) + parsedAmount, updated_at: new Date().toISOString() })
+      .update({ balance: (walletRow?.balance || 0) + parsedAmount, updated_at: new Date().toISOString() })
       .eq("user_id", user.id);
 
-    if (error) throw error;
+    const walletUpdateError = (walletUpdateRes as any)?.error;
+    if (walletUpdateError) throw walletUpdateError;
 
     // Record top-up as a self transaction so activity, notifications,
     // realtime hooks, and admin ledger all include it consistently.
@@ -236,6 +240,10 @@ serve(async (req: Request) => {
         note: `Wallet top up (PI -> OPEN USD) | ${parsedAmount.toFixed(2)} PI = ${parsedAmountUsd.toFixed(2)} OPEN USD`,
         status: "completed",
         currency_code: "OUSD",
+        sender_amount: parsedAmount,
+        sender_currency_code: "PI",
+        receiver_amount: parsedAmountUsd,
+        receiver_currency_code: "OUSD",
       })
       .select("id")
       .single();
@@ -244,13 +252,14 @@ serve(async (req: Request) => {
       // Best-effort rollback of wallet update if transaction log fails.
       await supabase
         .from("wallets")
-        .update({ balance: wallet.balance, updated_at: new Date().toISOString() })
+        .update({ balance: (walletRow?.balance || 0), updated_at: new Date().toISOString() })
         .eq("user_id", user.id);
       await supabase.from("pi_payment_credits").delete().eq("payment_id", paymentId);
       throw transactionError;
     }
 
-    return jsonResponse({ success: true, paymentId, transaction_id: transactionRow?.id || null });
+    const txRow = transactionRow as { id?: string } | null;
+    return jsonResponse({ success: true, paymentId, transaction_id: txRow?.id || null });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unexpected error";
     return jsonResponse({ error: message }, 400);

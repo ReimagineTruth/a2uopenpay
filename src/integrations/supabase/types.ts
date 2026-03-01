@@ -555,7 +555,11 @@ export type Database = {
           currency_code: string
           id: string
           note: string | null
+          receiver_amount: number | null
+          receiver_currency_code: string | null
           receiver_id: string
+          sender_amount: number | null
+          sender_currency_code: string | null
           sender_id: string
           status: string
         }
@@ -565,7 +569,11 @@ export type Database = {
           currency_code?: string
           id?: string
           note?: string | null
+          receiver_amount?: number | null
+          receiver_currency_code?: string | null
           receiver_id: string
+          sender_amount?: number | null
+          sender_currency_code?: string | null
           sender_id: string
           status?: string
         }
@@ -575,7 +583,11 @@ export type Database = {
           currency_code?: string
           id?: string
           note?: string | null
+          receiver_amount?: number | null
+          receiver_currency_code?: string | null
           receiver_id?: string
+          sender_amount?: number | null
+          sender_currency_code?: string | null
           sender_id?: string
           status?: string
         }
@@ -750,9 +762,13 @@ export type Database = {
           note: string | null
           occurred_at: string
           payload: Json | null
+          receiver_amount: number | null
+          receiver_currency_code: string | null
           receiver_avatar: string | null
           receiver_name: string | null
           receiver_username: string | null
+          sender_amount: number | null
+          sender_currency_code: string | null
           sender_avatar: string | null
           sender_name: string | null
           sender_username: string | null
@@ -768,9 +784,13 @@ export type Database = {
           note: string | null
           occurred_at: string
           payload: Json | null
+          receiver_amount: number | null
+          receiver_currency_code: string | null
           receiver_avatar: string | null
           receiver_name: string | null
           receiver_username: string | null
+          sender_amount: number | null
+          sender_currency_code: string | null
           sender_avatar: string | null
           sender_name: string | null
           sender_username: string | null
@@ -786,9 +806,13 @@ export type Database = {
           note: string | null
           occurred_at: string
           payload: Json | null
+          receiver_amount: number | null
+          receiver_currency_code: string | null
           receiver_avatar: string | null
           receiver_name: string | null
           receiver_username: string | null
+          sender_amount: number | null
+          sender_currency_code: string | null
           sender_avatar: string | null
           sender_name: string | null
           sender_username: string | null
@@ -816,7 +840,11 @@ export type Database = {
           p_amount: number
           p_currency_code?: string
           p_note?: string
+          p_receiver_amount?: number | null
+          p_receiver_currency_code?: string | null
           p_receiver_id: string
+          p_sender_amount?: number | null
+          p_sender_currency_code?: string | null
           p_sender_id: string
         }
         Returns: string
@@ -826,7 +854,11 @@ export type Database = {
           p_amount: number
           p_currency_code?: string
           p_note?: string
+          p_receiver_amount?: number | null
+          p_receiver_currency_code?: string | null
           p_receiver_id: string
+          p_sender_amount?: number | null
+          p_sender_currency_code?: string | null
         }
         Returns: string
       }

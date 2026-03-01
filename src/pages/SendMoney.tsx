@@ -297,6 +297,9 @@ const SendMoney = () => {
           p_amounts: amounts,
           p_notes: notes,
           p_currency_code: currency.code,
+          p_sender_amount: parsedAmount,
+          p_sender_currency_code: currency.code,
+          p_receiver_currency_code: "OUSD",
         });
 
         if (rpcError) {
@@ -367,6 +370,10 @@ const SendMoney = () => {
           p_amount: usdAmountPerUser,
           p_note: activeNote || "",
           p_currency_code: currency.code,
+          p_sender_amount: parsedAmount,
+          p_sender_currency_code: currency.code,
+          p_receiver_amount: usdAmountPerUser,
+          p_receiver_currency_code: "OUSD",
         });
         if (rpcError) {
           const rpcMessage =
@@ -388,6 +395,10 @@ const SendMoney = () => {
           note: activeNote,
           purpose: purpose || null,
           currency_code: currency.code,
+          sender_amount: parsedAmount,
+          sender_currency_code: currency.code,
+          receiver_amount: usdAmountPerUser,
+          receiver_currency_code: "OUSD",
         },
       });
 

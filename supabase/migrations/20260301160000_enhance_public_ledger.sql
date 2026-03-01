@@ -6,14 +6,23 @@ DROP FUNCTION IF EXISTS public.get_public_ledger_transaction(UUID);
 DROP FUNCTION IF EXISTS public.get_private_ledger_transaction(UUID);
 
 ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS currency_code TEXT DEFAULT 'OUSD';
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS sender_amount NUMERIC;
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS sender_currency_code TEXT DEFAULT 'OUSD';
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS receiver_amount NUMERIC;
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS receiver_currency_code TEXT DEFAULT 'OUSD';
 
 DROP FUNCTION IF EXISTS public.transfer_funds(UUID, UUID, NUMERIC, TEXT);
+DROP FUNCTION IF EXISTS public.transfer_funds(UUID, UUID, NUMERIC, TEXT, TEXT, NUMERIC, TEXT, NUMERIC, TEXT);
 CREATE OR REPLACE FUNCTION public.transfer_funds(
   p_sender_id UUID,
   p_receiver_id UUID,
   p_amount NUMERIC,
   p_note TEXT DEFAULT '',
-  p_currency_code TEXT DEFAULT 'OUSD'
+  p_currency_code TEXT DEFAULT 'OUSD',
+  p_sender_amount NUMERIC DEFAULT NULL,
+  p_sender_currency_code TEXT DEFAULT NULL,
+  p_receiver_amount NUMERIC DEFAULT NULL,
+  p_receiver_currency_code TEXT DEFAULT NULL
 )
 RETURNS UUID
 LANGUAGE plpgsql
@@ -25,6 +34,10 @@ DECLARE
   v_receiver_balance NUMERIC(12,2);
   v_transaction_id UUID;
   v_currency_code TEXT := UPPER(TRIM(COALESCE(p_currency_code, 'OUSD')));
+  v_sender_amount NUMERIC := COALESCE(p_sender_amount, p_amount);
+  v_sender_currency_code TEXT := UPPER(TRIM(COALESCE(p_sender_currency_code, v_currency_code, 'OUSD')));
+  v_receiver_amount NUMERIC := COALESCE(p_receiver_amount, p_amount);
+  v_receiver_currency_code TEXT := UPPER(TRIM(COALESCE(p_receiver_currency_code, 'OUSD')));
 BEGIN
   IF p_sender_id IS NULL OR p_receiver_id IS NULL THEN
     RAISE EXCEPTION 'Missing sender or receiver';
@@ -70,23 +83,50 @@ BEGIN
       updated_at = now()
   WHERE user_id = p_receiver_id;
 
-  INSERT INTO public.transactions (sender_id, receiver_id, amount, note, status, currency_code)
-  VALUES (p_sender_id, p_receiver_id, p_amount, COALESCE(p_note, ''), 'completed', v_currency_code)
+  INSERT INTO public.transactions (
+    sender_id,
+    receiver_id,
+    amount,
+    note,
+    status,
+    currency_code,
+    sender_amount,
+    sender_currency_code,
+    receiver_amount,
+    receiver_currency_code
+  )
+  VALUES (
+    p_sender_id,
+    p_receiver_id,
+    p_amount,
+    COALESCE(p_note, ''),
+    'completed',
+    v_currency_code,
+    v_sender_amount,
+    v_sender_currency_code,
+    v_receiver_amount,
+    v_receiver_currency_code
+  )
   RETURNING id INTO v_transaction_id;
 
   RETURN v_transaction_id;
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.transfer_funds(UUID, UUID, NUMERIC, TEXT, TEXT) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.transfer_funds(UUID, UUID, NUMERIC, TEXT, TEXT) TO service_role;
+REVOKE ALL ON FUNCTION public.transfer_funds(UUID, UUID, NUMERIC, TEXT, TEXT, NUMERIC, TEXT, NUMERIC, TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.transfer_funds(UUID, UUID, NUMERIC, TEXT, TEXT, NUMERIC, TEXT, NUMERIC, TEXT) TO service_role;
 
 DROP FUNCTION IF EXISTS public.transfer_funds_authenticated(UUID, NUMERIC, TEXT);
+DROP FUNCTION IF EXISTS public.transfer_funds_authenticated(UUID, NUMERIC, TEXT, TEXT, NUMERIC, TEXT, NUMERIC, TEXT);
 CREATE OR REPLACE FUNCTION public.transfer_funds_authenticated(
   p_receiver_id UUID,
   p_amount NUMERIC,
   p_note TEXT DEFAULT '',
-  p_currency_code TEXT DEFAULT 'OUSD'
+  p_currency_code TEXT DEFAULT 'OUSD',
+  p_sender_amount NUMERIC DEFAULT NULL,
+  p_sender_currency_code TEXT DEFAULT NULL,
+  p_receiver_amount NUMERIC DEFAULT NULL,
+  p_receiver_currency_code TEXT DEFAULT NULL
 )
 RETURNS UUID
 LANGUAGE plpgsql
@@ -105,20 +145,28 @@ BEGIN
     p_receiver_id,
     p_amount,
     COALESCE(p_note, ''),
-    p_currency_code
+    p_currency_code,
+    p_sender_amount,
+    p_sender_currency_code,
+    p_receiver_amount,
+    p_receiver_currency_code
   );
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.transfer_funds_authenticated(UUID, NUMERIC, TEXT, TEXT) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.transfer_funds_authenticated(UUID, NUMERIC, TEXT, TEXT) TO authenticated, service_role;
+REVOKE ALL ON FUNCTION public.transfer_funds_authenticated(UUID, NUMERIC, TEXT, TEXT, NUMERIC, TEXT, NUMERIC, TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.transfer_funds_authenticated(UUID, NUMERIC, TEXT, TEXT, NUMERIC, TEXT, NUMERIC, TEXT) TO authenticated, service_role;
 
 DROP FUNCTION IF EXISTS public.bulk_transfer_funds(UUID[], NUMERIC[], TEXT[]);
+DROP FUNCTION IF EXISTS public.bulk_transfer_funds(UUID[], NUMERIC[], TEXT[], TEXT, NUMERIC, TEXT, TEXT);
 CREATE OR REPLACE FUNCTION public.bulk_transfer_funds(
   p_recipients UUID[],
   p_amounts NUMERIC[],
   p_notes TEXT[],
-  p_currency_code TEXT DEFAULT 'OUSD'
+  p_currency_code TEXT DEFAULT 'OUSD',
+  p_sender_amount NUMERIC DEFAULT NULL,
+  p_sender_currency_code TEXT DEFAULT NULL,
+  p_receiver_currency_code TEXT DEFAULT NULL
 )
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -133,6 +181,9 @@ DECLARE
   v_tx_ids UUID[] := '{}';
   v_tx_id UUID;
   v_currency_code TEXT := UPPER(TRIM(COALESCE(p_currency_code, 'OUSD')));
+  v_sender_amount NUMERIC := COALESCE(p_sender_amount, 0);
+  v_sender_currency_code TEXT := UPPER(TRIM(COALESCE(p_sender_currency_code, v_currency_code, 'OUSD')));
+  v_receiver_currency_code TEXT := UPPER(TRIM(COALESCE(p_receiver_currency_code, 'OUSD')));
 BEGIN
   IF array_length(p_recipients, 1) IS NULL OR array_length(p_recipients, 1) = 0 THEN
     RETURN jsonb_build_object('error', 'No recipients specified');
@@ -183,14 +234,22 @@ BEGIN
       amount,
       note,
       status,
-      currency_code
+      currency_code,
+      sender_amount,
+      sender_currency_code,
+      receiver_amount,
+      receiver_currency_code
     ) VALUES (
       v_sender_id,
       p_recipients[v_i],
       p_amounts[v_i],
       COALESCE(p_notes[v_i], ''),
       'completed',
-      v_currency_code
+      v_currency_code,
+      CASE WHEN v_sender_amount > 0 THEN v_sender_amount ELSE p_amounts[v_i] END,
+      v_sender_currency_code,
+      p_amounts[v_i],
+      v_receiver_currency_code
     ) RETURNING id INTO v_tx_id;
 
     v_tx_ids := array_append(v_tx_ids, v_tx_id);
@@ -206,7 +265,7 @@ EXCEPTION WHEN OTHERS THEN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.bulk_transfer_funds(UUID[], NUMERIC[], TEXT[], TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.bulk_transfer_funds(UUID[], NUMERIC[], TEXT[], TEXT, NUMERIC, TEXT, TEXT) TO authenticated;
 
 CREATE OR REPLACE FUNCTION public.log_transaction_insert_to_ledger()
 RETURNS TRIGGER
@@ -239,7 +298,11 @@ BEGIN
     jsonb_build_object(
       'sender_id', NEW.sender_id,
       'receiver_id', NEW.receiver_id,
-      'currency_code', COALESCE(NULLIF(TRIM(NEW.currency_code), ''), 'OUSD')
+      'currency_code', COALESCE(NULLIF(TRIM(NEW.currency_code), ''), 'OUSD'),
+      'sender_amount', COALESCE(NEW.sender_amount, NEW.amount),
+      'sender_currency_code', COALESCE(NULLIF(TRIM(NEW.sender_currency_code), ''), COALESCE(NULLIF(TRIM(NEW.currency_code), ''), 'OUSD')),
+      'receiver_amount', COALESCE(NEW.receiver_amount, NEW.amount),
+      'receiver_currency_code', COALESCE(NULLIF(TRIM(NEW.receiver_currency_code), ''), COALESCE(NULLIF(TRIM(NEW.currency_code), ''), 'OUSD'))
     ),
     NEW.created_at
   );
@@ -286,7 +349,11 @@ BEGIN
         'new_status', NEW.status,
         'old_note', COALESCE(OLD.note, ''),
         'new_note', COALESCE(NEW.note, ''),
-        'currency_code', COALESCE(NULLIF(TRIM(NEW.currency_code), ''), 'OUSD')
+        'currency_code', COALESCE(NULLIF(TRIM(NEW.currency_code), ''), 'OUSD'),
+        'sender_amount', COALESCE(NEW.sender_amount, NEW.amount),
+        'sender_currency_code', COALESCE(NULLIF(TRIM(NEW.sender_currency_code), ''), COALESCE(NULLIF(TRIM(NEW.currency_code), ''), 'OUSD')),
+        'receiver_amount', COALESCE(NEW.receiver_amount, NEW.amount),
+        'receiver_currency_code', COALESCE(NULLIF(TRIM(NEW.receiver_currency_code), ''), COALESCE(NULLIF(TRIM(NEW.currency_code), ''), 'OUSD'))
       ),
       now()
     );
@@ -329,7 +396,11 @@ BEGIN
       'payment_method', NEW.provider,
       'reference_code', NEW.reference_code,
       'proof_url', NEW.proof_url,
-      'currency_code', 'OUSD'
+      'currency_code', 'OUSD',
+      'sender_amount', NEW.amount,
+      'sender_currency_code', 'OUSD',
+      'receiver_amount', NEW.amount,
+      'receiver_currency_code', 'OUSD'
     ),
     NEW.created_at
   );
@@ -376,7 +447,11 @@ BEGIN
         'proof_url', NEW.proof_url,
         'old_status', OLD.status,
         'new_status', NEW.status,
-        'currency_code', 'OUSD'
+        'currency_code', 'OUSD',
+        'sender_amount', NEW.amount,
+        'sender_currency_code', 'OUSD',
+        'receiver_amount', NEW.amount,
+        'receiver_currency_code', 'OUSD'
       ),
       COALESCE(NEW.updated_at, now())
     );
@@ -428,7 +503,11 @@ BEGIN
       'payment_method', 'Pi Wallet',
       'pi_wallet_address', NEW.pi_wallet_address,
       'openpay_account_number', NEW.openpay_account_number,
-      'currency_code', 'PI'
+      'currency_code', 'PI',
+      'sender_amount', NEW.amount,
+      'sender_currency_code', 'OUSD',
+      'receiver_amount', NEW.payout_amount,
+      'receiver_currency_code', 'PI'
     ),
     NEW.created_at
   );
@@ -473,7 +552,11 @@ BEGIN
         'openpay_account_number', NEW.openpay_account_number,
         'old_status', OLD.status,
         'new_status', NEW.status,
-        'currency_code', 'PI'
+        'currency_code', 'PI',
+        'sender_amount', NEW.amount,
+        'sender_currency_code', 'OUSD',
+        'receiver_amount', NEW.payout_amount,
+        'receiver_currency_code', 'PI'
       ),
       COALESCE(NEW.updated_at, now())
     );
@@ -505,6 +588,10 @@ RETURNS TABLE (
   occurred_at TIMESTAMPTZ,
   event_type TEXT,
   currency_code TEXT,
+  sender_amount NUMERIC,
+  sender_currency_code TEXT,
+  receiver_amount NUMERIC,
+  receiver_currency_code TEXT,
   payload JSONB,
   sender_name TEXT,
   sender_username TEXT,
@@ -532,7 +619,9 @@ AS $$
     le.occurred_at,
     le.event_type,
     COALESCE(
+      t.receiver_currency_code,
       t.currency_code,
+      le.payload->>'receiver_currency_code',
       le.payload->>'currency_code',
       le.payload->>'currency',
       CASE
@@ -541,6 +630,10 @@ AS $$
         ELSE 'OUSD'
       END
     ) AS currency_code,
+    COALESCE(t.sender_amount, NULLIF(le.payload->>'sender_amount', '')::numeric, le.amount) AS sender_amount,
+    COALESCE(t.sender_currency_code, le.payload->>'sender_currency_code', le.payload->>'currency_code', 'OUSD') AS sender_currency_code,
+    COALESCE(t.receiver_amount, NULLIF(le.payload->>'receiver_amount', '')::numeric, le.amount) AS receiver_amount,
+    COALESCE(t.receiver_currency_code, le.payload->>'receiver_currency_code', le.payload->>'currency_code', 'OUSD') AS receiver_currency_code,
     le.payload,
     ps.full_name AS sender_name,
     ps.username AS sender_username,
@@ -575,6 +668,10 @@ RETURNS TABLE (
   occurred_at TIMESTAMPTZ,
   event_type TEXT,
   currency_code TEXT,
+  sender_amount NUMERIC,
+  sender_currency_code TEXT,
+  receiver_amount NUMERIC,
+  receiver_currency_code TEXT,
   payload JSONB,
   sender_name TEXT,
   sender_username TEXT,
@@ -602,7 +699,9 @@ AS $$
     le.occurred_at,
     le.event_type,
     COALESCE(
+      t.receiver_currency_code,
       t.currency_code,
+      le.payload->>'receiver_currency_code',
       le.payload->>'currency_code',
       le.payload->>'currency',
       CASE
@@ -611,6 +710,10 @@ AS $$
         ELSE 'OUSD'
       END
     ) AS currency_code,
+    COALESCE(t.sender_amount, NULLIF(le.payload->>'sender_amount', '')::numeric, le.amount) AS sender_amount,
+    COALESCE(t.sender_currency_code, le.payload->>'sender_currency_code', le.payload->>'currency_code', 'OUSD') AS sender_currency_code,
+    COALESCE(t.receiver_amount, NULLIF(le.payload->>'receiver_amount', '')::numeric, le.amount) AS receiver_amount,
+    COALESCE(t.receiver_currency_code, le.payload->>'receiver_currency_code', le.payload->>'currency_code', 'OUSD') AS receiver_currency_code,
     le.payload,
     ps.full_name AS sender_name,
     ps.username AS sender_username,
@@ -644,6 +747,10 @@ RETURNS TABLE (
   occurred_at TIMESTAMPTZ,
   event_type TEXT,
   currency_code TEXT,
+  sender_amount NUMERIC,
+  sender_currency_code TEXT,
+  receiver_amount NUMERIC,
+  receiver_currency_code TEXT,
   payload JSONB,
   sender_name TEXT,
   sender_username TEXT,
@@ -663,7 +770,9 @@ AS $$
     le.occurred_at,
     le.event_type,
     COALESCE(
+      t.receiver_currency_code,
       t.currency_code,
+      le.payload->>'receiver_currency_code',
       le.payload->>'currency_code',
       le.payload->>'currency',
       CASE
@@ -672,6 +781,10 @@ AS $$
         ELSE 'OUSD'
       END
     ) AS currency_code,
+    COALESCE(t.sender_amount, NULLIF(le.payload->>'sender_amount', '')::numeric, le.amount) AS sender_amount,
+    COALESCE(t.sender_currency_code, le.payload->>'sender_currency_code', le.payload->>'currency_code', 'OUSD') AS sender_currency_code,
+    COALESCE(t.receiver_amount, NULLIF(le.payload->>'receiver_amount', '')::numeric, le.amount) AS receiver_amount,
+    COALESCE(t.receiver_currency_code, le.payload->>'receiver_currency_code', le.payload->>'currency_code', 'OUSD') AS receiver_currency_code,
     le.payload,
     ps.full_name AS sender_name,
     ps.username AS sender_username,

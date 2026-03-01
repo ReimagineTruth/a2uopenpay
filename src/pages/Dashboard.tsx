@@ -30,6 +30,11 @@ interface Transaction {
   other_avatar_url?: string | null;
   is_sent?: boolean;
   is_topup?: boolean;
+  currency_code?: string;
+  sender_amount?: number;
+  receiver_amount?: number;
+  sender_currency_code?: string;
+  receiver_currency_code?: string;
 }
 
 interface UserAccount {
@@ -302,11 +307,17 @@ const Dashboard = () => {
   
   const navigate = useNavigate();
   const location = useLocation();
-  const { format: formatCurrency, currency } = useCurrency();
+  const { format: formatCurrency, currency, currencies } = useCurrency();
   const currencyLabel = currency.code === "OUSD" ? "OPEN USD" : currency.code;
   const piCurrencyLabel = currency.code === "OUSD" ? "OPEN USD" : `PI ${currency.code}`;
   const cardCurrencyLabel = currency.code === "PI" ? "PI" : currency.code === "OUSD" ? "OPEN USD" : `PI ${currency.code}`;
   const currencyTag = currency.code === "PI" ? "PI" : `${currencyLabel} (Pi rate)`;
+  const getPiCodeLabel = (code: string) => {
+    const upper = String(code || "").toUpperCase();
+    if (upper === "PI") return "PI";
+    if (upper === "OUSD") return "OPEN USD";
+    return `PI ${upper}`;
+  };
   const onboardingSteps = [
     {
       title: "Welcome to OpenPay",
@@ -2460,6 +2471,11 @@ const Dashboard = () => {
                                    activity.type === 'topup' ? '↑' : '•'}
                                 </div>
                                 <span className="text-sm font-medium capitalize">{activity?.type?.replace('_', ' ') || 'Activity'}</span>
+                                {activity.type === 'transaction' && (
+                                  <span className="rounded-md bg-secondary px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground uppercase">
+                                    {getPiCodeLabel(String((activity.sender_id === userId ? activity.sender_currency_code : activity.receiver_currency_code) || activity.currency_code || 'OUSD'))}
+                                  </span>
+                                )}
                               </div>
                             </td>
                             <td className="py-3">
@@ -2469,10 +2485,19 @@ const Dashboard = () => {
                             </td>
                             <td className="py-3 text-right">
                               <span className="text-sm font-semibold">
-                                {activity.type === 'transaction' && activity.amount ? 
-                                  (activity.sender_id === userId ? '-' : '+') + formatCurrency(activity.amount) :
-                                  activity.amount ? formatCurrency(activity.amount) : '-'
-                                }
+                                {(() => {
+                                  if (activity.type === 'transaction') {
+                                    const isOut = activity.sender_id === userId && !(activity.sender_id === activity.receiver_id && activity.receiver_id === userId);
+                                    const amtRaw = isOut ? (activity.sender_amount ?? activity.amount) : (activity.receiver_amount ?? activity.amount);
+                                    const amt = Number(amtRaw || 0);
+                                    const code = String((isOut ? activity.sender_currency_code : activity.receiver_currency_code) || activity.currency_code || 'OUSD').toUpperCase();
+                                    const meta = currencies.find((c) => c.code === code);
+                                    const symbol = meta?.symbol || (code === 'PI' ? 'π' : '$');
+                                    const sign = isOut ? '-' : '+';
+                                    return `${sign}${symbol}${amt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                                  }
+                                  return activity.amount ? formatCurrency(activity.amount) : '-';
+                                })()}
                               </span>
                             </td>
                           </tr>
@@ -2876,9 +2901,23 @@ const Dashboard = () => {
                     {tx.note && <p className="text-xs text-muted-foreground">{toPreviewText(tx.note)}</p>}
                   </div>
                 </div>
-                <p className={`font-semibold ${tx.is_sent && !tx.is_topup ? "text-red-500" : "text-paypal-success"}`}>
-                  {balanceHidden ? "****" : `${tx.is_topup ? "+" : tx.is_sent ? "-" : "+"}${formatCurrency(tx.amount)}`}
-                </p>
+                <div className="text-right">
+                  <p className={`font-semibold ${tx.is_sent && !tx.is_topup ? "text-red-500" : "text-paypal-success"}`}>
+                    {balanceHidden ? "****" : (() => {
+                      const isOut = tx.is_sent && !tx.is_topup;
+                      const amtRaw = isOut ? (tx.sender_amount ?? tx.amount) : (tx.receiver_amount ?? tx.amount);
+                      const amt = Number(amtRaw || 0);
+                      const code = String((isOut ? tx.sender_currency_code : tx.receiver_currency_code) || tx.currency_code || 'OUSD').toUpperCase();
+                      const meta = currencies.find((c) => c.code === code);
+                      const sym = meta?.symbol || (code === 'PI' ? 'π' : '$');
+                      const sign = isOut ? '-' : '+';
+                      return `${sign}${sym}${amt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                    })()}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground uppercase font-semibold">
+                    {getPiCodeLabel(String(((tx.is_sent && !tx.is_topup) ? tx.sender_currency_code : tx.receiver_currency_code) || tx.currency_code || 'OUSD'))}
+                  </p>
+                </div>
               </button>
             ))}
           </div>
