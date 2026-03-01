@@ -194,7 +194,17 @@ const PublicLedgerPage = () => {
             const primaryName = row.receiver_name || row.sender_name || "";
             const primaryAvatar = row.receiver_avatar || row.sender_avatar || "";
             const primaryUsername = row.receiver_username || row.sender_username || "";
-            const amountClass = isTopup ? "text-green-600" : isWithdraw ? "text-red-600" : "text-foreground";
+            const numericAmount = Number(row.amount || 0);
+            const amountClass =
+              numericAmount > 0
+                ? "text-green-600"
+                : numericAmount < 0
+                  ? "text-red-600"
+                  : isTopup
+                    ? "text-green-600"
+                    : isWithdraw
+                      ? "text-red-600"
+                      : "text-foreground";
             
             return (
               <div key={`${row.occurred_at}-${index}`} className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
