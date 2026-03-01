@@ -104,6 +104,8 @@ const SendMoney = () => {
   const [contactIds, setContactIds] = useState<string[]>([]);
   const [balance, setBalance] = useState(0);
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
+  const [selectedUsers, setSelectedUsers] = useState<UserProfile[]>([]);
+  const [isMultiSend, setIsMultiSend] = useState(false);
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
   const [purpose, setPurpose] = useState("");
@@ -190,13 +192,15 @@ const SendMoney = () => {
         console.log('Restoring action data from PIN:', data);
         
         // Execute send immediately
-        void handleSend(data.selectedUser, data.amount, data.note);
+        void handleSend(data.selectedUser, data.amount, data.note, data.selectedUsers);
 
         // Clear location state to prevent re-triggering if component re-renders
         navigate(location.pathname, { replace: true, state: {} });
 
         // Also update local state so UI is consistent if needed
         if (data.selectedUser) setSelectedUser(data.selectedUser);
+        if (data.selectedUsers) setSelectedUsers(data.selectedUsers);
+        if (data.isMultiSend !== undefined) setIsMultiSend(data.isMultiSend);
         if (data.amount) setAmount(data.amount);
         if (data.note) setNote(data.note);
         if (data.step) setStep(data.step);
@@ -243,21 +247,74 @@ const SendMoney = () => {
     }
   }, [userId]);
 
-  const handleSend = async (overrideUser?: UserProfile, overrideAmount?: string, overrideNote?: string) => {
+  const handleSend = async (overrideUser?: UserProfile, overrideAmount?: string, overrideNote?: string, overrideUsers?: UserProfile[]) => {
     if (loading) return; // Prevent double spending by checking if already loading
 
     const activeUser = overrideUser || selectedUser;
+    const activeUsers = overrideUsers || selectedUsers;
     const activeAmount = overrideAmount || amount;
     const activeNote = overrideNote !== undefined ? overrideNote : note;
 
     const parsedAmount = parseFloat(activeAmount);
-    if (!activeUser || !activeAmount || parsedAmount <= 0) { toast.error("Enter a valid amount"); return; }
-    const usdAmount = parsedAmount / currency.rate;
-    if (usdAmount > balance) { toast.error("Amount exceeds your available balance"); return; }
+    if ((!activeUser && activeUsers.length === 0) || !activeAmount || parsedAmount <= 0) { toast.error("Enter a valid amount"); return; }
+    
+    const totalAmount = (isMultiSend && activeUsers.length > 0) ? (parsedAmount * activeUsers.length) : parsedAmount;
+    const usdAmountPerUser = parsedAmount / currency.rate;
+    const totalUsdAmount = totalAmount / currency.rate;
+    
+    if (usdAmountPerUser > balance) { toast.error("Amount exceeds your available balance"); return; }
     
     setLoading(true); // Lock the UI immediately after basic validation
 
     try {
+      if (isMultiSend && activeUsers.length > 0) {
+        // Multi-send logic using RPC
+        const recipientIds = activeUsers.map(u => u.id);
+        const amounts = activeUsers.map(() => usdAmountPerUser);
+        const notes = activeUsers.map(() => activeNote || "");
+
+        const { data: rpcData, error: rpcError } = await supabase.rpc("bulk_transfer_funds" as any, {
+          p_recipients: recipientIds,
+          p_amounts: amounts,
+          p_notes: notes
+        });
+
+        if (rpcError) {
+          throw new Error(rpcError.message || "Bulk transfer failed");
+        }
+
+        const result = rpcData as any;
+        if (result.error) {
+          throw new Error(result.error);
+        }
+
+        const firstTxId = result.transaction_ids?.[0] || "bulk-tx";
+        
+        setLoading(false);
+        setReceiptData({
+          transactionId: firstTxId,
+          ledgerTransactionId: firstTxId,
+          type: "send",
+          amount: totalUsdAmount,
+          otherPartyName: `${activeUsers.length} recipients`,
+          otherPartyUsername: `Multiple recipients`,
+          note: activeNote || undefined,
+          date: new Date(),
+        });
+        setReceiptOpen(true);
+        playSendSuccessSound();
+        toast.success(`${currency.symbol}${totalAmount.toFixed(2)} sent to ${activeUsers.length} people!`);
+
+        // Reset state
+        setAmount("");
+        setNote("");
+        setSelectedUsers([]);
+        setIsMultiSend(false);
+        setStep("select");
+        refreshTransactions();
+        return;
+      }
+
       if (checkoutSessionToken) {
         const { data: checkoutTxId, error: checkoutError } = await (supabase as any).rpc("pay_merchant_checkout_with_wallet", {
           p_session_token: checkoutSessionToken,
@@ -284,8 +341,8 @@ const SendMoney = () => {
 
       const transferViaSecureRpcFallback = async () => {
         const { data: txId, error: rpcError } = await supabase.rpc("transfer_funds_authenticated", {
-          p_receiver_id: activeUser.id,
-          p_amount: usdAmount,
+          p_receiver_id: activeUser!.id,
+          p_amount: usdAmountPerUser,
           p_note: activeNote || "",
         });
         if (rpcError) {
@@ -302,7 +359,7 @@ const SendMoney = () => {
       let usedFallback = false;
 
       const { data, error } = await supabase.functions.invoke("send-money", {
-        body: { receiver_id: activeUser.id, amount: usdAmount, note: activeNote, purpose: purpose || null },
+        body: { receiver_id: activeUser!.id, amount: usdAmountPerUser, note: activeNote, purpose: purpose || null },
       });
 
       if (error) {
@@ -640,8 +697,29 @@ const SendMoney = () => {
     toast.success("Saved to bookmarks");
   };
 
-  const handleSelectUser = (user: UserProfile) => { setSelectedUser(user); setShowConfirm(true); };
+  const handleSelectUser = (user: UserProfile) => { 
+    if (isMultiSend) {
+      if (selectedUsers.some(u => u.id === user.id)) {
+        setSelectedUsers(prev => prev.filter(u => u.id !== user.id));
+      } else if (selectedUsers.length < 5) {
+        setSelectedUsers(prev => [...prev, user]);
+      } else {
+        toast.error("Maximum 5 recipients allowed");
+      }
+    } else {
+      setSelectedUsers([]); // Clear multi-send selection
+      setSelectedUser(user); 
+      setShowConfirm(true); 
+    }
+  };
   const handleConfirmUser = () => { setShowConfirm(false); setStep("amount"); };
+  const handleConfirmMultiSend = () => {
+    if (selectedUsers.length === 0) {
+      toast.error("Select at least one recipient");
+      return;
+    }
+    setStep("amount");
+  };
 
   const handleNumberPress = (val: string) => {
     setAmount((prev) => {
@@ -659,11 +737,12 @@ const SendMoney = () => {
 
   const handleOpenSendConfirm = () => {
     const parsedAmount = parseFloat(amount);
-    if (!selectedUser || !amount || parsedAmount <= 0) {
+    if ((!selectedUser && selectedUsers.length === 0) || !amount || parsedAmount <= 0) {
       toast.error("Enter a valid amount");
       return;
     }
-    const usdAmount = parsedAmount / currency.rate;
+    const totalAmount = isMultiSend ? parsedAmount * selectedUsers.length : parsedAmount;
+    const usdAmount = totalAmount / currency.rate;
     if (usdAmount > balance) {
       toast.error("Amount exceeds your available balance");
       return;
@@ -792,7 +871,25 @@ const SendMoney = () => {
             <DialogDescription className="text-base text-muted-foreground">
               Review the details before sending.
             </DialogDescription>
-            {selectedUser && (
+            {isMultiSend && selectedUsers.length > 0 ? (
+              <div className="mt-3 space-y-2">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Recipients ({selectedUsers.length}/5)</p>
+                <div className="flex flex-wrap gap-2 rounded-2xl bg-secondary/70 p-3">
+                  {selectedUsers.map(u => (
+                    <div key={u.id} className="flex items-center gap-2 bg-white/20 rounded-full pl-1 pr-3 py-1 border border-white/10">
+                      {u.avatar_url ? (
+                        <img src={u.avatar_url} alt={u.full_name} className="h-6 w-6 rounded-full object-cover" />
+                      ) : (
+                        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-paypal-dark text-[8px] font-bold text-white">
+                          {getInitials(u.full_name)}
+                        </div>
+                      )}
+                      <span className="text-[10px] font-semibold text-foreground">{u.full_name.split(' ')[0]}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : selectedUser && (
               <div className="mt-3 flex items-center gap-3 rounded-2xl bg-secondary/70 px-3 py-2.5">
                 {selectedUser.avatar_url ? (
                   <img src={selectedUser.avatar_url} alt={selectedUser.full_name} className="h-12 w-12 rounded-full border border-border object-cover" />
@@ -810,12 +907,22 @@ const SendMoney = () => {
 
             <div className="mt-4 space-y-2 rounded-2xl border border-border p-3 text-base">
               <p className="flex items-center justify-between">
-                <span className="text-muted-foreground">Amount</span>
+                <span className="text-muted-foreground">{isMultiSend ? "Amount per person" : "Amount"}</span>
                 <span className="font-semibold text-foreground">{currency.symbol}{Number(amount || 0).toFixed(2)} ({currency.code})</span>
               </p>
+              {isMultiSend && (
+                <p className="flex items-center justify-between border-t border-border pt-2 mt-2">
+                  <span className="text-foreground font-bold">Total Amount</span>
+                  <span className="font-bold text-paypal-blue">{currency.symbol}{(Number(amount || 0) * selectedUsers.length).toFixed(2)}</span>
+                </p>
+              )}
               <p className="flex items-center justify-between">
                 <span className="text-muted-foreground">Converted (USD)</span>
-                <span className="font-semibold text-foreground">${(Number(amount || 0) / (currency.rate || 1)).toFixed(2)}</span>
+                <span className="font-semibold text-foreground">
+                  {isMultiSend 
+                    ? `$${(Number(amount || 0) * selectedUsers.length / (currency.rate || 1)).toFixed(2)} total`
+                    : `$${(Number(amount || 0) / (currency.rate || 1)).toFixed(2)}`}
+                </span>
               </p>
               {note.trim() && (
                 <p className="flex items-start justify-between gap-2">
@@ -850,6 +957,8 @@ const SendMoney = () => {
                           returnTo: "/send",
                           actionData: {
                             selectedUser,
+                            selectedUsers,
+                            isMultiSend,
                             amount,
                             note,
                             step: "confirm"
@@ -904,6 +1013,16 @@ const SendMoney = () => {
         </div>
         <div className="flex items-center gap-2">
           <button
+            onClick={() => setIsMultiSend(!isMultiSend)}
+            className={`flex h-12 px-4 items-center justify-center rounded-full transition-colors ${
+              isMultiSend ? "bg-white text-paypal-blue" : "bg-white/10 text-white"
+            }`}
+            aria-label="Toggle Multi-Send"
+          >
+            <Users className="h-5 w-5 mr-2" />
+            <span className="text-xs font-bold">{isMultiSend ? "Cancel Multi" : "Multi-Send"}</span>
+          </button>
+          <button
             onClick={() => navigate("/scan-qr?returnTo=/send")}
             className="flex h-12 w-12 items-center justify-center rounded-full bg-white/10 active:bg-white/20 transition-colors"
             aria-label="Scan QR code"
@@ -921,6 +1040,36 @@ const SendMoney = () => {
       </div>
 
       <div className="mt-6">
+        {isMultiSend && (
+          <div className="mb-6 p-4 rounded-2xl bg-white/10 border border-white/20">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="font-bold text-white">Multi-Send ({selectedUsers.length}/5)</h2>
+              <button 
+                onClick={handleConfirmMultiSend}
+                disabled={selectedUsers.length === 0}
+                className="px-4 py-1.5 rounded-full bg-white text-paypal-blue text-xs font-bold disabled:opacity-50"
+              >
+                Continue
+              </button>
+            </div>
+            {selectedUsers.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {selectedUsers.map(user => (
+                  <div key={user.id} className="flex items-center gap-2 bg-white/20 rounded-full pl-1 pr-3 py-1">
+                    {renderAvatar(user, 0)}
+                    <span className="text-xs font-medium">{user.full_name.split(' ')[0]}</span>
+                    <button onClick={() => handleSelectUser(user)} className="text-white/60 hover:text-white">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-white/60 italic">Select up to 5 people to send money to.</p>
+            )}
+          </div>
+        )}
+
         {!searchQuery && recentRecipients.length > 0 && (
           <>
             <h2 className="mb-3 font-bold text-white">Recent</h2>
@@ -937,6 +1086,13 @@ const SendMoney = () => {
                     {user.username && <p className="text-base text-muted-foreground">@{user.username}</p>}
                     <p className="text-sm text-muted-foreground">Recent transaction</p>
                   </div>
+                  {isMultiSend && (
+                    <div className={`h-6 w-6 rounded-full border-2 flex items-center justify-center transition-colors ${
+                      selectedUsers.some(u => u.id === user.id) ? "bg-paypal-blue border-paypal-blue text-white" : "border-muted-foreground/30"
+                    }`}>
+                      {selectedUsers.some(u => u.id === user.id) && <Check className="h-4 w-4" />}
+                    </div>
+                  )}
                   <button
                     type="button"
                     onClick={(e) => {
@@ -985,10 +1141,17 @@ const SendMoney = () => {
             >
               {renderAvatar(user, i)}
               <div className="text-left flex-1">
-                <p className="font-semibold text-foreground">{user.full_name}</p>
-                {user.username && <p className="text-base text-muted-foreground">@{user.username}</p>}
-              </div>
-              <button
+                    <p className="font-semibold text-foreground">{user.full_name}</p>
+                    {user.username && <p className="text-base text-muted-foreground">@{user.username}</p>}
+                  </div>
+                  {isMultiSend && (
+                    <div className={`h-6 w-6 rounded-full border-2 flex items-center justify-center transition-colors ${
+                      selectedUsers.some(u => u.id === user.id) ? "bg-paypal-blue border-paypal-blue text-white" : "border-muted-foreground/30"
+                    }`}>
+                      {selectedUsers.some(u => u.id === user.id) && <Check className="h-4 w-4" />}
+                    </div>
+                  )}
+                  <button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
