@@ -192,7 +192,7 @@ const SendMoney = () => {
         console.log('Restoring action data from PIN:', data);
         
         // Execute send immediately
-        void handleSend(data.selectedUser, data.amount, data.note, data.selectedUsers);
+        void handleSend(data.selectedUser, data.amount, data.note, data.selectedUsers, data.isMultiSend);
 
         // Clear location state to prevent re-triggering if component re-renders
         navigate(location.pathname, { replace: true, state: {} });
@@ -247,44 +247,63 @@ const SendMoney = () => {
     }
   }, [userId]);
 
-  const handleSend = async (overrideUser?: UserProfile, overrideAmount?: string, overrideNote?: string, overrideUsers?: UserProfile[]) => {
+  const handleSend = async (overrideUser?: UserProfile, overrideAmount?: string, overrideNote?: string, overrideUsers?: UserProfile[], overrideIsMultiSend?: boolean) => {
     if (loading) return; // Prevent double spending by checking if already loading
 
+    const activeIsMultiSend = overrideIsMultiSend !== undefined ? overrideIsMultiSend : isMultiSend;
     const activeUser = overrideUser || selectedUser;
     const activeUsers = overrideUsers || selectedUsers;
     const activeAmount = overrideAmount || amount;
     const activeNote = overrideNote !== undefined ? overrideNote : note;
 
     const parsedAmount = parseFloat(activeAmount);
-    if ((!activeUser && activeUsers.length === 0) || !activeAmount || parsedAmount <= 0) { toast.error("Enter a valid amount"); return; }
+    if ((!activeUser && activeUsers.length === 0) || !activeAmount || parsedAmount <= 0) { 
+      toast.error("Enter a valid amount"); 
+      return; 
+    }
     
-    const totalAmount = (isMultiSend && activeUsers.length > 0) ? (parsedAmount * activeUsers.length) : parsedAmount;
-    const usdAmountPerUser = parsedAmount / currency.rate;
-    const totalUsdAmount = totalAmount / currency.rate;
+    const isActuallyMultiSend = activeIsMultiSend && activeUsers.length > 0;
+    const totalAmount = isActuallyMultiSend ? (parsedAmount * activeUsers.length) : parsedAmount;
+    const rate = Number(currency?.rate || 1);
+    const usdAmountPerUser = parsedAmount / (rate > 0 ? rate : 1);
+    const totalUsdAmount = totalAmount / (rate > 0 ? rate : 1);
     
-    if (usdAmountPerUser > balance) { toast.error("Amount exceeds your available balance"); return; }
+    if (totalUsdAmount > balance) { 
+      toast.error("Amount exceeds your available balance"); 
+      return; 
+    }
     
     setLoading(true); // Lock the UI immediately after basic validation
 
     try {
-      if (isMultiSend && activeUsers.length > 0) {
+      if (isActuallyMultiSend) {
         // Multi-send logic using RPC
         const recipientIds = activeUsers.map(u => u.id);
-        const amounts = activeUsers.map(() => usdAmountPerUser);
+        const amounts = activeUsers.map(() => Number(usdAmountPerUser.toFixed(2))); // Ensure numeric and limited precision
         const notes = activeUsers.map(() => activeNote || "");
 
-        const { data: rpcData, error: rpcError } = await supabase.rpc("bulk_transfer_funds" as any, {
+        console.log('Initiating bulk transfer:', {
+          recipientCount: recipientIds.length,
+          amountPerUser: usdAmountPerUser,
+          totalAmount: totalUsdAmount,
+          recipientIds,
+          amounts
+        });
+
+        const { data: rpcData, error: rpcError } = await (supabase as any).rpc("bulk_transfer_funds", {
           p_recipients: recipientIds,
           p_amounts: amounts,
           p_notes: notes
         });
 
         if (rpcError) {
+          console.error('Bulk transfer RPC error:', rpcError);
           throw new Error(rpcError.message || "Bulk transfer failed");
         }
 
         const result = rpcData as any;
         if (result.error) {
+          console.error('Bulk transfer result error:', result.error);
           throw new Error(result.error);
         }
 
@@ -420,7 +439,8 @@ const SendMoney = () => {
     } catch (err) {
       console.error("handleSend unexpected error:", err);
       setLoading(false);
-      toast.error("An unexpected error occurred. Please try again.");
+      const errorMessage = err instanceof Error ? err.message : "An unexpected error occurred. Please try again.";
+      toast.error(errorMessage);
     }
   };
 
@@ -804,13 +824,35 @@ const SendMoney = () => {
             <span>{amount || "0"}</span>
           </div>
           
-          {selectedUser && (
+          {isMultiSend && selectedUsers.length > 0 ? (
+            <div className="flex flex-col items-center gap-2">
+              <div className="flex items-center gap-2 rounded-full bg-black/10 px-3 py-1.5 text-base font-medium">
+                <span>Sending to {selectedUsers.length} people</span>
+              </div>
+              <div className="flex -space-x-2 mt-1">
+                {selectedUsers.slice(0, 5).map((user, i) => (
+                  <div key={user.id} className="h-8 w-8 rounded-full border-2 border-paypal-blue overflow-hidden bg-white/20 flex items-center justify-center">
+                    {user.avatar_url ? (
+                      <img src={user.avatar_url} alt={user.full_name} className="h-full w-full object-cover" />
+                    ) : (
+                      <span className="text-[10px] font-bold text-white">{getInitials(user.full_name)}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <p className="text-sm font-medium text-white/80">
+                Total: {currency.symbol}{(Number(amount || 0) * selectedUsers.length).toFixed(2)} ({formatCurrency(balance)} available)
+              </p>
+            </div>
+          ) : selectedUser ? (
             <div className="flex flex-col items-center gap-2">
               <div className="flex items-center gap-2 rounded-full bg-black/5 px-3 py-1.5 text-base font-medium">
                 <span>Sending to {selectedUser.full_name}</span>
               </div>
               <p className="text-sm font-medium text-white/80">Available: {formatCurrency(balance)}</p>
             </div>
+          ) : (
+            <p className="text-sm font-medium text-white/80">Available: {formatCurrency(balance)}</p>
           )}
 
           <div className="mt-8 w-full max-w-[240px]">
