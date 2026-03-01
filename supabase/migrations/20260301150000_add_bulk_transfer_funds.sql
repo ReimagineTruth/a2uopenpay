@@ -75,15 +75,13 @@ BEGIN
       receiver_id,
       amount,
       note,
-      status,
-      type
+      status
     ) VALUES (
       v_sender_id,
       p_recipients[v_i],
       p_amounts[v_i],
       COALESCE(p_notes[v_i], ''),
-      'completed',
-      'transfer'
+      'completed'
     ) RETURNING id INTO v_tx_id;
 
     v_tx_ids := array_append(v_tx_ids, v_tx_id);
