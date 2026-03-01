@@ -1009,7 +1009,7 @@ const Dashboard = () => {
       /pi\s?browser/i.test(navigator.userAgent || "");
 
     const runPiAdAuto = async () => {
-      if (typeof window === "undefined" || document.visibilityState !== "visible") return;
+      if (typeof window === "undefined" || typeof document === "undefined" || document.visibilityState !== "visible") return;
       if (!inPiBrowser) return;
       if (!window.Pi?.Ads?.showAd) return;
       if (Date.now() - lastAdRunAt < 5 * 60 * 1000) return;

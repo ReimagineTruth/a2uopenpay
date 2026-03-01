@@ -351,7 +351,7 @@ const SendMoney = () => {
         }
 
         const txId = String(checkoutTxId || "");
-        const isPosRedirect = isPosCheckoutSession || activeNote.toLowerCase().includes("pos");
+        const isPosRedirect = isPosCheckoutSession || (typeof activeNote === "string" && activeNote.toLowerCase().includes("pos"));
         const nextPath = isPosRedirect ? "/pos-thank-you" : "/merchant-checkout/thank-you";
         navigate(`${nextPath}?session=${encodeURIComponent(checkoutSessionToken)}&tx=${encodeURIComponent(txId)}`, { replace: true });
         setLoading(false);
@@ -762,7 +762,7 @@ const SendMoney = () => {
       return;
     }
     const totalAmount = isMultiSend ? parsedAmount * selectedUsers.length : parsedAmount;
-    const usdAmount = totalAmount / currency.rate;
+    const usdAmount = totalAmount / (currency?.rate || 1);
     if (usdAmount > balance) {
       toast.error("Amount exceeds your available balance");
       return;
