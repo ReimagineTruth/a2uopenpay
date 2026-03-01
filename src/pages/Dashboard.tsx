@@ -395,12 +395,12 @@ const Dashboard = () => {
         else if (actionName === "handleSwapOpenUsd") void handleSwapOpenUsd(data.swapSpendAmount);
 
         // Also update local state so UI is consistent
-        if (data.savingsAmount) setSavingsAmount(data.savingsAmount);
-        if (data.withdrawAmount) setWithdrawAmount(data.withdrawAmount);
-        if (data.loanPaymentAmount) setLoanPaymentAmount(data.loanPaymentAmount);
-        if (data.merchantSavingsAmount) setMerchantSavingsAmount(data.merchantSavingsAmount);
-        if (data.merchantWithdrawAmount) setMerchantWithdrawAmount(data.merchantWithdrawAmount);
-        if (data.swapSpendAmount) setSwapSpendAmount(data.swapSpendAmount);
+        if (data?.savingsAmount) setSavingsAmount(data.savingsAmount);
+        if (data?.withdrawAmount) setWithdrawAmount(data.withdrawAmount);
+        if (data?.loanPaymentAmount) setLoanPaymentAmount(data.loanPaymentAmount);
+        if (data?.merchantSavingsAmount) setMerchantSavingsAmount(data.merchantSavingsAmount);
+        if (data?.merchantWithdrawAmount) setMerchantWithdrawAmount(data.merchantWithdrawAmount);
+        if (data?.swapSpendAmount) setSwapSpendAmount(data.swapSpendAmount);
 
         // Clear location state immediately to prevent re-execution
         navigate(location.pathname + location.search, { replace: true, state: {} });
@@ -592,7 +592,7 @@ const Dashboard = () => {
       ];
 
       const recentActivities = allActivities
-        .sort((a, b) => b.date.getTime() - a.date.getTime())
+        .sort((a, b) => (b?.date?.getTime() || 0) - (a?.date?.getTime() || 0))
         .slice(0, 15);
       
       const personalData = {
@@ -625,7 +625,7 @@ const Dashboard = () => {
         }],
         recent_transactions: recentActivities,
         detailed_metrics: {
-          avg_transaction_value: transactions?.length > 0 ? totalSent / transactions.length : 0,
+          avg_transaction_value: (transactions?.length || 0) > 0 ? totalSent / (transactions?.length || 1) : 0,
           avg_topup_amount: topupCount > 0 ? topupAmount / topupCount : 0,
           avg_swap_amount: 0,
           most_used_currency: 'OUSD',
@@ -2754,11 +2754,11 @@ const Dashboard = () => {
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   <div className="rounded-xl bg-white/5 p-2 text-center">
                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Tx Count</p>
-                    <p className="text-sm font-bold text-foreground">{personalAnalytics.summary.transaction_count}</p>
+                    <p className="text-sm font-bold text-foreground">{personalAnalytics?.summary?.transaction_count ?? 0}</p>
                   </div>
                   <div className="rounded-xl bg-white/5 p-2 text-center">
                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Activity</p>
-                    <p className="text-sm font-bold text-foreground">{personalAnalytics.summary.recent_activity}</p>
+                    <p className="text-sm font-bold text-foreground">{personalAnalytics?.summary?.recent_activity ?? 0}</p>
                   </div>
                 </div>
               )}

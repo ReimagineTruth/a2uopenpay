@@ -200,7 +200,7 @@ const SendMoney = () => {
         // Also update local state so UI is consistent if needed
         if (data.selectedUser) setSelectedUser(data.selectedUser);
         if (data.selectedUsers) setSelectedUsers(data.selectedUsers);
-        if (data.isMultiSend !== undefined) setIsMultiSend(data.isMultiSend);
+        if (data?.isMultiSend !== undefined) setIsMultiSend(data.isMultiSend);
         if (data.amount) setAmount(data.amount);
         if (data.note) setNote(data.note);
         if (data.step) setStep(data.step);
@@ -387,24 +387,24 @@ const SendMoney = () => {
         transactionId: txId,
         ledgerTransactionId: txId,
         type: "send",
-        amount: usdAmount,
-        otherPartyName: activeUser.full_name,
-        otherPartyUsername: activeUser.username || undefined,
+        amount: usdAmountPerUser,
+        otherPartyName: activeUser?.full_name || "Unknown",
+        otherPartyUsername: activeUser?.username || undefined,
         note: activeNote || undefined,
         date: new Date(),
       });
       console.log('Receipt data set:', {
         transactionId: txId,
-        amount: usdAmount,
-        otherPartyName: activeUser.full_name
+        amount: usdAmountPerUser,
+        otherPartyName: activeUser?.full_name
       });
       setReceiptOpen(true);
       console.log('Receipt modal opened:', true);
       playSendSuccessSound();
       if (usedFallback) {
-        toast.success(`${currency.symbol}${parseFloat(activeAmount).toFixed(2)} sent to ${activeUser.full_name}! (fallback route)`);
+        toast.success(`${currency.symbol}${parseFloat(activeAmount).toFixed(2)} sent to ${activeUser?.full_name || "Unknown"}! (fallback route)`);
       } else {
-        toast.success(`${currency.symbol}${parseFloat(activeAmount).toFixed(2)} sent to ${activeUser.full_name}!`);
+        toast.success(`${currency.symbol}${parseFloat(activeAmount).toFixed(2)} sent to ${activeUser?.full_name || "Unknown"}!`);
       }
 
       // Clear the amount and note
