@@ -117,14 +117,14 @@ const PublicLedgerPage = () => {
     try {
       const { data: userData } = await supabase.auth.getUser();
       const isSignedIn = Boolean(userData?.user);
-      let rpcName: "get_private_ledger_transaction" | "get_public_ledger_transaction" = isSignedIn
+      let rpcName = isSignedIn
         ? "get_private_ledger_transaction"
         : "get_public_ledger_transaction";
-      let { data, error } = await supabase.rpc(rpcName, { p_transaction_id: txId });
+      let { data, error } = await (supabase as any).rpc(rpcName, { p_transaction_id: txId });
 
       if (isSignedIn && error && isMissingPrivateLedgerRpcError(error.message)) {
         rpcName = "get_public_ledger_transaction";
-        ({ data, error } = await supabase.rpc(rpcName, { p_transaction_id: txId }));
+        ({ data, error } = await (supabase as any).rpc(rpcName, { p_transaction_id: txId }));
       }
 
       if (error) throw new Error(error.message || "Failed to load ledger transaction.");

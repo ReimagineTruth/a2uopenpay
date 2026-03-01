@@ -69,7 +69,7 @@ const MerchantProductCatalogPage = () => {
         .from("merchant_product_stats")
         .select("product_id, total_sales, total_revenue, total_purchases")
         .eq("merchant_user_id", user.id);
-      const { count: unreadCount } = await supabase
+      const { count: unreadCount } = await (supabase as any)
         .from("app_notifications")
         .select("id", { count: "exact", head: true })
         .eq("user_id", user.id)

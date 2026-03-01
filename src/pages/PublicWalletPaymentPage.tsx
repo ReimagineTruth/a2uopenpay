@@ -97,10 +97,9 @@ const PublicWalletPaymentPage = () => {
 
     setProcessing(true);
     try {
-      const { data: result, error } = await db.rpc("pay_merchant_checkout_public_wallet", {
+      const { data: result, error } = await db.rpc("pay_merchant_checkout_with_wallet", {
         p_session_token: sessionToken,
-        p_payer_account_number: accountNumber.trim(),
-        p_payer_pin: pin.trim(),
+        p_note: `Wallet payment | ${customerName.trim() || "Customer"}`,
         p_customer_name: customerName.trim() || null,
         p_customer_email: customerEmail.trim() || null,
         p_customer_phone: customerPhone.trim() || null,
@@ -109,15 +108,11 @@ const PublicWalletPaymentPage = () => {
 
       if (error) throw error;
 
-      const paymentResult = Array.isArray(result) ? result[0] : result;
-      if (paymentResult?.status === "success") {
-        toast.success("Payment completed successfully");
-        const isPos = String(sessionData.items?.[0]?.item_name || "").toLowerCase().includes("pos payment");
-        const thankYouPath = isPos ? "/pos-thank-you" : "/merchant-checkout/thank-you";
-        navigate(`${thankYouPath}?session=${encodeURIComponent(sessionToken)}&tx=${encodeURIComponent(paymentResult.transaction_id)}`, { replace: true });
-      } else {
-        toast.error(paymentResult?.message || "Payment failed");
-      }
+      const txId = typeof result === 'string' ? result : (Array.isArray(result) ? String(result[0]) : String(result || ''));
+      toast.success("Payment completed successfully");
+      const isPos = String(sessionData.items?.[0]?.item_name || "").toLowerCase().includes("pos payment");
+      const thankYouPath = isPos ? "/pos-thank-you" : "/merchant-checkout/thank-you";
+      navigate(`${thankYouPath}?session=${encodeURIComponent(sessionToken)}&tx=${encodeURIComponent(txId)}`, { replace: true });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Payment failed");
     } finally {
@@ -151,12 +146,13 @@ const PublicWalletPaymentPage = () => {
 
     setProcessing(true);
     try {
-      const { data: result, error } = await db.rpc("pay_merchant_checkout_public_virtual_card", {
+      const { data: result, error } = await db.rpc("pay_merchant_checkout_with_virtual_card", {
         p_session_token: sessionToken,
         p_card_number: cardNumber,
         p_expiry_month: parsedMonth,
         p_expiry_year: parsedYear,
         p_cvc: cardCvc,
+        p_note: `Card payment | ${customerName.trim() || "Customer"}`,
         p_customer_name: customerName.trim() || null,
         p_customer_email: customerEmail.trim() || null,
         p_customer_phone: customerPhone.trim() || null,
@@ -165,15 +161,11 @@ const PublicWalletPaymentPage = () => {
 
       if (error) throw error;
 
-      const paymentResult = Array.isArray(result) ? result[0] : result;
-      if (paymentResult?.status === "success") {
-        toast.success("Payment completed successfully");
-        const isPos = String(sessionData.items?.[0]?.item_name || "").toLowerCase().includes("pos payment");
-        const thankYouPath = isPos ? "/pos-thank-you" : "/merchant-checkout/thank-you";
-        navigate(`${thankYouPath}?session=${encodeURIComponent(sessionToken)}&tx=${encodeURIComponent(paymentResult.transaction_id)}`, { replace: true });
-      } else {
-        toast.error(paymentResult?.message || "Payment failed");
-      }
+      const txId = typeof result === 'string' ? result : (Array.isArray(result) ? String(result[0]) : String(result || ''));
+      toast.success("Payment completed successfully");
+      const isPos = String(sessionData.items?.[0]?.item_name || "").toLowerCase().includes("pos payment");
+      const thankYouPath = isPos ? "/pos-thank-you" : "/merchant-checkout/thank-you";
+      navigate(`${thankYouPath}?session=${encodeURIComponent(sessionToken)}&tx=${encodeURIComponent(txId)}`, { replace: true });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Payment failed");
     } finally {

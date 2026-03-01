@@ -55,7 +55,7 @@ const AffiliatePage = () => {
           .select("referred_user_id, reward_amount, status, created_at, claimed_at")
           .eq("referrer_user_id", user.id)
           .order("created_at", { ascending: false }),
-        supabase
+        (supabase as any)
           .from("mining_rewards")
           .select("amount")
           .eq("user_id", user.id)
@@ -90,7 +90,7 @@ const AffiliatePage = () => {
             .from("profiles")
             .select("id, full_name, username")
             .in("id", invitedIds),
-          supabase
+          (supabase as any)
             .from("mining_sessions")
             .select("user_id")
             .in("user_id", invitedIds)
