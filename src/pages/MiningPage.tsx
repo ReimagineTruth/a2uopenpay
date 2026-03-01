@@ -154,8 +154,8 @@ const MiningPage = () => {
           // Check for ad network support
           if (window.Pi.nativeFeaturesList) {
             const features = await window.Pi.nativeFeaturesList();
-            if (!features.includes("ad_network")) {
-              console.warn("Pi Ad Network not supported on this version");
+            if (!features.includes("ad_network") || !window.Pi.Ads?.showAd) {
+              console.warn("Pi Ad Network not supported on this version or device");
             } else {
               toast.info("Preparing rewarded ad...");
               const adResult = await window.Pi.Ads.showAd("rewarded");
@@ -187,7 +187,7 @@ const MiningPage = () => {
 
       if (error) {
         toast.error(error.message);
-      } else if ((data as any).error) {
+      } else if (data && (data as any).error) {
         toast.error((data as any).error);
       } else {
         toast.success("Mining started! Check back in 24 hours to claim your reward.");
@@ -207,11 +207,11 @@ const MiningPage = () => {
 
       if (error) {
         toast.error(error.message);
-      } else if ((data as any).error) {
+      } else if (data && (data as any).error) {
         toast.error((data as any).error);
       } else {
         const result = data as any;
-        toast.success(`Claimed ${result.total_reward.toFixed(2)} OPEN!`);
+        toast.success(`Claimed ${(result?.total_reward || 0).toFixed(2)} OPEN!`);
         loadMiningData();
       }
     } catch (error) {
@@ -400,9 +400,10 @@ const MiningPage = () => {
               ))}
             </div>
           ) : (rewards || []).length === 0 ? (
-            <div className="rounded-[2rem] border-2 border-dashed border-muted-foreground/20 p-10 text-center">
-              <p className="text-sm font-bold text-muted-foreground">No ledger entries found.</p>
-              <p className="mt-1 text-xs text-muted-foreground/60">Initialize your first session above.</p>
+            <div className="rounded-[2rem] border-2 border-dashed border-muted-foreground/20 p-10 text-center bg-white/30 backdrop-blur-sm">
+              <History className="h-10 w-10 text-muted-foreground/20 mx-auto mb-4" />
+              <p className="text-sm font-bold text-muted-foreground">No mining history found</p>
+              <p className="mt-1 text-xs text-muted-foreground/60">Your mining rewards will appear here after claiming.</p>
             </div>
           ) : (
             <div className="space-y-3">

@@ -79,8 +79,8 @@ const VENMO_ICON_URL =
   "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Venmo_Logo.svg/1920px-Venmo_Logo.svg.png";
 const VISA_ICON_URL = "https://i.ibb.co/G3FGwngR/Visa-Inc-logo-2021-present-svg.png";
 const MASTERCARD_ICON_URL = "https://i.ibb.co/9kkZmFDq/Mastercard-2019-logo-svg.png";
-const USDT_ICON_URL = "https://cryptologos.cc/logos/tether-usdt-logo.png";
-const USDC_ICON_URL = "https://cryptologos.cc/logos/usd-coin-usdc-logo.png";
+const USDT_ICON_URL = "https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/usdt.png";
+const USDC_ICON_URL = "https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/128/color/usdc.png";
 const TRANSFI_ICON_URL = "https://logo.clearbit.com/transfi.com";
 const ONRAMP_MONEY_ICON_URL = "https://logo.clearbit.com/onramp.money";
 const BANXA_ICON_URL = "https://logo.clearbit.com/banxa.com";
@@ -669,24 +669,32 @@ const Dashboard = () => {
       setBalance(wallet?.balance || 0);
       
       // Get mining info
-      const [{ data: miningRewards }, { data: miningSession }] = await Promise.all([
-        supabase
-          .from("mining_rewards")
-          .select("amount")
-          .eq("user_id", user.id),
-        supabase
-          .from("mining_sessions")
-          .select("*")
-          .eq("user_id", user.id)
-          .eq("is_active", true)
-          .gt("expires_at", new Date().toISOString())
-          .maybeSingle()
-      ]);
+      try {
+        const [{ data: miningRewards }, { data: miningSession }] = await Promise.all([
+          supabase
+            .from("mining_rewards")
+            .select("amount")
+            .eq("user_id", user.id),
+          supabase
+            .from("mining_sessions")
+            .select("*")
+            .eq("user_id", user.id)
+            .eq("is_active", true)
+            .gt("expires_at", new Date().toISOString())
+            .maybeSingle()
+        ]);
 
-      if (miningRewards) {
-        setMiningBalance(miningRewards.reduce((sum, r) => sum + Number(r.amount || 0), 0));
+        if (miningRewards) {
+          setMiningBalance(miningRewards.reduce((sum, r) => sum + Number(r.amount || 0), 0));
+        } else {
+          setMiningBalance(0);
+        }
+        setActiveMiningSession(miningSession || null);
+      } catch (miningErr) {
+        console.warn("Mining info load error:", miningErr);
+        setMiningBalance(0);
+        setActiveMiningSession(null);
       }
-      setActiveMiningSession(miningSession);
 
       {
         const { count } = await supabase
@@ -872,21 +880,26 @@ const Dashboard = () => {
 
   // Mining countdown timer
   useEffect(() => {
-    if (!activeMiningSession) {
+    if (!activeMiningSession || !activeMiningSession.expires_at) {
       setMiningTimeLeft(0);
       return;
     }
 
     const updateTimer = () => {
-      const now = new Date();
-      const expiry = new Date(activeMiningSession.expires_at);
-      const diff = Math.floor((expiry.getTime() - now.getTime()) / 1000);
-      
-      if (diff <= 0) {
+      try {
+        const now = new Date();
+        const expiry = new Date(activeMiningSession.expires_at);
+        const diff = Math.floor((expiry.getTime() - now.getTime()) / 1000);
+        
+        if (diff <= 0) {
+          setMiningTimeLeft(0);
+          loadDashboard();
+        } else {
+          setMiningTimeLeft(diff);
+        }
+      } catch (err) {
+        console.error("Timer update error:", err);
         setMiningTimeLeft(0);
-        loadDashboard();
-      } else {
-        setMiningTimeLeft(diff);
       }
     };
 
