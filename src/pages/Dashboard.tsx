@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import BottomNav from "@/components/BottomNav";
-import { Bell, Check, ChevronDown, CircleDollarSign, Copy, CreditCard, Eye, EyeOff, ExternalLink, FileText, HandCoins, PiggyBank, QrCode, RefreshCw, Settings, Store, TrendingUp, Users, Pickaxe } from "lucide-react";
+import { Bell, Check, ChevronDown, ChevronUp, CircleDollarSign, Copy, CreditCard, Eye, EyeOff, ExternalLink, FileText, HandCoins, PiggyBank, QrCode, RefreshCw, Settings, Store, TrendingUp, Users, Pickaxe, LayoutGrid } from "lucide-react";
 import { format } from "date-fns";
 import CurrencySelector from "@/components/CurrencySelector";
 import { useCurrency } from "@/contexts/CurrencyContext";
@@ -11,6 +11,7 @@ import TransactionReceipt, { type ReceiptData } from "@/components/TransactionRe
 import { loadAppSecuritySettings } from "@/lib/appSecurity";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { getAppCookie, loadUserPreferences, setAppCookie, upsertUserPreferences } from "@/lib/userPreferences";
 import { isRemittanceUiEnabled } from "@/lib/remittanceAccess";
@@ -212,6 +213,20 @@ const Dashboard = () => {
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
   const [balanceHidden, setBalanceHidden] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("dashboard_shortcuts_visible");
+      return saved !== null ? JSON.parse(saved) : true;
+    }
+    return true;
+  });
+  const [showOpenAppBanner, setShowOpenAppBanner] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("dashboard_openapp_banner_visible");
+      return saved !== null ? JSON.parse(saved) : true;
+    }
+    return true;
+  });
   const [refreshing, setRefreshing] = useState(false);
   const [showAgreement, setShowAgreement] = useState(false);
   const [agreementChecked, setAgreementChecked] = useState(false);
@@ -351,6 +366,14 @@ const Dashboard = () => {
       await action();
     }
   };
+
+  useEffect(() => {
+    localStorage.setItem("dashboard_shortcuts_visible", JSON.stringify(showShortcuts));
+  }, [showShortcuts]);
+
+  useEffect(() => {
+    localStorage.setItem("dashboard_openapp_banner_visible", JSON.stringify(showOpenAppBanner));
+  }, [showOpenAppBanner]);
 
   useEffect(() => {
     const checkPinVerification = async () => {
@@ -522,7 +545,6 @@ const Dashboard = () => {
         .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`);
       
       if (txError) {
-        console.error("Transactions error:", txError);
         toast.error(`Failed to load transactions: ${txError.message}`);
         setPersonalAnalytics(null);
         return;
@@ -535,7 +557,7 @@ const Dashboard = () => {
         .or(`requester_id.eq.${userId},payer_id.eq.${userId}`);
       
       if (prError) {
-        console.error("Payment requests error:", prError);
+        // Quietly fail or toast
       }
 
       // Get top-up credits
@@ -545,7 +567,7 @@ const Dashboard = () => {
         .eq("user_id", userId);
       
       if (pcError) {
-        console.error("Pi credits error:", pcError);
+        // Quietly fail or toast
       }
 
       // Calculate analytics from the data
@@ -612,9 +634,7 @@ const Dashboard = () => {
       };
       
       setPersonalAnalytics(personalData);
-      console.log("Personal analytics data loaded successfully:", personalData);
     } catch (error) {
-      console.error("Personal analytics error:", error);
       toast.error("Failed to load personal analytics data");
       setPersonalAnalytics(null);
     } finally {
@@ -887,8 +907,16 @@ const Dashboard = () => {
 
     const updateTimer = () => {
       try {
+        if (!activeMiningSession?.expires_at) return;
+        
         const now = new Date();
         const expiry = new Date(activeMiningSession.expires_at);
+        
+        if (isNaN(expiry.getTime())) {
+          setMiningTimeLeft(0);
+          return;
+        }
+
         const diff = Math.floor((expiry.getTime() - now.getTime()) / 1000);
         
         if (diff <= 0) {
@@ -898,7 +926,6 @@ const Dashboard = () => {
           setMiningTimeLeft(diff);
         }
       } catch (err) {
-        console.error("Timer update error:", err);
         setMiningTimeLeft(0);
       }
     };
@@ -931,12 +958,24 @@ const Dashboard = () => {
     if (!userId) return;
 
     const refreshUnread = async () => {
-      const { count } = await supabase
-        .from("app_notifications" as any)
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", userId)
-        .is("read_at", null);
-      setUnreadNotifications(Number(count || 0));
+      try {
+        const { count, error } = await supabase
+          .from("app_notifications" as any)
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", userId)
+          .is("read_at", null);
+        
+        if (error) {
+          if (error.status === 404 || error.code === "PGRST116") {
+            return;
+          }
+          console.warn("Unread notifications check failed:", error.message);
+          return;
+        }
+        setUnreadNotifications(Number(count || 0));
+      } catch (err) {
+        // Ignore table missing errors
+      }
     };
 
     const channel = supabase
@@ -1483,26 +1522,46 @@ const Dashboard = () => {
 
       {/* OpenApp Banner */}
       <div className="px-4 mt-2">
-        <button 
-          onClick={() => navigate("/openapp")} 
-          className="w-full paypal-surface rounded-2xl p-4 flex items-center justify-between hover:opacity-90 transition-opacity"
-          aria-label="Open OpenApp utilities"
+        <Collapsible 
+          open={showOpenAppBanner} 
+          onOpenChange={setShowOpenAppBanner}
+          className="w-full"
         >
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-paypal-blue overflow-hidden">
-              <img 
-                src="https://i.ibb.co/JwH255BZ/photo-2026-02-27-14-47-30.jpg" 
-                alt="OpenApp" 
-                className="h-full w-full object-cover"
-              />
-            </div>
-            <div className="text-left">
-              <h3 className="font-semibold text-foreground">OpenApp Utilities</h3>
-              <p className="text-base text-muted-foreground">Access OpenApp platform and tools</p>
-            </div>
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wider">OpenApp Utilities</h2>
+            <CollapsibleTrigger asChild>
+              <button className="flex h-6 w-6 items-center justify-center rounded-full bg-secondary/50 text-muted-foreground hover:bg-secondary transition-colors">
+                {showOpenAppBanner ? (
+                  <ChevronUp className="h-4 w-4" />
+                ) : (
+                  <ChevronDown className="h-4 w-4" />
+                )}
+              </button>
+            </CollapsibleTrigger>
           </div>
-          <ChevronDown className="h-5 w-5 text-muted-foreground" />
-        </button>
+          <CollapsibleContent className="data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down overflow-hidden">
+            <button 
+              onClick={() => navigate("/openapp")} 
+              className="w-full paypal-surface rounded-2xl p-4 flex items-center justify-between hover:opacity-90 transition-opacity"
+              aria-label="Open OpenApp utilities"
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-paypal-blue overflow-hidden">
+                  <img 
+                    src="https://i.ibb.co/JwH255BZ/photo-2026-02-27-14-47-30.jpg" 
+                    alt="OpenApp" 
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+                <div className="text-left">
+                  <h3 className="font-semibold text-foreground">OpenApp Utilities</h3>
+                  <p className="text-base text-muted-foreground">Access OpenApp platform and tools</p>
+                </div>
+              </div>
+              <ExternalLink className="h-5 w-5 text-muted-foreground" />
+            </button>
+          </CollapsibleContent>
+        </Collapsible>
       </div>
 
       {/* Greeting */}
@@ -2380,8 +2439,8 @@ const Dashboard = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {personalAnalytics.recent_transactions.slice(0, 8).map((activity: any, index: number) => (
-                          <tr key={index} className="border-b border-border/30">
+                        {personalAnalytics.recent_transactions.slice(0, 8).map((activity: any) => (
+                          <tr key={activity.id || activity.created_at || activity.date} className="border-b border-border/30">
                             <td className="py-3">
                               <div className="flex items-center gap-2">
                                 <div className={`h-6 w-6 rounded-full flex items-center justify-center text-xs font-bold ${
@@ -2650,88 +2709,111 @@ const Dashboard = () => {
       )}
 
       {/* Analytics and Mining Cards */}
-      <div className="mx-4 mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <div className="paypal-surface rounded-3xl p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-paypal-blue/10">
-                <TrendingUp className="h-5 w-5 text-paypal-blue" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-foreground">Personal Analytics</p>
-                <p className="text-xs text-muted-foreground">Track your wallet activity</p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setActiveSection("analytics")}
-              className="rounded-xl bg-paypal-blue px-4 py-2 text-sm font-semibold text-white hover:bg-[#004dc5] transition"
-            >
-              View
-            </button>
+      <Collapsible 
+        open={showShortcuts} 
+        onOpenChange={setShowShortcuts}
+        className="mx-4 mt-6"
+      >
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <LayoutGrid className="h-5 w-5 text-paypal-blue" />
+            <h2 className="text-lg font-bold text-paypal-dark">Quick Access</h2>
           </div>
-          {personalAnalytics && (
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <div className="rounded-xl bg-white/5 p-2 text-center">
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Tx Count</p>
-                <p className="text-sm font-bold text-foreground">{personalAnalytics.summary.transaction_count}</p>
-              </div>
-              <div className="rounded-xl bg-white/5 p-2 text-center">
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Activity</p>
-                <p className="text-sm font-bold text-foreground">{personalAnalytics.summary.recent_activity}</p>
-              </div>
-            </div>
-          )}
+          <CollapsibleTrigger asChild>
+            <button className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary/50 text-muted-foreground hover:bg-secondary transition-colors">
+              {showShortcuts ? (
+                <ChevronUp className="h-5 w-5" />
+              ) : (
+                <ChevronDown className="h-5 w-5" />
+              )}
+            </button>
+          </CollapsibleTrigger>
         </div>
+        <CollapsibleContent className="data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down overflow-hidden">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="paypal-surface rounded-3xl p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-paypal-blue/10">
+                    <TrendingUp className="h-5 w-5 text-paypal-blue" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Personal Analytics</p>
+                    <p className="text-xs text-muted-foreground">Track your wallet activity</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveSection("analytics")}
+                  className="rounded-xl bg-paypal-blue px-4 py-2 text-sm font-semibold text-white hover:bg-[#004dc5] transition"
+                >
+                  View
+                </button>
+              </div>
+              {personalAnalytics && (
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <div className="rounded-xl bg-white/5 p-2 text-center">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Tx Count</p>
+                    <p className="text-sm font-bold text-foreground">{personalAnalytics.summary.transaction_count}</p>
+                  </div>
+                  <div className="rounded-xl bg-white/5 p-2 text-center">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Activity</p>
+                    <p className="text-sm font-bold text-foreground">{personalAnalytics.summary.recent_activity}</p>
+                  </div>
+                </div>
+              )}
+            </div>
 
-        <div className="paypal-surface rounded-3xl p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-paypal-blue/10">
-                <Pickaxe className="h-5 w-5 text-paypal-blue" />
+            <div className="paypal-surface rounded-3xl p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-paypal-blue/10">
+                    <Pickaxe className="h-5 w-5 text-paypal-blue" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Mining</p>
+                    <p className="text-xs text-muted-foreground">Earn 0.10 OPEN daily</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navigate("/mining")}
+                  className="rounded-xl bg-paypal-blue px-4 py-2 text-sm font-semibold text-white hover:bg-[#004dc5] transition"
+                >
+                  Mine
+                </button>
               </div>
-              <div>
-                <p className="text-sm font-semibold text-foreground">Mining</p>
-                <p className="text-xs text-muted-foreground">Earn 0.10 OPEN daily</p>
+              <div className="mt-3 flex items-center justify-center rounded-xl bg-white/5 p-3 text-center">
+                <p className="text-xs text-muted-foreground">Mining active for 24h. <span className="font-semibold text-paypal-blue">Start now.</span></p>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => navigate("/mining")}
-              className="rounded-xl bg-paypal-blue px-4 py-2 text-sm font-semibold text-white hover:bg-[#004dc5] transition"
-            >
-              Mine
-            </button>
-          </div>
-          <div className="mt-3 flex items-center justify-center rounded-xl bg-white/5 p-3 text-center">
-            <p className="text-xs text-muted-foreground">Mining active for 24h. <span className="font-semibold text-paypal-blue">Start now.</span></p>
-          </div>
-        </div>
 
-        <div className="paypal-surface rounded-3xl p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-paypal-blue/10">
-                <HandCoins className="h-5 w-5 text-paypal-blue" />
+            <div className="paypal-surface rounded-3xl p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-paypal-blue/10">
+                    <HandCoins className="h-5 w-5 text-paypal-blue" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Affiliate Program</p>
+                    <p className="text-xs text-muted-foreground">Invite and earn rewards</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navigate("/affiliate")}
+                  className="rounded-xl bg-paypal-blue px-4 py-2 text-sm font-semibold text-white hover:bg-[#004dc5] transition"
+                >
+                  Invite
+                </button>
               </div>
-              <div>
-                <p className="text-sm font-semibold text-foreground">Affiliate Program</p>
-                <p className="text-xs text-muted-foreground">Invite and earn rewards</p>
+              <div className="mt-3 flex items-center justify-center rounded-xl bg-white/5 p-3 text-center">
+                <p className="text-xs text-muted-foreground">Earn $1 per referral. <span className="font-semibold text-paypal-blue">Claim rewards.</span></p>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => navigate("/affiliate")}
-              className="rounded-xl bg-paypal-blue px-4 py-2 text-sm font-semibold text-white hover:bg-[#004dc5] transition"
-            >
-              Invite
-            </button>
           </div>
-          <div className="mt-3 flex items-center justify-center rounded-xl bg-white/5 p-3 text-center">
-            <p className="text-xs text-muted-foreground">Earn $1 per referral. <span className="font-semibold text-paypal-blue">Claim rewards.</span></p>
-          </div>
-        </div>
-      </div>
+        </CollapsibleContent>
+      </Collapsible>
 
       {remittanceUiEnabled && (
         <div className="mx-4 mt-4 grid gap-3 sm:grid-cols-3">

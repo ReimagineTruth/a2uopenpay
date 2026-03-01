@@ -38,81 +38,86 @@ const AffiliatePage = () => {
 
   const loadData = async () => {
     setLoading(true);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-    if (!user) {
-      navigate("/auth");
-      return;
-    }
+      if (!user) {
+        navigate("/auth");
+        return;
+      }
 
-    const [profileRes, rewardsRes, miningBonusRes] = await Promise.all([
-      supabase.from("profiles").select("referral_code").eq("id", user.id).single(),
-      supabase
-        .from("referral_rewards")
-        .select("referred_user_id, reward_amount, status, created_at, claimed_at")
-        .eq("referrer_user_id", user.id)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("mining_rewards")
-        .select("amount")
-        .eq("user_id", user.id)
-        .eq("reward_type", "referral_bonus")
-    ]);
-
-    if (profileRes.error) {
-      toast.error(profileRes.error.message);
-    } else {
-      setReferralCode(profileRes.data?.referral_code || "");
-    }
-
-    if (rewardsRes.error) {
-      toast.error(rewardsRes.error.message);
-      setRewards([]);
-      setUserNames({});
-      setLoading(false);
-      return;
-    }
-
-    const referralRows = (rewardsRes.data || []) as ReferralRewardRow[];
-    setRewards(referralRows);
-
-    // Calculate total mining bonus earned
-    const totalBonus = miningBonusRes.data?.reduce((sum, r) => sum + Number(r.amount), 0) || 0;
-    setBonusEarned(totalBonus);
-
-    const invitedIds = Array.from(new Set(referralRows.map((row) => row.referred_user_id)));
-    if (invitedIds.length > 0) {
-      const [{ data: invitedProfiles }, { data: miningSessions }] = await Promise.all([
+      const [profileRes, rewardsRes, miningBonusRes] = await Promise.all([
+        supabase.from("profiles").select("referral_code").eq("id", user.id).single(),
         supabase
-          .from("profiles")
-          .select("id, full_name, username")
-          .in("id", invitedIds),
+          .from("referral_rewards")
+          .select("referred_user_id, reward_amount, status, created_at, claimed_at")
+          .eq("referrer_user_id", user.id)
+          .order("created_at", { ascending: false }),
         supabase
-          .from("mining_sessions")
-          .select("user_id")
-          .in("user_id", invitedIds)
-          .eq("is_active", true)
-          .gt("expires_at", new Date().toISOString())
+          .from("mining_rewards")
+          .select("amount")
+          .eq("user_id", user.id)
+          .eq("reward_type", "referral_bonus")
       ]);
 
-      const nameMap: Record<string, string> = {};
-      (invitedProfiles || []).forEach((profile) => {
-        const display = profile.full_name?.trim() || profile.username?.trim() || "User";
-        nameMap[profile.id] = display;
-      });
-      setUserNames(nameMap);
+      if (profileRes.error) {
+        toast.error(profileRes.error.message);
+      } else {
+        setReferralCode(profileRes.data?.referral_code || "");
+      }
 
-      // Count unique users who are actively mining
-      const activeUserIds = new Set(miningSessions?.map(s => s.user_id) || []);
-      setActiveMiners(activeUserIds.size);
-    } else {
-      setUserNames({});
-      setActiveMiners(0);
+      if (rewardsRes.error) {
+        toast.error(rewardsRes.error.message);
+        setRewards([]);
+        setUserNames({});
+        setLoading(false);
+        return;
+      }
+
+      const referralRows = (rewardsRes.data || []) as ReferralRewardRow[];
+      setRewards(referralRows);
+
+      // Calculate total mining bonus earned
+      const totalBonus = miningBonusRes.data?.reduce((sum, r) => sum + Number(r.amount), 0) || 0;
+      setBonusEarned(totalBonus);
+
+      const invitedIds = Array.from(new Set(referralRows.map((row) => row.referred_user_id)));
+      if (invitedIds.length > 0) {
+        const [{ data: invitedProfiles }, { data: miningSessions }] = await Promise.all([
+          supabase
+            .from("profiles")
+            .select("id, full_name, username")
+            .in("id", invitedIds),
+          supabase
+            .from("mining_sessions")
+            .select("user_id")
+            .in("user_id", invitedIds)
+            .eq("is_active", true)
+            .gt("expires_at", new Date().toISOString())
+        ]);
+
+        const nameMap: Record<string, string> = {};
+        (invitedProfiles || []).forEach((profile) => {
+          const display = profile.full_name?.trim() || profile.username?.trim() || "User";
+          nameMap[profile.id] = display;
+        });
+        setUserNames(nameMap);
+
+        // Count unique users who are actively mining
+        const activeUserIds = new Set(miningSessions?.map(s => s.user_id) || []);
+        setActiveMiners(activeUserIds.size);
+      } else {
+        setUserNames({});
+        setActiveMiners(0);
+      }
+    } catch (error) {
+      console.error("Affiliate data error:", error);
+      toast.error("Failed to load affiliate data");
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -234,8 +239,8 @@ const AffiliatePage = () => {
             <p className="text-sm text-muted-foreground">No invites yet.</p>
           ) : (
             <div className="divide-y divide-border/70">
-              {(rewards || []).map((row, index) => (
-                <div key={`${row.referred_user_id || index}-${index}`} className="flex items-center justify-between py-2.5">
+              {(rewards || []).map((row) => (
+                <div key={`${row.referred_user_id}-${row.created_at}`} className="flex items-center justify-between py-2.5">
                   <div>
                     <p className="text-sm font-medium text-foreground">
                       {userNames[row.referred_user_id] || (row.referred_user_id ? row.referred_user_id.slice(0, 8) : "User")}

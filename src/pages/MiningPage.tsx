@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Play, Timer, TrendingUp, Users, History, AlertCircle, CheckCircle2, Zap, Cpu, Coins, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Play, Timer, TrendingUp, Users, History, AlertCircle, CheckCircle2, Zap, Cpu, CircleDollarSign, ShieldCheck, Pickaxe } from "lucide-react";
+// Forced refresh to clear stale state
 import { toast } from "sonner";
 import BottomNav from "@/components/BottomNav";
 import { Button } from "@/components/ui/button";
@@ -101,7 +102,7 @@ const MiningPage = () => {
         setActiveReferrals(0);
       }
     } catch (error) {
-      console.error("Mining data error:", error);
+      // Error handling already done via state or toast
     } finally {
       setLoading(false);
     }
@@ -118,16 +119,27 @@ const MiningPage = () => {
     }
 
     const updateTimer = () => {
-      const now = new Date();
-      const expiry = new Date(activeSession.expires_at);
-      const diff = differenceInSeconds(expiry, now);
-      
-      if (diff <= 0) {
+      try {
+        if (!activeSession?.expires_at) return;
+        const now = new Date();
+        const expiry = new Date(activeSession.expires_at);
+        
+        if (isNaN(expiry.getTime())) {
+          setTimeLeft(0);
+          return;
+        }
+
+        const diff = differenceInSeconds(expiry, now);
+        
+        if (diff <= 0) {
+          setTimeLeft(0);
+          // Automatically refresh data when session expires
+          loadMiningData();
+        } else {
+          setTimeLeft(diff);
+        }
+      } catch (err) {
         setTimeLeft(0);
-        // Automatically refresh data when session expires
-        loadMiningData();
-      } else {
-        setTimeLeft(diff);
       }
     };
 
@@ -161,19 +173,31 @@ const MiningPage = () => {
               const adResult = await window.Pi.Ads.showAd("rewarded");
               console.log("Ad result:", adResult.result);
               
-              if (adResult.result === "AD_NOT_AVAILABLE" || adResult.result === "AD_NETWORK_ERROR") {
-                toast.error("Ad not available, but proceeding with mining...");
-              } else if (adResult.result !== "AD_REWARDED") {
-                toast.error("Ad not finished. You must watch the ad to start mining.");
+              if (adResult.result !== "AD_REWARDED") {
+                toast.error("Ad not finished. You must watch the full video to start mining.");
                 setStarting(false);
                 return;
               }
+              
+              toast.success("Ad completed! Starting mining...");
+            }
+          } else {
+            // If nativeFeaturesList is not available but we are in Pi Browser, still try to show ad if window.Pi.Ads exists
+            if (window.Pi.Ads?.showAd) {
+              toast.info("Preparing rewarded ad...");
+              const adResult = await window.Pi.Ads.showAd("rewarded");
+              if (adResult.result !== "AD_REWARDED") {
+                toast.error("Ad not finished. You must watch the full video to start mining.");
+                setStarting(false);
+                return;
+              }
+              toast.success("Ad completed! Starting mining...");
             }
           }
         } catch (adError) {
-          console.error("Ad error:", adError);
-          // We proceed anyway if the ad system fails to avoid blocking the user entirely
-          // unless strict enforcement is needed.
+          toast.error("Ad Network error. Please try again.");
+          setStarting(false);
+          return;
         }
       }
 
@@ -257,7 +281,7 @@ const MiningPage = () => {
                 {timeLeft > 0 ? (
                   <BrandLogo className="h-14 w-14 text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.5)] animate-bounce-slow" />
                 ) : (
-                  <Play className="h-10 w-10 text-white fill-current ml-1" />
+                  <Pickaxe className="h-10 w-10 text-white fill-current" />
                 )}
               </div>
               {timeLeft > 0 && (
@@ -267,10 +291,10 @@ const MiningPage = () => {
             
             <div className="space-y-1">
               <h2 className="text-2xl font-black tracking-tight">
-                {timeLeft > 0 ? "SYSTEM ACTIVE" : "SYSTEM IDLE"}
+                {timeLeft > 0 ? "SYSTEM ACTIVE" : "Status: Standby"}
               </h2>
               <div className="flex items-center justify-center gap-1.5 rounded-full bg-black/20 px-3 py-1 text-xs font-bold uppercase tracking-widest backdrop-blur-sm">
-                <Coins className="h-3 w-3 text-yellow-400" />
+                <CircleDollarSign className="h-3 w-3 text-yellow-400" />
                 <span>{currentDailyRate.toFixed(2)} OPEN / DAY</span>
               </div>
             </div>
