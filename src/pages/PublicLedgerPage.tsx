@@ -12,6 +12,8 @@ type PublicLedgerEntry = {
   status: string;
   occurred_at: string;
   event_type: string;
+  currency_code?: string;
+  payload?: any;
 };
 
 const PAGE_SIZE = 30;
@@ -128,26 +130,57 @@ const PublicLedgerPage = () => {
         <p className="py-12 text-center text-muted-foreground">No ledger transactions yet.</p>
       ) : (
         <div className="paypal-surface divide-y divide-border/70 rounded-3xl">
-          {entries.map((row, index) => (
-            <div key={`${row.occurred_at}-${index}`} className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="font-semibold text-foreground">Transaction</p>
-                <p className="text-xs text-muted-foreground">
-                  {format(new Date(row.occurred_at), "MMM d, yyyy HH:mm")} • {row.event_type}
-                </p>
-                {row.note && (
-                  <p className="text-xs text-muted-foreground">
-                    {privateView ? row.note : redactLedgerNote(row.note)}
+          {entries.map((row, index) => {
+            const isTopup = row.event_type.includes("topup") || row.event_type.includes("deposit");
+            const isWithdraw = row.event_type.includes("withdraw") || row.event_type.includes("payout");
+            const methodLogo = row.payload?.payment_method_logo || row.payload?.logo_url;
+            const currencyIcon = row.currency_code === "PI" ? "π" : "$";
+            
+            return (
+              <div key={`${row.occurred_at}-${index}`} className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-3">
+                  {(isTopup || isWithdraw) && methodLogo ? (
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary/50 overflow-hidden border border-border/50">
+                      <img src={methodLogo} alt="Method" className="h-6 w-6 object-contain" />
+                    </div>
+                  ) : (
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-paypal-blue/10 text-paypal-blue font-bold">
+                      {currencyIcon}
+                    </div>
+                  )}
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold text-foreground">
+                        {isTopup ? "Top Up" : isWithdraw ? "Withdrawal" : "Transaction"}
+                      </p>
+                      {row.currency_code && (
+                        <span className="rounded-md bg-secondary px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground uppercase">
+                          {row.currency_code}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {format(new Date(row.occurred_at), "MMM d, yyyy HH:mm")} • {row.event_type.replace(/_/g, " ")}
+                    </p>
+                    {row.note && (
+                      <p className="text-xs text-muted-foreground mt-0.5 italic">
+                        {privateView ? row.note : redactLedgerNote(row.note)}
+                      </p>
+                    )}
+                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mt-1">
+                      Status: <span className={row.status === "completed" ? "text-green-600" : "text-amber-600"}>{row.status || "unknown"}</span>
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="font-bold text-foreground">
+                    {row.currency_code === "PI" ? "π" : "$"}{row.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
-                )}
-                <p className="text-xs text-muted-foreground">Status: {row.status || "unknown"}</p>
+                  <p className="text-[10px] text-muted-foreground uppercase font-semibold">OpenLedger Record</p>
+                </div>
               </div>
-              <div className="text-right">
-                <p className="font-semibold text-paypal-success">{formatCurrency(row.amount)}</p>
-                <p className="text-xs text-muted-foreground">OpenLedger record</p>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

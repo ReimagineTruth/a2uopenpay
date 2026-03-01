@@ -6,6 +6,18 @@ const AnnouncementsPage = () => {
 
   const announcements = [
     {
+      title: "🚀 OpenPay 2026: The Ultimate Pi-Powered Financial Ecosystem",
+      date: "March 1, 2026",
+      body:
+        "OpenPay has reached full maturity! Our platform now features: Multi-Send (up to 5 people at once), Secure 6-digit PIN protection, Merchant Portal with API Keys & Webhooks, Mobile POS Mode, Instant QR Payments, High-Yield Savings Accounts, Mining Rewards (0.10 OPEN/day), Virtual Card Checkout, and the fully transparent OpenLedger Explorer with currency icons and provider logos.",
+    },
+    {
+      title: "OpenLedger 2.0: Now with Visual Context",
+      date: "March 1, 2026",
+      body:
+        "We've updated OpenLedger to show currency icons (π for Pi, $ for OpenUSD) and provider logos for top-ups and withdrawals. Transparency has never looked this good!",
+    },
+    {
       title: "OpenPay Feature Rollout (Full Platform)",
       date: "Feb 20, 2026",
       body:
