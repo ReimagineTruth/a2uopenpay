@@ -14,6 +14,12 @@ type PublicLedgerEntry = {
   event_type: string;
   currency_code?: string;
   payload?: any;
+  sender_name?: string;
+  sender_username?: string;
+  sender_avatar?: string;
+  receiver_name?: string;
+  receiver_username?: string;
+  receiver_avatar?: string;
 };
 
 const PAGE_SIZE = 30;
@@ -40,6 +46,27 @@ const PublicLedgerPage = () => {
   const [loading, setLoading] = useState(true);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
+
+  const getInitials = (name: string) => (name || "U").split(" ").filter(Boolean).map(n => n[0]).join("").slice(0, 2).toUpperCase();
+
+  const renderProfile = (name?: string, avatar?: string, username?: string) => {
+    if (!name && !username) return null;
+    return (
+      <div className="flex items-center gap-2">
+        {avatar ? (
+          <img src={avatar} alt={name} className="h-6 w-6 rounded-full object-cover border border-border/50" />
+        ) : (
+          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-secondary text-[10px] font-bold text-muted-foreground border border-border/50">
+            {getInitials(name || username || "?")}
+          </div>
+        )}
+        <div className="flex flex-col">
+          <span className="text-[11px] font-semibold text-foreground leading-tight">{name || username}</span>
+          {username && name && <span className="text-[9px] text-muted-foreground leading-tight">@{username}</span>}
+        </div>
+      </div>
+    );
+  };
 
   const loadPage = async (nextOffset = 0) => {
     setLoading(true);
@@ -138,7 +165,7 @@ const PublicLedgerPage = () => {
             
             return (
               <div key={`${row.occurred_at}-${index}`} className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-start gap-3">
+                <div className="flex items-start gap-3 flex-1 min-w-0">
                   {(isTopup || isWithdraw) && methodLogo ? (
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary/50 overflow-hidden border border-border/50">
                       <img src={methodLogo} alt="Method" className="h-6 w-6 object-contain" />
@@ -148,7 +175,7 @@ const PublicLedgerPage = () => {
                       {currencyIcon}
                     </div>
                   )}
-                  <div>
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <p className="font-semibold text-foreground">
                         {isTopup ? "Top Up" : isWithdraw ? "Withdrawal" : "Transaction"}
@@ -159,20 +186,28 @@ const PublicLedgerPage = () => {
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-[10px] text-muted-foreground">
                       {format(new Date(row.occurred_at), "MMM d, yyyy HH:mm")} • {row.event_type.replace(/_/g, " ")}
                     </p>
+                    
+                    {/* Profiles Section */}
+                    <div className="mt-2 flex items-center gap-2 flex-wrap">
+                      {row.sender_name && renderProfile(row.sender_name, row.sender_avatar, row.sender_username)}
+                      {(row.sender_name && row.receiver_name) && <span className="text-muted-foreground text-[10px]">→</span>}
+                      {row.receiver_name && renderProfile(row.receiver_name, row.receiver_avatar, row.receiver_username)}
+                    </div>
+
                     {row.note && (
-                      <p className="text-xs text-muted-foreground mt-0.5 italic">
+                      <p className="text-[11px] text-muted-foreground mt-1.5 italic line-clamp-2">
                         {privateView ? row.note : redactLedgerNote(row.note)}
                       </p>
                     )}
-                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mt-1">
+                    <p className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider mt-1">
                       Status: <span className={row.status === "completed" ? "text-green-600" : "text-amber-600"}>{row.status || "unknown"}</span>
                     </p>
                   </div>
                 </div>
-                <div className="text-right">
+                <div className="text-right sm:ml-4">
                   <p className="font-bold text-foreground">
                     {row.currency_code === "PI" ? "π" : "$"}{row.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
