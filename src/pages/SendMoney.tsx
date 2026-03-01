@@ -770,7 +770,7 @@ const SendMoney = () => {
     setShowSendConfirm(true);
   };
 
-  const getInitials = (name: string) => name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
+  const getInitials = (name: string) => (name || "User").split(" ").filter(Boolean).map(n => n[0]).join("").slice(0, 2).toUpperCase();
   const colors = ["bg-paypal-dark", "bg-paypal-light-blue", "bg-primary", "bg-muted-foreground"];
   const renderAvatar = (user: UserProfile, colorIndex: number) => (
     user.avatar_url ? (
@@ -1249,7 +1249,7 @@ const SendMoney = () => {
           
           <div className="mt-4 space-y-4">
             {/* Group purposes by category */}
-            {Array.from(new Set(paymentPurposes.map(p => p.category))).map(category => (
+            {Array.from(new Set(paymentPurposes.filter(p => p.category).map(p => p.category))).map(category => (
               <div key={category}>
                 <h4 className="text-sm font-semibold text-muted-foreground mb-2">{category}</h4>
                 <div className="grid grid-cols-2 gap-2">

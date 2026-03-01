@@ -889,6 +889,9 @@ const Dashboard = () => {
         setShowOnboarding(true);
       }
       setIsInitialLoadDone(true);
+    } catch (error) {
+      console.error("Dashboard load error:", error);
+      // Don't toast here to avoid spamming if user is not logged in
     } finally {
       setRefreshing(false);
     }
@@ -2455,7 +2458,7 @@ const Dashboard = () => {
                                    activity.type === 'invoice' ? 'I' :
                                    activity.type === 'topup' ? '↑' : '•'}
                                 </div>
-                                <span className="text-sm font-medium capitalize">{activity.type.replace('_', ' ')}</span>
+                                <span className="text-sm font-medium capitalize">{activity?.type?.replace('_', ' ') || 'Activity'}</span>
                               </div>
                             </td>
                             <td className="py-3">
@@ -2651,7 +2654,7 @@ const Dashboard = () => {
                           ? "Move merchant balance to wallet"
                           : entry.activity_type === "transfer_to_savings"
                             ? "Move merchant balance to savings"
-                            : entry.activity_type.replace(/_/g, " ");
+                            : (entry?.activity_type || "Activity").replace(/_/g, " ");
                   const detailLine = entry.note || `${entry.status} - ${entry.source}`;
                   const previewDetail = detailLine ? toPreviewText(detailLine, 64) : "";
                   return (
@@ -2858,7 +2861,7 @@ const Dashboard = () => {
                   ) : (
                     <div className="flex h-10 w-10 items-center justify-center rounded-full border border-paypal-light-blue/50 bg-secondary">
                       <span className="text-xs font-bold text-secondary-foreground">
-                        {tx.other_name?.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
+                        {(tx.other_name || "Unknown").split(" ").filter(Boolean).map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
                       </span>
                     </div>
                   )}
