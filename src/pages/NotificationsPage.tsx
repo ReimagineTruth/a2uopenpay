@@ -25,7 +25,7 @@ const NotificationsPage = () => {
         navigate("/signin");
         return;
       }
-      await supabase
+      await (supabase as any)
         .from("app_notifications")
         .update({ read_at: new Date().toISOString() })
         .eq("user_id", user.id)
@@ -56,7 +56,7 @@ const NotificationsPage = () => {
           .eq("user_id", user.id)
           .order("created_at", { ascending: false })
           .limit(5),
-        supabase
+        (supabase as any)
           .from("app_notifications")
           .select("id, type, title, body, created_at")
           .eq("user_id", user.id)
@@ -105,7 +105,7 @@ const NotificationsPage = () => {
         });
       });
 
-      (merchantNotifRes.data || []).forEach((item) => {
+      ((merchantNotifRes.data || []) as any[]).forEach((item: any) => {
         notifications.push({
           id: `app-${item.id}`,
           title: item.title || "Notification",

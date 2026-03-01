@@ -265,7 +265,7 @@ const SupportWidget = () => {
     const loadMessages = async (conversationId: string) => {
       const { data } = await supabase
         .from("support_messages")
-        .select("id, conversation_id, sender_id, sender_role, message, attachment_url, created_at")
+        .select("id, conversation_id, sender_id, sender_role, message, created_at")
         .eq("conversation_id", conversationId)
         .order("created_at", { ascending: true });
       setMessages((data || []) as SupportMessage[]);

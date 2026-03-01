@@ -266,12 +266,13 @@ const MerchantCheckoutPage = () => {
         p_cvc: cardCvc,
         p_note: note,
       };
-      let { data: rpcResult, error: rpcError } = await db.rpc("pay_merchant_checkout_public_virtual_card", {
+      let { data: rpcResult, error: rpcError } = await db.rpc("pay_merchant_checkout_with_virtual_card", {
         p_session_token: resolvedSessionToken,
         p_card_number: cardNumber,
         p_expiry_month: parsedMonth,
         p_expiry_year: parsedYear,
         p_cvc: cardCvc,
+        p_note: note,
         p_customer_name: customerName.trim() || null,
         p_customer_email: customerEmail.trim() || null,
         p_customer_phone: customerPhone.trim() || null,
@@ -279,18 +280,15 @@ const MerchantCheckoutPage = () => {
       });
 
       if (rpcError) {
-        const fallbackPayload = {
+        // Retry with base params only
+        const retry = await db.rpc("pay_merchant_checkout_with_virtual_card", {
           p_session_token: resolvedSessionToken,
           p_card_number: cardNumber,
           p_expiry_month: parsedMonth,
           p_expiry_year: parsedYear,
           p_cvc: cardCvc,
-          p_customer_name: customerName.trim() || null,
-          p_customer_email: customerEmail.trim() || null,
-          p_customer_phone: customerPhone.trim() || null,
-          p_customer_address: customerAddress.trim() || null,
-        };
-        const retry = await db.rpc("pay_merchant_checkout_public_virtual_card", fallbackPayload);
+          p_note: note,
+        });
         rpcResult = retry.data;
         rpcError = retry.error;
       }

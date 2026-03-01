@@ -106,7 +106,7 @@ const VirtualCardPage = () => {
           .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
           .order("created_at", { ascending: false })
           .limit(120),
-        supabase
+        (supabase as any)
           .from("app_notifications")
           .select("id", { count: "exact", head: true })
           .eq("user_id", user.id)
