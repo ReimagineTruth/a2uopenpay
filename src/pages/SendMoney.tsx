@@ -192,18 +192,18 @@ const SendMoney = () => {
         // Execute send immediately
         void handleSend(data.selectedUser, data.amount, data.note);
 
+        // Clear location state to prevent re-triggering if component re-renders
+        navigate(location.pathname, { replace: true, state: {} });
+
         // Also update local state so UI is consistent if needed
         if (data.selectedUser) setSelectedUser(data.selectedUser);
         if (data.amount) setAmount(data.amount);
         if (data.note) setNote(data.note);
         if (data.step) setStep(data.step);
-        
-        // Don't clear location state - let it persist for PIN verification
-        // The state will be cleared naturally when user navigates away
       }
     };
     checkPinVerification();
-  }, [location.state, navigate, location.pathname, location.search, isInitialLoadDone]);
+  }, [location.state, navigate, location.pathname, isInitialLoadDone]);
 
   const refreshTransactions = useCallback(async () => {
     if (!userId) return;
@@ -244,6 +244,8 @@ const SendMoney = () => {
   }, [userId]);
 
   const handleSend = async (overrideUser?: UserProfile, overrideAmount?: string, overrideNote?: string) => {
+    if (loading) return; // Prevent double spending by checking if already loading
+
     const activeUser = overrideUser || selectedUser;
     const activeAmount = overrideAmount || amount;
     const activeNote = overrideNote !== undefined ? overrideNote : note;
@@ -252,108 +254,126 @@ const SendMoney = () => {
     if (!activeUser || !activeAmount || parsedAmount <= 0) { toast.error("Enter a valid amount"); return; }
     const usdAmount = parsedAmount / currency.rate;
     if (usdAmount > balance) { toast.error("Amount exceeds your available balance"); return; }
-    setLoading(true);
+    
+    setLoading(true); // Lock the UI immediately after basic validation
 
-    if (checkoutSessionToken) {
-      const { data: checkoutTxId, error: checkoutError } = await (supabase as any).rpc("pay_merchant_checkout_with_wallet", {
-        p_session_token: checkoutSessionToken,
-        p_note: activeNote || "Completed via OpenPay wallet /send flow",
-        p_customer_name: checkoutCustomerName || null,
-        p_customer_email: checkoutCustomerEmail || null,
-        p_customer_phone: checkoutCustomerPhone || null,
-        p_customer_address: checkoutCustomerAddress || null,
-      });
+    try {
+      if (checkoutSessionToken) {
+        const { data: checkoutTxId, error: checkoutError } = await (supabase as any).rpc("pay_merchant_checkout_with_wallet", {
+          p_session_token: checkoutSessionToken,
+          p_note: activeNote || "Completed via OpenPay wallet /send flow",
+          p_customer_name: checkoutCustomerName || null,
+          p_customer_email: checkoutCustomerEmail || null,
+          p_customer_phone: checkoutCustomerPhone || null,
+          p_customer_address: checkoutCustomerAddress || null,
+        });
 
-      if (checkoutError) {
+        if (checkoutError) {
+          setLoading(false);
+          toast.error(checkoutError.message || "Checkout payment failed");
+          return;
+        }
+
+        const txId = String(checkoutTxId || "");
+        const isPosRedirect = isPosCheckoutSession || activeNote.toLowerCase().includes("pos");
+        const nextPath = isPosRedirect ? "/pos-thank-you" : "/merchant-checkout/thank-you";
+        navigate(`${nextPath}?session=${encodeURIComponent(checkoutSessionToken)}&tx=${encodeURIComponent(txId)}`, { replace: true });
         setLoading(false);
-        toast.error(checkoutError.message || "Checkout payment failed");
         return;
       }
 
-      const txId = String(checkoutTxId || "");
-      const isPosRedirect = isPosCheckoutSession || activeNote.toLowerCase().includes("pos");
-      const nextPath = isPosRedirect ? "/pos-thank-you" : "/merchant-checkout/thank-you";
-      navigate(`${nextPath}?session=${encodeURIComponent(checkoutSessionToken)}&tx=${encodeURIComponent(txId)}`, { replace: true });
-      setLoading(false);
-      return;
-    }
-
-    const transferViaSecureRpcFallback = async () => {
-      const { data: txId, error: rpcError } = await supabase.rpc("transfer_funds_authenticated", {
-        p_receiver_id: activeUser.id,
-        p_amount: usdAmount,
-        p_note: activeNote || "",
-      });
-      if (rpcError) {
-        const rpcMessage =
-          typeof (rpcError as { message?: unknown })?.message === "string"
-            ? (rpcError as { message: string }).message
-            : "Fallback transfer failed";
-        throw new Error(rpcMessage);
-      }
-      return String(txId || "");
-    };
-
-    let txId = "";
-    let usedFallback = false;
-
-    const { data, error } = await supabase.functions.invoke("send-money", {
-      body: { receiver_id: activeUser.id, amount: usdAmount, note: activeNote, purpose: purpose || null },
-    });
-
-    if (error) {
-      try {
-        txId = await transferViaSecureRpcFallback();
-        usedFallback = true;
-      } catch (fallbackError) {
-        const edgeErrorMessage = await getFunctionErrorMessage(error, "Transfer failed");
-        const fallbackErrorMessage =
-          fallbackError instanceof Error
-            ? fallbackError.message
-            : typeof (fallbackError as { message?: unknown })?.message === "string"
-              ? String((fallbackError as { message: string }).message)
+      const transferViaSecureRpcFallback = async () => {
+        const { data: txId, error: rpcError } = await supabase.rpc("transfer_funds_authenticated", {
+          p_receiver_id: activeUser.id,
+          p_amount: usdAmount,
+          p_note: activeNote || "",
+        });
+        if (rpcError) {
+          const rpcMessage =
+            typeof (rpcError as { message?: unknown })?.message === "string"
+              ? (rpcError as { message: string }).message
               : "Fallback transfer failed";
-        setLoading(false);
-        toast.error(`${edgeErrorMessage}. ${fallbackErrorMessage}`);
-        return;
-      }
-    } else {
-      txId = (data as { transaction_id?: string } | null)?.transaction_id || "";
-    }
+          throw new Error(rpcMessage);
+        }
+        return String(txId || "");
+      };
 
-    setLoading(false);
-    setReceiptData({
-      transactionId: txId,
-      ledgerTransactionId: txId,
-      type: "send",
-      amount: usdAmount,
-      otherPartyName: activeUser.full_name,
-      otherPartyUsername: activeUser.username || undefined,
-      note: activeNote || undefined,
-      date: new Date(),
-    });
-    console.log('Receipt data set:', {
-      transactionId: txId,
-      amount: usdAmount,
-      otherPartyName: activeUser.full_name
-    });
-    setReceiptOpen(true);
-    console.log('Receipt modal opened:', true);
-    playSendSuccessSound();
-    if (usedFallback) {
-      toast.success(`${currency.symbol}${parseFloat(activeAmount).toFixed(2)} sent to ${activeUser.full_name}! (fallback route)`);
-    } else {
-      toast.success(`${currency.symbol}${parseFloat(activeAmount).toFixed(2)} sent to ${activeUser.full_name}!`);
+      let txId = "";
+      let usedFallback = false;
+
+      const { data, error } = await supabase.functions.invoke("send-money", {
+        body: { receiver_id: activeUser.id, amount: usdAmount, note: activeNote, purpose: purpose || null },
+      });
+
+      if (error) {
+        try {
+          txId = await transferViaSecureRpcFallback();
+          usedFallback = true;
+        } catch (fallbackError) {
+          const edgeErrorMessage = await getFunctionErrorMessage(error, "Transfer failed");
+          const fallbackErrorMessage =
+            fallbackError instanceof Error
+              ? fallbackError.message
+              : typeof (fallbackError as { message?: unknown })?.message === "string"
+                ? String((fallbackError as { message: string }).message)
+                : "Fallback transfer failed";
+          setLoading(false);
+          toast.error(`${edgeErrorMessage}. ${fallbackErrorMessage}`);
+          return;
+        }
+      } else {
+        txId = (data as { transaction_id?: string } | null)?.transaction_id || "";
+      }
+
+      setLoading(false);
+      setReceiptData({
+        transactionId: txId,
+        ledgerTransactionId: txId,
+        type: "send",
+        amount: usdAmount,
+        otherPartyName: activeUser.full_name,
+        otherPartyUsername: activeUser.username || undefined,
+        note: activeNote || undefined,
+        date: new Date(),
+      });
+      console.log('Receipt data set:', {
+        transactionId: txId,
+        amount: usdAmount,
+        otherPartyName: activeUser.full_name
+      });
+      setReceiptOpen(true);
+      console.log('Receipt modal opened:', true);
+      playSendSuccessSound();
+      if (usedFallback) {
+        toast.success(`${currency.symbol}${parseFloat(activeAmount).toFixed(2)} sent to ${activeUser.full_name}! (fallback route)`);
+      } else {
+        toast.success(`${currency.symbol}${parseFloat(activeAmount).toFixed(2)} sent to ${activeUser.full_name}!`);
+      }
+
+      // Clear the amount and note
+      setAmount("");
+      setNote("");
+      setSelectedUser(null);
+      setStep("select");
+      setSearchQuery("");
+      setAccountLookupResult(null);
+
+      // Refresh transactions for recent list
+      refreshTransactions();
+    } catch (err) {
+      console.error("handleSend unexpected error:", err);
+      setLoading(false);
+      toast.error("An unexpected error occurred. Please try again.");
     }
   };
 
   const loadDashboard = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { 
-      setUserId(user.id);
       navigate("/signin"); 
       return; 
     }
+    setUserId(user.id);
 
     const { data: wallet } = await supabase
       .from("wallets").select("balance").eq("user_id", user.id).single();
