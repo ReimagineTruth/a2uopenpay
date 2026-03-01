@@ -85,7 +85,7 @@ export const hashSecret = async (value: string): Promise<string> => {
     .join("");
 };
 
-const isPiBrowserUserAgent = () => {
+export const isPiBrowserUserAgent = () => {
   if (typeof navigator === "undefined") return false;
   const ua = navigator.userAgent || "";
   return /pibrowser|pi browser|minepi/i.test(ua);

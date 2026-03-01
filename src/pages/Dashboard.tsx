@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import BottomNav from "@/components/BottomNav";
-import { Bell, Check, ChevronDown, CircleDollarSign, Copy, CreditCard, Eye, EyeOff, ExternalLink, FileText, HandCoins, PiggyBank, QrCode, RefreshCw, Settings, Store, TrendingUp, Users } from "lucide-react";
+import { Bell, Check, ChevronDown, CircleDollarSign, Copy, CreditCard, Eye, EyeOff, ExternalLink, FileText, HandCoins, PiggyBank, QrCode, RefreshCw, Settings, Store, TrendingUp, Users, Pickaxe } from "lucide-react";
 import { format } from "date-fns";
 import CurrencySelector from "@/components/CurrencySelector";
 import { useCurrency } from "@/contexts/CurrencyContext";
@@ -275,6 +275,11 @@ const Dashboard = () => {
   const [buyPaymentMethod, setBuyPaymentMethod] = useState<BuyPaymentMethod>("Pi Payment");
   const [showOnrampPicker, setShowOnrampPicker] = useState(false);
   const [showPaymentMethodPicker, setShowPaymentMethodPicker] = useState(false);
+  
+  // Mining state
+  const [miningBalance, setMiningBalance] = useState(0);
+  const [activeMiningSession, setActiveMiningSession] = useState<any>(null);
+  const [miningTimeLeft, setMiningTimeLeft] = useState<number>(0);
   
   // Analytics state
   const [personalAnalytics, setPersonalAnalytics] = useState<any>(null);
@@ -662,6 +667,27 @@ const Dashboard = () => {
         .eq("user_id", user.id)
         .single();
       setBalance(wallet?.balance || 0);
+      
+      // Get mining info
+      const [{ data: miningRewards }, { data: miningSession }] = await Promise.all([
+        supabase
+          .from("mining_rewards")
+          .select("amount")
+          .eq("user_id", user.id),
+        supabase
+          .from("mining_sessions")
+          .select("*")
+          .eq("user_id", user.id)
+          .eq("is_active", true)
+          .gt("expires_at", new Date().toISOString())
+          .maybeSingle()
+      ]);
+
+      if (miningRewards) {
+        setMiningBalance(miningRewards.reduce((sum, r) => sum + Number(r.amount || 0), 0));
+      }
+      setActiveMiningSession(miningSession);
+
       {
         const { count } = await supabase
           .from("payment_requests" as any)
@@ -843,6 +869,31 @@ const Dashboard = () => {
   useEffect(() => {
     void loadDashboard();
   }, [loadDashboard]);
+
+  // Mining countdown timer
+  useEffect(() => {
+    if (!activeMiningSession) {
+      setMiningTimeLeft(0);
+      return;
+    }
+
+    const updateTimer = () => {
+      const now = new Date();
+      const expiry = new Date(activeMiningSession.expires_at);
+      const diff = Math.floor((expiry.getTime() - now.getTime()) / 1000);
+      
+      if (diff <= 0) {
+        setMiningTimeLeft(0);
+        loadDashboard();
+      } else {
+        setMiningTimeLeft(diff);
+      }
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
+  }, [activeMiningSession, loadDashboard]);
 
   useEffect(() => {
     if (!userId || walletView !== "merchant") return;
@@ -1369,7 +1420,31 @@ const Dashboard = () => {
   return (
     <div className="min-h-screen overflow-x-hidden bg-background pb-28">
       <div className="flex items-center justify-between px-4 pt-5">
-        <CurrencySelector />
+        <div className="flex items-center gap-2">
+          <CurrencySelector />
+          
+          {/* Mining Header Info */}
+          <div 
+            onClick={() => navigate("/mining")}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-paypal-blue/10 border border-paypal-blue/20 cursor-pointer hover:bg-paypal-blue/15 transition-colors"
+          >
+            <Pickaxe className={`h-4 w-4 text-paypal-blue ${miningTimeLeft > 0 ? "animate-bounce-slow" : ""}`} />
+            <div className="flex flex-col leading-none">
+              <span className="text-[10px] font-black text-paypal-blue/60 uppercase">Mining</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm font-black text-paypal-blue">{miningBalance.toFixed(2)}</span>
+                {miningTimeLeft > 0 && (
+                  <span className="text-[10px] font-black text-paypal-blue bg-white px-1.5 py-0.5 rounded-md animate-pulse">
+                    {Math.floor(miningTimeLeft / 3600)}:
+                    {Math.floor((miningTimeLeft % 3600) / 60).toString().padStart(2, '0')}:
+                    {(miningTimeLeft % 60).toString().padStart(2, '0')}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div className="flex gap-3">
           <button
             onClick={loadDashboard}
@@ -2561,38 +2636,88 @@ const Dashboard = () => {
         </div>
       )}
 
-      {/* Analytics Card */}
-      <div className="mx-4 mt-4 paypal-surface rounded-3xl p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-paypal-blue/10">
-              <TrendingUp className="h-5 w-5 text-paypal-blue" />
+      {/* Analytics and Mining Cards */}
+      <div className="mx-4 mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="paypal-surface rounded-3xl p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-paypal-blue/10">
+                <TrendingUp className="h-5 w-5 text-paypal-blue" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-foreground">Personal Analytics</p>
+                <p className="text-xs text-muted-foreground">Track your wallet activity</p>
+              </div>
             </div>
-            <div>
-              <p className="text-sm font-semibold text-foreground">Personal Analytics</p>
-              <p className="text-xs text-muted-foreground">Track your wallet activity</p>
-            </div>
+            <button
+              type="button"
+              onClick={() => setActiveSection("analytics")}
+              className="rounded-xl bg-paypal-blue px-4 py-2 text-sm font-semibold text-white hover:bg-[#004dc5] transition"
+            >
+              View
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={() => setActiveSection("analytics")}
-            className="rounded-xl bg-paypal-blue px-4 py-2 text-sm font-semibold text-white hover:bg-[#004dc5] transition"
-          >
-            View Analytics
-          </button>
+          {personalAnalytics && (
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <div className="rounded-xl bg-white/5 p-2 text-center">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Tx Count</p>
+                <p className="text-sm font-bold text-foreground">{personalAnalytics.summary.transaction_count}</p>
+              </div>
+              <div className="rounded-xl bg-white/5 p-2 text-center">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Activity</p>
+                <p className="text-sm font-bold text-foreground">{personalAnalytics.summary.recent_activity}</p>
+              </div>
+            </div>
+          )}
         </div>
-        {personalAnalytics && (
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <div className="rounded-xl bg-white/5 p-2">
-              <p className="text-xs text-muted-foreground">Transactions</p>
-              <p className="text-sm font-bold text-foreground">{personalAnalytics.summary.transaction_count}</p>
+
+        <div className="paypal-surface rounded-3xl p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-paypal-blue/10">
+                <Pickaxe className="h-5 w-5 text-paypal-blue" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-foreground">Mining</p>
+                <p className="text-xs text-muted-foreground">Earn 0.10 OPEN daily</p>
+              </div>
             </div>
-            <div className="rounded-xl bg-white/5 p-2">
-              <p className="text-xs text-muted-foreground">Total Activity</p>
-              <p className="text-sm font-bold text-foreground">{personalAnalytics.summary.recent_activity}</p>
-            </div>
+            <button
+              type="button"
+              onClick={() => navigate("/mining")}
+              className="rounded-xl bg-paypal-blue px-4 py-2 text-sm font-semibold text-white hover:bg-[#004dc5] transition"
+            >
+              Mine
+            </button>
           </div>
-        )}
+          <div className="mt-3 flex items-center justify-center rounded-xl bg-white/5 p-3 text-center">
+            <p className="text-xs text-muted-foreground">Mining active for 24h. <span className="font-semibold text-paypal-blue">Start now.</span></p>
+          </div>
+        </div>
+
+        <div className="paypal-surface rounded-3xl p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-paypal-blue/10">
+                <HandCoins className="h-5 w-5 text-paypal-blue" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-foreground">Affiliate Program</p>
+                <p className="text-xs text-muted-foreground">Invite and earn rewards</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate("/affiliate")}
+              className="rounded-xl bg-paypal-blue px-4 py-2 text-sm font-semibold text-white hover:bg-[#004dc5] transition"
+            >
+              Invite
+            </button>
+          </div>
+          <div className="mt-3 flex items-center justify-center rounded-xl bg-white/5 p-3 text-center">
+            <p className="text-xs text-muted-foreground">Earn $1 per referral. <span className="font-semibold text-paypal-blue">Claim rewards.</span></p>
+          </div>
+        </div>
       </div>
 
       {remittanceUiEnabled && (

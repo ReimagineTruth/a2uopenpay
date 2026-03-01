@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Copy, Users, Gift, DollarSign } from "lucide-react";
+import { ArrowLeft, Copy, Users, Gift, DollarSign, Timer, TrendingUp, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import BottomNav from "@/components/BottomNav";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,8 @@ const AffiliatePage = () => {
   const [referralCode, setReferralCode] = useState("");
   const [rewards, setRewards] = useState<ReferralRewardRow[]>([]);
   const [userNames, setUserNames] = useState<Record<string, string>>({});
+  const [activeMiners, setActiveMiners] = useState(0);
+  const [bonusEarned, setBonusEarned] = useState(0);
 
   const pendingAmount = useMemo(
     () => rewards.filter((r) => r.status === "pending").reduce((sum, r) => sum + r.reward_amount, 0),
@@ -45,13 +47,18 @@ const AffiliatePage = () => {
       return;
     }
 
-    const [profileRes, rewardsRes] = await Promise.all([
+    const [profileRes, rewardsRes, miningBonusRes] = await Promise.all([
       supabase.from("profiles").select("referral_code").eq("id", user.id).single(),
       supabase
         .from("referral_rewards")
         .select("referred_user_id, reward_amount, status, created_at, claimed_at")
         .eq("referrer_user_id", user.id)
         .order("created_at", { ascending: false }),
+      supabase
+        .from("mining_rewards")
+        .select("amount")
+        .eq("user_id", user.id)
+        .eq("reward_type", "referral_bonus")
     ]);
 
     if (profileRes.error) {
@@ -71,12 +78,24 @@ const AffiliatePage = () => {
     const referralRows = (rewardsRes.data || []) as ReferralRewardRow[];
     setRewards(referralRows);
 
+    // Calculate total mining bonus earned
+    const totalBonus = miningBonusRes.data?.reduce((sum, r) => sum + Number(r.amount), 0) || 0;
+    setBonusEarned(totalBonus);
+
     const invitedIds = Array.from(new Set(referralRows.map((row) => row.referred_user_id)));
     if (invitedIds.length > 0) {
-      const { data: invitedProfiles } = await supabase
-        .from("profiles")
-        .select("id, full_name, username")
-        .in("id", invitedIds);
+      const [{ data: invitedProfiles }, { data: miningSessions }] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("id, full_name, username")
+          .in("id", invitedIds),
+        supabase
+          .from("mining_sessions")
+          .select("user_id")
+          .in("user_id", invitedIds)
+          .eq("is_active", true)
+          .gt("expires_at", new Date().toISOString())
+      ]);
 
       const nameMap: Record<string, string> = {};
       (invitedProfiles || []).forEach((profile) => {
@@ -84,8 +103,13 @@ const AffiliatePage = () => {
         nameMap[profile.id] = display;
       });
       setUserNames(nameMap);
+
+      // Count unique users who are actively mining
+      const activeUserIds = new Set(miningSessions?.map(s => s.user_id) || []);
+      setActiveMiners(activeUserIds.size);
     } else {
       setUserNames({});
+      setActiveMiners(0);
     }
 
     setLoading(false);
@@ -134,10 +158,11 @@ const AffiliatePage = () => {
       </div>
 
       <div className="grid gap-3">
+        {/* Referral Code Card */}
         <div className="paypal-surface rounded-3xl p-5">
           <p className="text-sm text-muted-foreground">Your referral code</p>
           <p className="mt-1 text-2xl font-bold text-paypal-dark">{loading ? "..." : referralCode || "-"}</p>
-          <p className="mt-2 text-xs text-muted-foreground">Earn $1 every time an invited user signs up. Then claim rewards.</p>
+          <p className="mt-2 text-xs text-muted-foreground">Earn $1 on signup + mining bonuses when your referrals are active.</p>
           <div className="mt-4 rounded-2xl border border-border/70 bg-white px-3 py-2 text-xs text-muted-foreground break-all">
             {inviteLink || "Invite link will appear after your code is ready."}
           </div>
@@ -147,27 +172,47 @@ const AffiliatePage = () => {
           </Button>
         </div>
 
-        <div className="grid grid-cols-3 gap-3">
+        {/* Mining Bonus Info */}
+        <div className="rounded-3xl border border-paypal-blue/20 bg-paypal-blue/5 p-5">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-paypal-blue/10">
+              <TrendingUp className="h-5 w-5 text-paypal-blue" />
+            </div>
+            <div>
+              <p className="font-bold text-paypal-dark">Mining Bonus Logic</p>
+              <p className="text-xs text-muted-foreground">Base: 0.10/day + 10% per active miner (max 100%)</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Stats Dashboard */}
+        <div className="grid grid-cols-2 gap-3">
           <div className="paypal-surface rounded-2xl p-4 text-center">
             <Users className="mx-auto h-5 w-5 text-paypal-blue" />
             <p className="mt-2 text-lg font-bold text-foreground">{rewards.length}</p>
-            <p className="text-xs text-muted-foreground">Invites</p>
+            <p className="text-xs text-muted-foreground">Total Invites</p>
           </div>
           <div className="paypal-surface rounded-2xl p-4 text-center">
-            <Gift className="mx-auto h-5 w-5 text-paypal-blue" />
-            <p className="mt-2 text-lg font-bold text-foreground">{pendingCount}</p>
-            <p className="text-xs text-muted-foreground">Pending</p>
+            <Timer className="mx-auto h-5 w-5 text-paypal-success" />
+            <p className="mt-2 text-lg font-bold text-foreground">{activeMiners}</p>
+            <p className="text-xs text-muted-foreground">Active Miners</p>
           </div>
           <div className="paypal-surface rounded-2xl p-4 text-center">
             <DollarSign className="mx-auto h-5 w-5 text-paypal-blue" />
             <p className="mt-2 text-lg font-bold text-foreground">${totalClaimed.toFixed(2)}</p>
             <p className="text-xs text-muted-foreground">Claimed</p>
           </div>
+          <div className="paypal-surface rounded-2xl p-4 text-center">
+            <TrendingUp className="mx-auto h-5 w-5 text-paypal-blue" />
+            <p className="mt-2 text-lg font-bold text-foreground">{bonusEarned.toFixed(2)}</p>
+            <p className="text-xs text-muted-foreground">Bonus Earned</p>
+          </div>
         </div>
 
+        {/* Pending Rewards Section */}
         <div className="paypal-surface rounded-3xl p-5">
           <div className="mb-3 flex items-center justify-between">
-            <p className="font-semibold text-foreground">Pending rewards</p>
+            <p className="font-semibold text-foreground">Pending signup rewards</p>
             <p className="text-sm font-semibold text-paypal-blue">${pendingAmount.toFixed(2)}</p>
           </div>
           <Button
@@ -177,27 +222,33 @@ const AffiliatePage = () => {
           >
             {claiming ? "Claiming..." : `Claim $${pendingAmount.toFixed(2)}`}
           </Button>
+          <p className="mt-2 text-[10px] text-center text-muted-foreground">Mining bonuses are added directly to your balance daily.</p>
         </div>
 
+        {/* Invite History */}
         <div className="paypal-surface rounded-3xl p-5">
           <p className="mb-3 font-semibold text-foreground">Invite history</p>
           {loading ? (
             <p className="text-sm text-muted-foreground">Loading...</p>
-          ) : rewards.length === 0 ? (
+          ) : (rewards || []).length === 0 ? (
             <p className="text-sm text-muted-foreground">No invites yet.</p>
           ) : (
             <div className="divide-y divide-border/70">
-              {rewards.map((row, index) => (
-                <div key={`${row.referred_user_id}-${index}`} className="flex items-center justify-between py-2.5">
+              {(rewards || []).map((row, index) => (
+                <div key={`${row.referred_user_id || index}-${index}`} className="flex items-center justify-between py-2.5">
                   <div>
-                    <p className="text-sm font-medium text-foreground">{userNames[row.referred_user_id] || row.referred_user_id.slice(0, 8)}</p>
+                    <p className="text-sm font-medium text-foreground">
+                      {userNames[row.referred_user_id] || (row.referred_user_id ? row.referred_user_id.slice(0, 8) : "User")}
+                    </p>
                     <p className="text-xs text-muted-foreground">
                       {row.status === "claimed" ? "Claimed reward" : "Pending claim"}
                     </p>
                   </div>
-                  <p className={`text-sm font-semibold ${row.status === "claimed" ? "text-paypal-success" : "text-paypal-blue"}`}>
-                    ${row.reward_amount.toFixed(2)}
-                  </p>
+                  <div className="text-right">
+                    <p className={`text-sm font-semibold ${row.status === "claimed" ? "text-paypal-success" : "text-paypal-blue"}`}>
+                      ${Number(row.reward_amount || 0).toFixed(2)}
+                    </p>
+                  </div>
                 </div>
               ))}
             </div>

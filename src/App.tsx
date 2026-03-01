@@ -33,6 +33,7 @@ import NotificationsPage from "./pages/NotificationsPage";
 import SettingsPage from "./pages/SettingsPage";
 import ProfilePage from "./pages/ProfilePage";
 import AffiliatePage from "./pages/AffiliatePage";
+import MiningPage from "./pages/MiningPage";
 import OpenPayGuidePage from "./pages/OpenPayGuidePage";
 import PublicLedgerPage from "./pages/PublicLedgerPage";
 import AnnouncementsPage from "./pages/AnnouncementsPage";
@@ -157,6 +158,7 @@ const AppRoutes = () => {
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/affiliate" element={<AffiliatePage />} />
+        <Route path="/mining" element={<MiningPage />} />
         <Route path="/ledger" element={<PublicLedgerPage />} />
         <Route path="/openledger" element={<Navigate to="/ledger" replace />} />
         <Route path="/announcements" element={<AnnouncementsPage />} />
