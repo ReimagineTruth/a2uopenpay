@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { SlideToConfirm } from "@/components/ui/slide-to-confirm";
-import { ArrowLeft, Search, Info, ScanLine, Bookmark, BookmarkCheck, Loader2, FileText } from "lucide-react";
+import { ArrowLeft, Search, Info, ScanLine, Bookmark, BookmarkCheck, Loader2, FileText, Users, X, Check } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { useCurrency } from "@/contexts/CurrencyContext";
