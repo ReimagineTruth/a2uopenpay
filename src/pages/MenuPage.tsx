@@ -211,6 +211,7 @@ const MenuPage = () => {
     {
       title: "Earning and Bonus",
       items: [
+        { icon: Users, label: "Affiliate", action: () => navigate("/affiliate"), subtitle: "Refer and earn rewards" },
         { icon: Clapperboard, label: "Pi Ad Network", action: () => navigate("/pi-ads") },
         {
           icon: CircleDollarSign,

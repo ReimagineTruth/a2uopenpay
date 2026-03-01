@@ -36,6 +36,10 @@ const OpenAppPage = () => {
               src="https://i.ibb.co/JwH255BZ/photo-2026-02-27-14-47-30.jpg" 
               alt="OpenApp" 
               className="h-full w-full object-cover"
+              onError={(e) => {
+                const img = e.currentTarget;
+                img.src = "https://i.ibb.co/BV8PHjB4/Pi-200x200.png";
+              }}
             />
           </div>
           <div>
