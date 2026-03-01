@@ -45,20 +45,20 @@ const MiningPage = () => {
     setLoading(true);
     try {
       // Get active session
-      const { data: session } = await supabase
-        .from("mining_sessions")
+      const { data: session } = await (supabase
+        .from("mining_sessions" as any) as any)
         .select("*")
         .eq("user_id", user.id)
         .eq("is_active", true)
         .gt("expires_at", new Date().toISOString())
         .maybeSingle();
 
-      setActiveSession(session);
+      setActiveSession(session as any);
 
       // If no active session, check for claimable sessions (expired but active=true)
       if (!session) {
-        const { data: claimable } = await supabase
-          .from("mining_sessions")
+        const { data: claimable } = await (supabase
+          .from("mining_sessions" as any) as any)
           .select("*")
           .eq("user_id", user.id)
           .eq("is_active", true)
@@ -67,31 +67,31 @@ const MiningPage = () => {
           .limit(1)
           .maybeSingle();
         
-        setClaimableSession(claimable);
+        setClaimableSession(claimable as any);
       } else {
         setClaimableSession(null);
       }
 
       // Get rewards history
-      const { data: rewardsHistory } = await supabase
-        .from("mining_rewards")
+      const { data: rewardsHistory } = await (supabase
+        .from("mining_rewards" as any) as any)
         .select("*")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false })
         .limit(20);
 
-      setRewards(rewardsHistory || []);
+      setRewards(rewardsHistory as any || []);
 
       // Get active referrals (those currently mining)
-      const { data: referrals } = await supabase
-        .from("referral_rewards")
+      const { data: referrals } = await (supabase
+        .from("referral_rewards" as any) as any)
         .select("referred_user_id")
         .eq("referrer_user_id", user.id);
 
       if (referrals && referrals.length > 0) {
-        const referredIds = referrals.map(r => r.referred_user_id);
-        const { count } = await supabase
-          .from("mining_sessions")
+        const referredIds = referrals.map((r: any) => r.referred_user_id);
+        const { count } = await (supabase
+          .from("mining_sessions" as any) as any)
           .select("*", { count: 'exact', head: true })
           .in("user_id", referredIds)
           .eq("is_active", true)
@@ -204,7 +204,7 @@ const MiningPage = () => {
       // Basic anti-cheat: in a real app, use a proper fingerprinting library
       const deviceFingerprint = navigator.userAgent; 
       
-      const { data, error } = await supabase.rpc("start_mining_session", {
+      const { data, error } = await supabase.rpc("start_mining_session" as any, {
         p_device_fingerprint: deviceFingerprint,
         p_ip_address: "client-side-ip" // Supabase handles IP on the backend usually
       });
@@ -227,7 +227,7 @@ const MiningPage = () => {
   const handleClaimReward = async () => {
     setStarting(true);
     try {
-      const { data, error } = await supabase.rpc("claim_mining_rewards");
+      const { data, error } = await supabase.rpc("claim_mining_rewards" as any);
 
       if (error) {
         toast.error(error.message);
