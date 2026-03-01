@@ -1056,13 +1056,12 @@ const SendMoney = () => {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setIsMultiSend(!isMultiSend)}
-            className={`flex h-12 px-4 items-center justify-center rounded-full transition-colors ${
+            className={`flex h-12 w-12 items-center justify-center rounded-full transition-colors ${
               isMultiSend ? "bg-white text-paypal-blue" : "bg-white/10 text-white"
             }`}
             aria-label="Toggle Multi-Send"
           >
-            <Users className="h-5 w-5 mr-2" />
-            <span className="text-xs font-bold">{isMultiSend ? "Cancel Multi" : "Multi-Send"}</span>
+            <Users className="h-5 w-5" />
           </button>
           <button
             onClick={() => navigate("/scan-qr?returnTo=/send")}
