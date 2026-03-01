@@ -6,7 +6,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-serve(async (req) => {
+serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -235,6 +235,7 @@ serve(async (req) => {
         amount: parsedAmount,
         note: `Wallet top up (PI -> OPEN USD) | ${parsedAmount.toFixed(2)} PI = ${parsedAmountUsd.toFixed(2)} OPEN USD`,
         status: "completed",
+        currency_code: "OUSD",
       })
       .select("id")
       .single();

@@ -691,11 +691,11 @@ const Dashboard = () => {
       // Get mining info
       try {
         const [{ data: miningRewards }, { data: miningSession }] = await Promise.all([
-          supabase
+          (supabase as any)
             .from("mining_rewards")
             .select("amount")
             .eq("user_id", user.id),
-          supabase
+          (supabase as any)
             .from("mining_sessions")
             .select("*")
             .eq("user_id", user.id)
@@ -969,10 +969,11 @@ const Dashboard = () => {
           .is("read_at", null);
         
         if (error) {
-          if (error.status === 404 || error.code === "PGRST116") {
+          const typedError = error as { status?: number; code?: string; message?: string };
+          if (typedError.status === 404 || typedError.code === "PGRST116") {
             return;
           }
-          console.warn("Unread notifications check failed:", error.message);
+          console.warn("Unread notifications check failed:", typedError.message || "Unknown error");
           return;
         }
         setUnreadNotifications(Number(count || 0));

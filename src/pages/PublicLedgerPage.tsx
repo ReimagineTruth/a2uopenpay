@@ -23,6 +23,19 @@ type PublicLedgerEntry = {
 };
 
 const PAGE_SIZE = 30;
+const PI_LOGO_URL = "https://i.ibb.co/jk8XtTPj/pi-network-pi-icons-pi-logo-design-illustration-trendy-and-modern-crypto-currency-pi-symbol-for-logo.png";
+const PROVIDER_LOGOS: Record<string, string> = {
+  "Pi Payment": PI_LOGO_URL,
+  PayPal: "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/PayPal.svg/1920px-PayPal.svg.png",
+  "Ewallet QR PH": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/35/QR_Ph_Logo.svg/960px-QR_Ph_Logo.svg.png?20250310160234",
+  "Apple Pay": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b0/Apple_Pay_logo.svg/1920px-Apple_Pay_logo.svg.png",
+  "Google Pay": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5c/Google_Pay_Logo.svg/1920px-Google_Pay_Logo.svg.png",
+  "Debit Card": "https://i.ibb.co/G3FGwngR/Visa-Inc-logo-2021-present-svg.png",
+  "Credit Card": "https://i.ibb.co/9kkZmFDq/Mastercard-2019-logo-svg.png",
+  Stripe: "https://upload.wikimedia.org/wikipedia/commons/thumb/b/ba/Stripe_Logo%2C_revised_2016.svg/1920px-Stripe_Logo%2C_revised_2016.svg.png",
+  Venmo: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Venmo_Logo.svg/1920px-Venmo_Logo.svg.png",
+  "Pi Wallet": PI_LOGO_URL,
+};
 const isMissingPrivateLedgerRpcError = (message: string | undefined) =>
   Boolean(message) &&
   (message.includes("public.get_private_ledger_transaction")
@@ -40,7 +53,7 @@ const PublicLedgerPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const transactionId = (searchParams.get("tx") || "").trim();
-  const { format: formatCurrency } = useCurrency();
+  const { currencies } = useCurrency();
   const [entries, setEntries] = useState<PublicLedgerEntry[]>([]);
   const [privateView, setPrivateView] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -94,7 +107,9 @@ const PublicLedgerPage = () => {
     try {
       const { data: userData } = await supabase.auth.getUser();
       const isSignedIn = Boolean(userData?.user);
-      let rpcName = isSignedIn ? "get_private_ledger_transaction" : "get_public_ledger_transaction";
+      let rpcName: "get_private_ledger_transaction" | "get_public_ledger_transaction" = isSignedIn
+        ? "get_private_ledger_transaction"
+        : "get_public_ledger_transaction";
       let { data, error } = await supabase.rpc(rpcName, { p_transaction_id: txId });
 
       if (isSignedIn && error && isMissingPrivateLedgerRpcError(error.message)) {
@@ -158,10 +173,28 @@ const PublicLedgerPage = () => {
       ) : (
         <div className="paypal-surface divide-y divide-border/70 rounded-3xl">
           {entries.map((row, index) => {
-            const isTopup = row.event_type.includes("topup") || row.event_type.includes("deposit");
-            const isWithdraw = row.event_type.includes("withdraw") || row.event_type.includes("payout");
-            const methodLogo = row.payload?.payment_method_logo || row.payload?.logo_url;
-            const currencyIcon = row.currency_code === "PI" ? "π" : "$";
+            const evt = (row.event_type || "").toLowerCase();
+            const isTopup = evt.includes("topup") || evt.includes("deposit") || evt.includes("receive") || evt.includes("incoming");
+            const isWithdraw = evt.includes("withdraw") || evt.includes("payout") || evt.includes("send") || evt.includes("outgoing") || evt.includes("payment");
+            const paymentMethod = String(row.payload?.payment_method || row.payload?.provider || "").trim();
+            const providerLogo = paymentMethod ? PROVIDER_LOGOS[paymentMethod] : "";
+            const noteHint = String(row.note || "").toLowerCase();
+            const inferredPiLogo = (isTopup || isWithdraw) && (noteHint.includes("pi") || noteHint.includes("wallet top up"));
+            const methodLogo =
+              row.payload?.payment_method_logo ||
+              row.payload?.logo_url ||
+              providerLogo ||
+              (row.payload?.pi_wallet_address ? PI_LOGO_URL : "") ||
+              (inferredPiLogo ? PI_LOGO_URL : "");
+            const currencyCode = String(row.currency_code || "OUSD").toUpperCase();
+            const currencyMeta = currencies.find((currency) => currency.code === currencyCode);
+            const currencyFlag = currencyMeta?.flag || (currencyCode === "PI" ? "PI" : "OP");
+            const currencySymbol = currencyMeta?.symbol || (currencyCode === "PI" ? "π" : "$");
+            const currencyIcon = currencySymbol;
+            const primaryName = row.receiver_name || row.sender_name || "";
+            const primaryAvatar = row.receiver_avatar || row.sender_avatar || "";
+            const primaryUsername = row.receiver_username || row.sender_username || "";
+            const amountClass = isTopup ? "text-green-600" : isWithdraw ? "text-red-600" : "text-foreground";
             
             return (
               <div key={`${row.occurred_at}-${index}`} className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -171,26 +204,38 @@ const PublicLedgerPage = () => {
                       <img src={methodLogo} alt="Method" className="h-6 w-6 object-contain" />
                     </div>
                   ) : (
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-paypal-blue/10 text-paypal-blue font-bold">
-                      {currencyIcon}
-                    </div>
+                    primaryName || primaryUsername ? (
+                      primaryAvatar ? (
+                        <img src={primaryAvatar} alt={primaryName || primaryUsername} className="h-10 w-10 shrink-0 rounded-full object-cover border border-border/50" />
+                      ) : (
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-bold text-muted-foreground border border-border/50">
+                          {getInitials(primaryName || primaryUsername || "?")}
+                        </div>
+                      )
+                    ) : (
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-paypal-blue/10 text-paypal-blue font-bold">
+                        {currencyIcon}
+                      </div>
+                    )
                   )}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="font-semibold text-foreground">
-                        {isTopup ? "Top Up" : isWithdraw ? "Withdrawal" : "Transaction"}
-                      </p>
-                      {row.currency_code && (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-semibold text-foreground">{isTopup ? "Credit" : isWithdraw ? "Debit" : "Transaction"}</p>
+                      {currencyCode && (
                         <span className="rounded-md bg-secondary px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground uppercase">
-                          {row.currency_code}
+                          {currencyFlag} {currencyCode}
+                        </span>
+                      )}
+                      {(primaryName || primaryUsername) && (
+                        <span className="text-[11px] font-semibold text-muted-foreground">
+                          • {primaryName || `@${primaryUsername}`}
                         </span>
                       )}
                     </div>
                     <p className="text-[10px] text-muted-foreground">
-                      {format(new Date(row.occurred_at), "MMM d, yyyy HH:mm")} • {row.event_type.replace(/_/g, " ")}
+                      {format(new Date(row.occurred_at), "MMM d, yyyy HH:mm")} • {(row.event_type || "").replace(/_/g, " ")}
                     </p>
                     
-                    {/* Profiles Section */}
                     <div className="mt-2 flex items-center gap-2 flex-wrap">
                       {row.sender_name && renderProfile(row.sender_name, row.sender_avatar, row.sender_username)}
                       {(row.sender_name && row.receiver_name) && <span className="text-muted-foreground text-[10px]">→</span>}
@@ -208,8 +253,8 @@ const PublicLedgerPage = () => {
                   </div>
                 </div>
                 <div className="text-right sm:ml-4">
-                  <p className="font-bold text-foreground">
-                    {row.currency_code === "PI" ? "π" : "$"}{row.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  <p className={`font-bold ${amountClass}`}>
+                    {currencySymbol}{row.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
                   <p className="text-[10px] text-muted-foreground uppercase font-semibold">OpenLedger Record</p>
                 </div>

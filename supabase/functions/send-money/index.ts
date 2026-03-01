@@ -6,7 +6,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-serve(async (req) => {
+serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -30,7 +30,7 @@ serve(async (req) => {
     if (userError || !user) throw new Error("Unauthorized");
 
     const body = await req.json();
-    const { receiver_id, receiver_email, amount, note } = body;
+    const { receiver_id, receiver_email, amount, note, currency_code } = body;
     const parsedAmount = Number(amount);
     if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) throw new Error("Invalid amount");
 
@@ -39,7 +39,7 @@ serve(async (req) => {
     // If receiver_email provided (and not the bypass marker), find by email
     if (receiver_email && receiver_email !== "__by_id__") {
       const { data: receiverAuth } = await supabase.auth.admin.listUsers();
-      const receiver = receiverAuth?.users?.find(u => u.email === receiver_email);
+      const receiver = receiverAuth?.users?.find((u: { email?: string; id: string }) => u.email === receiver_email);
       if (!receiver) throw new Error("Recipient not found");
       receiverId = receiver.id;
     }
@@ -52,6 +52,7 @@ serve(async (req) => {
       p_receiver_id: receiverId,
       p_amount: parsedAmount,
       p_note: note || "",
+      p_currency_code: typeof currency_code === "string" ? currency_code : "OUSD",
     });
     if (transferError) throw transferError;
 

@@ -552,6 +552,7 @@ export type Database = {
         Row: {
           amount: number
           created_at: string
+          currency_code: string
           id: string
           note: string | null
           receiver_id: string
@@ -561,6 +562,7 @@ export type Database = {
         Insert: {
           amount: number
           created_at?: string
+          currency_code?: string
           id?: string
           note?: string | null
           receiver_id: string
@@ -570,6 +572,7 @@ export type Database = {
         Update: {
           amount?: number
           created_at?: string
+          currency_code?: string
           id?: string
           note?: string | null
           receiver_id?: string
@@ -742,9 +745,53 @@ export type Database = {
         Args: { p_limit?: number; p_offset?: number }
         Returns: {
           amount: number
+          currency_code: string | null
           event_type: string
           note: string | null
           occurred_at: string
+          payload: Json | null
+          receiver_avatar: string | null
+          receiver_name: string | null
+          receiver_username: string | null
+          sender_avatar: string | null
+          sender_name: string | null
+          sender_username: string | null
+          status: string
+        }[]
+      }
+      get_public_ledger_transaction: {
+        Args: { p_transaction_id: string }
+        Returns: {
+          amount: number
+          currency_code: string | null
+          event_type: string
+          note: string | null
+          occurred_at: string
+          payload: Json | null
+          receiver_avatar: string | null
+          receiver_name: string | null
+          receiver_username: string | null
+          sender_avatar: string | null
+          sender_name: string | null
+          sender_username: string | null
+          status: string
+        }[]
+      }
+      get_private_ledger_transaction: {
+        Args: { p_transaction_id: string }
+        Returns: {
+          amount: number
+          currency_code: string | null
+          event_type: string
+          note: string | null
+          occurred_at: string
+          payload: Json | null
+          receiver_avatar: string | null
+          receiver_name: string | null
+          receiver_username: string | null
+          sender_avatar: string | null
+          sender_name: string | null
+          sender_username: string | null
           status: string
         }[]
       }
@@ -767,6 +814,7 @@ export type Database = {
       transfer_funds: {
         Args: {
           p_amount: number
+          p_currency_code?: string
           p_note?: string
           p_receiver_id: string
           p_sender_id: string
@@ -776,6 +824,7 @@ export type Database = {
       transfer_funds_authenticated: {
         Args: {
           p_amount: number
+          p_currency_code?: string
           p_note?: string
           p_receiver_id: string
         }

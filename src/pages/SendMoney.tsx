@@ -19,6 +19,8 @@ type PinReturnState = {
   pinVerified?: boolean;
   actionData?: {
     selectedUser?: UserProfile;
+    selectedUsers?: UserProfile[];
+    isMultiSend?: boolean;
     amount?: string;
     note?: string;
     step?: "select" | "amount" | "confirm";
@@ -293,7 +295,8 @@ const SendMoney = () => {
         const { data: rpcData, error: rpcError } = await (supabase as any).rpc("bulk_transfer_funds", {
           p_recipients: recipientIds,
           p_amounts: amounts,
-          p_notes: notes
+          p_notes: notes,
+          p_currency_code: currency.code,
         });
 
         if (rpcError) {
@@ -363,6 +366,7 @@ const SendMoney = () => {
           p_receiver_id: activeUser!.id,
           p_amount: usdAmountPerUser,
           p_note: activeNote || "",
+          p_currency_code: currency.code,
         });
         if (rpcError) {
           const rpcMessage =
@@ -378,7 +382,13 @@ const SendMoney = () => {
       let usedFallback = false;
 
       const { data, error } = await supabase.functions.invoke("send-money", {
-        body: { receiver_id: activeUser!.id, amount: usdAmountPerUser, note: activeNote, purpose: purpose || null },
+        body: {
+          receiver_id: activeUser!.id,
+          amount: usdAmountPerUser,
+          note: activeNote,
+          purpose: purpose || null,
+          currency_code: currency.code,
+        },
       });
 
       if (error) {
