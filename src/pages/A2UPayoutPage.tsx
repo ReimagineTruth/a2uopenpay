@@ -18,12 +18,6 @@ interface PayoutRecord {
   created_at: string;
 }
 
-declare global {
-  interface Window {
-    Pi: any;
-  }
-}
-
 const A2UPayoutPage = () => {
   const navigate = useNavigate();
   const [submitting, setSubmitting] = useState(false);
@@ -38,10 +32,11 @@ const A2UPayoutPage = () => {
 
   const initializePiSDK = async () => {
     // Check if Pi SDK is available (running in Pi Browser)
-    if (typeof window !== 'undefined' && window.Pi) {
+    const piSdk = (window as any).Pi;
+    if (typeof window !== 'undefined' && piSdk) {
       try {
         // Authenticate user and get their info
-        const authResult = await window.Pi.authenticate(['username', 'payments', 'wallet']);
+        const authResult = await piSdk.authenticate(['username', 'payments', 'wallet']);
         console.log("Pi user authenticated:", authResult);
         setCurrentUser(authResult.user);
       } catch (error) {
@@ -79,7 +74,8 @@ const A2UPayoutPage = () => {
     try {
       // Get user's Pi UID from Pi SDK or fallback
       let piUid: string;
-      if (window.Pi && currentUser) {
+      const piSdk = (window as any).Pi;
+      if (piSdk && currentUser) {
         // Use the authenticated user's UID from Pi SDK
         piUid = currentUser.uid || currentUser.username || currentUser.email?.split('@')[0];
       } else {
@@ -161,7 +157,7 @@ const A2UPayoutPage = () => {
             <div>
               <h2 className="font-bold text-foreground">Receive your 0.01 Testnet Pi</h2>
               <p className="text-xs text-muted-foreground">
-                {window.Pi ? "Click to receive A2U payout to your Pi wallet" : "Please open in Pi Browser"}
+                {(window as any).Pi ? "Click to receive A2U payout to your Pi wallet" : "Please open in Pi Browser"}
               </p>
             </div>
           </div>
@@ -169,7 +165,7 @@ const A2UPayoutPage = () => {
           <div className="space-y-4">
             <button
               onClick={handleAutoPayout}
-              disabled={submitting || !currentUser || !window.Pi}
+              disabled={submitting || !currentUser || !(window as any).Pi}
               className="w-full rounded-xl bg-yellow-400 py-4 text-black font-bold text-lg flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-yellow-300 transition"
             >
               {submitting ? (
