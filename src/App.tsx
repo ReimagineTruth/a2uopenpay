@@ -74,6 +74,7 @@ import OpenPayDesktopPage from "./pages/OpenPayDesktopPage";
 import VirtualCardPage from "./pages/VirtualCardPage";
 import LiveCustomerServicePage from "./pages/LiveCustomerServicePage";
 import SwapWithdrawalPage from "./pages/SwapWithdrawalPage";
+import A2UPayoutPage from "./pages/A2UPayoutPage";
 import ConfirmPinPage from "./pages/ConfirmPinPage";
 import NotFound from "./pages/NotFound";
 import { CurrencyProvider } from "./contexts/CurrencyContext";
@@ -194,6 +195,7 @@ const AppRoutes = () => {
         <Route path="/live-customer-service" element={<LiveCustomerServicePage />} />
         <Route path="/support" element={<></>} />
         <Route path="/swap-withdrawal" element={<SwapWithdrawalPage />} />
+        <Route path="/a2u-payout" element={<A2UPayoutPage />} />
         <Route path="/confirm-pin" element={<ConfirmPinPage />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
