@@ -14,6 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      a2u_payouts: {
+        Row: {
+          amount: number
+          created_at: string
+          error_message: string | null
+          id: string
+          memo: string
+          pi_payment_id: string | null
+          pi_txid: string | null
+          pi_username: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          memo?: string
+          pi_payment_id?: string | null
+          pi_txid?: string | null
+          pi_username?: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          memo?: string
+          pi_payment_id?: string | null
+          pi_txid?: string | null
+          pi_username?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       admin_self_send_reviews: {
         Row: {
           created_at: string

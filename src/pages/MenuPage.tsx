@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import BottomNav from "@/components/BottomNav";
-import { Send, ArrowLeftRight, CircleDollarSign, FileText, Wallet, Activity, HelpCircle, Info, Scale, LogOut, Clapperboard, ShieldAlert, FileCheck, Lock, Users, Store, BookOpen, Download, Megaphone, Smartphone, CreditCard, ShieldCheck, Handshake, Monitor, Copy, X, TrendingUp, Pickaxe } from "lucide-react";
+import { Send, ArrowLeftRight, CircleDollarSign, FileText, Wallet, Activity, HelpCircle, Info, Scale, LogOut, Clapperboard, ShieldAlert, FileCheck, Lock, Users, Store, BookOpen, Download, Megaphone, Smartphone, CreditCard, ShieldCheck, Handshake, Monitor, Copy, X, TrendingUp, Pickaxe, ArrowUpFromLine } from "lucide-react";
 import { toast } from "sonner";
 import { clearAllAppSecurityUnlocks } from "@/lib/appSecurity";
 import { canAccessRemittanceMerchant, isRemittanceUiEnabled } from "@/lib/remittanceAccess";
@@ -163,6 +163,7 @@ const MenuPage = () => {
         { icon: Send, label: "Express Send", action: () => navigate("/send") },
         { icon: ArrowLeftRight, label: "Transfer balance", action: () => navigate("/topup") },
         { icon: ArrowLeftRight, label: "Swap Withdrawal", action: () => navigate("/swap-withdrawal") },
+        { icon: ArrowUpFromLine, label: "A2U Payout", action: () => navigate("/a2u-payout"), subtitle: "Pi blockchain withdrawal" },
         { icon: CircleDollarSign, label: "Request payment", action: () => navigate("/request-payment") },
         { icon: FileText, label: "Send invoice", action: () => navigate("/send-invoice") },
       ],
