@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import BottomNav from "@/components/BottomNav";
-import { ArrowLeft, Wallet, Send, CheckCircle2, XCircle, Clock, Loader2, Copy } from "lucide-react";
+import { ArrowLeft, Wallet, Send, CheckCircle2, XCircle, Clock, Loader2, Copy, Gift } from "lucide-react";
 import { toast } from "sonner";
 import BrandLogo from "@/components/BrandLogo";
 
@@ -18,18 +18,45 @@ interface PayoutRecord {
   created_at: string;
 }
 
+declare global {
+  interface Window {
+    Pi: any;
+  }
+}
+
 const A2UPayoutPage = () => {
   const navigate = useNavigate();
-  const [piUsername, setPiUsername] = useState("");
-  const [amount, setAmount] = useState("");
-  const [memo, setMemo] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [payouts, setPayouts] = useState<PayoutRecord[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
   useEffect(() => {
     loadPayouts();
+    initializePiSDK();
   }, []);
+
+  const initializePiSDK = async () => {
+    // Check if Pi SDK is available (running in Pi Browser)
+    if (typeof window !== 'undefined' && window.Pi) {
+      try {
+        // Authenticate user and get their info
+        const authResult = await window.Pi.authenticate(['username', 'payments', 'wallet']);
+        console.log("Pi user authenticated:", authResult);
+        setCurrentUser(authResult.user);
+      } catch (error) {
+        console.error("Pi authentication failed:", error);
+        toast.error("Please authenticate with Pi Browser");
+      }
+    } else {
+      console.log("Pi SDK not available - not in Pi Browser");
+      // Fallback: get user from Supabase
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        setCurrentUser(session.user);
+      }
+    }
+  };
 
   const loadPayouts = async () => {
     setLoadingHistory(true);
@@ -42,21 +69,39 @@ const A2UPayoutPage = () => {
     setLoadingHistory(false);
   };
 
-  const handleSubmit = async () => {
-    if (!piUsername.trim()) { toast.error("Enter Pi username"); return; }
-    const numAmount = parseFloat(amount);
-    if (!numAmount || numAmount <= 0) { toast.error("Enter valid amount"); return; }
+  const handleAutoPayout = async () => {
+    if (!currentUser) {
+      toast.error("User not authenticated");
+      return;
+    }
 
     setSubmitting(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { toast.error("Please sign in"); setSubmitting(false); return; }
+      // Get user's Pi UID from Pi SDK or fallback
+      let piUid: string;
+      if (window.Pi && currentUser) {
+        // Use the authenticated user's UID from Pi SDK
+        piUid = currentUser.uid || currentUser.username || currentUser.email?.split('@')[0];
+      } else {
+        piUid = currentUser.email?.split('@')[0] || 'unknown';
+      }
+      
+      if (!piUid) {
+        toast.error("Unable to get Pi UID");
+        setSubmitting(false);
+        return;
+      }
 
+      // Fixed amount for testnet A2U payout (0.01 Pi as shown in your image)
+      const payoutAmount = 0.01;
+      const paymentMemo = "Testnet A2U Payout - Developer Testing";
+
+      // Call the simplified edge function
       const { data, error } = await supabase.functions.invoke("a2u-payout", {
         body: {
-          piUsername: piUsername.trim().replace(/^@/, ""),
-          amount: numAmount,
-          memo: memo.trim() || undefined,
+          piUsername: piUid,
+          amount: payoutAmount,
+          memo: paymentMemo,
         },
       });
 
@@ -66,9 +111,6 @@ const A2UPayoutPage = () => {
         toast.error(data.error);
       } else {
         toast.success("A2U Payout completed successfully!");
-        setPiUsername("");
-        setAmount("");
-        setMemo("");
         loadPayouts();
       }
     } catch (e: any) {
@@ -98,73 +140,37 @@ const A2UPayoutPage = () => {
           <button onClick={() => navigate(-1)} className="text-white">
             <ArrowLeft className="h-6 w-6" />
           </button>
-          <h1 className="text-xl font-bold text-white">A2U Payout</h1>
+          <h1 className="text-xl font-bold text-white">Testnet Payouts</h1>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/20">
-            <Wallet className="h-6 w-6 text-white" />
+            <Gift className="h-6 w-6 text-white" />
           </div>
           <div>
-            <p className="text-white/80 text-sm">App-to-User Withdrawal</p>
-            <p className="text-white font-semibold">Send Pi from app wallet to user blockchain wallet</p>
+            <p className="text-white/80 text-sm">Developer Payouts Testing</p>
+            <p className="text-white font-semibold">Only 0.01 π per click is allowed</p>
           </div>
         </div>
       </div>
 
       <div className="px-4 mt-6 space-y-5">
-        {/* Payout Form Card */}
+        {/* Auto Payout Card */}
         <div className="paypal-surface rounded-2xl p-5">
           <div className="flex items-center gap-2 mb-4">
             <BrandLogo className="h-8 w-8" />
             <div>
-              <h2 className="font-bold text-foreground">Request A2U Payout</h2>
-              <p className="text-xs text-muted-foreground">Withdraw Pi to blockchain wallet</p>
+              <h2 className="font-bold text-foreground">Receive your 0.01 Testnet Pi</h2>
+              <p className="text-xs text-muted-foreground">
+                {window.Pi ? "Click to receive A2U payout to your Pi wallet" : "Please open in Pi Browser"}
+              </p>
             </div>
           </div>
 
           <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Pi Username</label>
-              <input
-                type="text"
-                value={piUsername}
-                onChange={(e) => setPiUsername(e.target.value)}
-                placeholder="e.g. johndoe"
-                className="w-full rounded-xl border border-border bg-background px-4 py-3 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-paypal-blue"
-                disabled={submitting}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Amount (π)</label>
-              <input
-                type="number"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="0.00"
-                min="0"
-                step="0.01"
-                className="w-full rounded-xl border border-border bg-background px-4 py-3 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-paypal-blue text-2xl font-bold"
-                disabled={submitting}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Memo (optional)</label>
-              <input
-                type="text"
-                value={memo}
-                onChange={(e) => setMemo(e.target.value)}
-                placeholder="Payment memo"
-                className="w-full rounded-xl border border-border bg-background px-4 py-3 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-paypal-blue"
-                disabled={submitting}
-              />
-            </div>
-
             <button
-              onClick={handleSubmit}
-              disabled={submitting || !piUsername.trim() || !amount}
-              className="w-full rounded-xl bg-paypal-blue py-3.5 text-white font-semibold text-lg flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-paypal-blue/90 transition"
+              onClick={handleAutoPayout}
+              disabled={submitting || !currentUser || !window.Pi}
+              className="w-full rounded-xl bg-yellow-400 py-4 text-black font-bold text-lg flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-yellow-300 transition"
             >
               {submitting ? (
                 <>
@@ -173,18 +179,18 @@ const A2UPayoutPage = () => {
                 </>
               ) : (
                 <>
-                  <Send className="h-5 w-5" />
-                  Send A2U Payout
+                  <Gift className="h-5 w-5" />
+                  Receive your 0.01 Testnet Pi
                 </>
               )}
             </button>
-          </div>
 
-          <div className="mt-4 rounded-xl bg-secondary/50 p-3">
-            <p className="text-xs text-muted-foreground">
-              <strong>How it works:</strong> This sends Pi from the app's wallet directly to the user's Pi blockchain wallet using the Pi Platform A2U payment flow.
-              The payment is created, approved, signed with the app wallet, submitted to the Pi blockchain, and completed automatically.
-            </p>
+            <div className="rounded-xl bg-secondary/50 p-3">
+              <p className="text-xs text-muted-foreground">
+                <strong>How it works:</strong> This initiates a 0.01 Pi app-to-user payout to your testnet Pi wallet. 
+                You must be authenticated in the Pi Browser. This is for developer payouts testing (A2U).
+              </p>
+            </div>
           </div>
         </div>
 
@@ -212,13 +218,16 @@ const A2UPayoutPage = () => {
                       {new Date(p.created_at).toLocaleDateString()} · {p.status}
                     </p>
                     {p.pi_txid && (
-                      <button
-                        onClick={() => copyTxid(p.pi_txid!)}
-                        className="mt-1 flex items-center gap-1 text-xs text-paypal-blue hover:underline"
-                      >
-                        <Copy className="h-3 w-3" />
-                        {p.pi_txid.slice(0, 12)}...{p.pi_txid.slice(-6)}
-                      </button>
+                      <div className="mt-1">
+                        <p className="text-xs text-muted-foreground">Payout submitted</p>
+                        <button
+                          onClick={() => copyTxid(p.pi_txid!)}
+                          className="flex items-center gap-1 text-xs text-paypal-blue hover:underline"
+                        >
+                          <Copy className="h-3 w-3" />
+                          {p.pi_txid.slice(0, 12)}...{p.pi_txid.slice(-6)}
+                        </button>
+                      </div>
                     )}
                     {p.error_message && p.status === "failed" && (
                       <p className="text-xs text-red-500 mt-1 truncate">{p.error_message}</p>
