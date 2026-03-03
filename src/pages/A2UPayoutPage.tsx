@@ -79,7 +79,7 @@ const A2UPayoutPage = () => {
     if (typeof window !== 'undefined' && piSdk) {
       try {
         // Re-authenticate with Pi to get fresh token
-        const authResult = await piSdk.authenticate(['username']);
+        const authResult = await piSdk.authenticate(['username', 'payments']);
         console.log("Pi user re-authenticated:", authResult);
         setCurrentUser(authResult.user);
       } catch (error) {
@@ -96,12 +96,11 @@ const A2UPayoutPage = () => {
 
     setSubmitting(true);
     try {
-      // Get user's Pi UID from Pi SDK or fallback
+      // Get user's Pi UID from Pi SDK
       let piUid: string;
       const piSdk = (window as any).Pi;
       if (piSdk && currentUser) {
-        // Use the authenticated user's UID from Pi SDK
-        piUid = currentUser.uid || currentUser.username || currentUser.email?.split('@')[0];
+        piUid = currentUser.uid || currentUser.username;
       } else {
         piUid = currentUser.email?.split('@')[0] || 'unknown';
       }
@@ -112,35 +111,48 @@ const A2UPayoutPage = () => {
         return;
       }
 
-      // Fixed amount for testnet A2U payout (0.01 Pi as shown in your image)
+      // Fixed amount for testnet A2U payout (0.01 Pi)
       const payoutAmount = 0.01;
       const paymentMemo = "Testnet A2U Payout - Developer Testing";
 
-      // Get Supabase session for edge function authentication
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        toast.error("Please sign in first");
-        setSubmitting(false);
-        return;
-      }
-
-      // Call the simplified edge function
-      const { data, error } = await supabase.functions.invoke("a2u-payout", {
-        body: {
-          piUsername: piUid,
+      // Call Pi SDK directly for A2U payment
+      try {
+        const paymentData = {
           amount: payoutAmount,
           memo: paymentMemo,
-        },
-        });
+          uid: piUid,
+          metadata: {
+            type: "a2u_payout",
+            timestamp: new Date().toISOString()
+          }
+        };
 
-      if (error) {
-        toast.error(error.message || "Payout failed");
-      } else if (data?.error) {
-        toast.error(data.error);
-      } else {
+        // Create A2U payment using Pi SDK
+        const paymentResult = await piSdk.createPayment(paymentData);
+        console.log("Pi payment created:", paymentResult);
+
+        // Save to local history
+        const newPayout = {
+          id: `local_${Date.now()}`,
+          pi_username: piUid,
+          amount: payoutAmount,
+          memo: paymentMemo,
+          status: "completed",
+          pi_payment_id: paymentResult.identifier || paymentResult.payment_id,
+          pi_txid: paymentResult.txid || paymentResult.transaction_id,
+          error_message: null,
+          created_at: new Date().toISOString()
+        };
+
+        setPayouts(prev => [newPayout, ...prev.slice(0, 19)]);
+        
         toast.success("A2U Payout completed successfully!");
-        loadPayouts();
+        
+      } catch (piError: any) {
+        console.error("Pi SDK error:", piError);
+        toast.error(piError.message || "Pi payment failed");
       }
+
     } catch (e: any) {
       toast.error(e.message || "Payout failed");
     }
