@@ -91,6 +91,33 @@ export type Database = {
           },
         ]
       }
+      app_notifications: {
+        Row: {
+          created_at: string | null
+          id: string
+          message: string
+          read_at: string | null
+          title: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          message: string
+          read_at?: string | null
+          title: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          message?: string
+          read_at?: string | null
+          title?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       contacts: {
         Row: {
           contact_id: string
@@ -884,6 +911,51 @@ export type Database = {
           merchant_username?: string
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      mining_rewards: {
+        Row: {
+          amount: number
+          created_at: string | null
+          id: string
+          user_id: string | null
+        }
+        Insert: {
+          amount?: number
+          created_at?: string | null
+          id?: string
+          user_id?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string | null
+          id?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      mining_sessions: {
+        Row: {
+          expires_at: string
+          id: string
+          is_active: boolean | null
+          started_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          expires_at: string
+          id?: string
+          is_active?: boolean | null
+          started_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          expires_at?: string
+          id?: string
+          is_active?: boolean | null
+          started_at?: string | null
+          user_id?: string | null
         }
         Relationships: []
       }
