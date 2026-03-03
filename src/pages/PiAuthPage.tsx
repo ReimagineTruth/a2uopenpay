@@ -192,38 +192,36 @@ const PiAuthPage = () => {
             <div className="mt-4 space-y-2">
               <Button
                 onClick={handlePiAuth}
-                disabled={busyAuth}
-                className="h-11 w-full rounded-2xl bg-paypal-blue text-white hover:bg-[#004dc5]"
+                disabled={busyAuth || !sdkReady}
+                className="h-11 w-full rounded-2xl bg-paypal-blue text-white hover:bg-paypal-blue/90 transition"
               >
                 {busyAuth ? "Authenticating..." : "Authenticate with Pi"}
               </Button>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {!sdkReady && (
-                  <Button
-                    asChild
-                    variant="outline"
-                    className="h-11 w-full rounded-2xl"
-                  >
-                    <Link to="/sign-in?mode=signin">Use Email Sign In</Link>
-                  </Button>
-                )}
-                <Button
-                  asChild
-                  type="button"
-                  variant="outline"
-                  className={`h-11 w-full rounded-2xl ${sdkReady ? 'sm:col-span-2' : ''}`}
-                >
-                  <a href="https://openpaylandingpage.vercel.app/" target="_blank" rel="noreferrer">
-                    Landing Page
-                  </a>
-                </Button>
-              </div>
+              {!sdkReady && (
+                <div className="text-center">
+                  <p className="text-sm text-destructive">
+                    Pi SDK is unavailable. Please open this app in Pi Browser.
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    This app requires Pi Browser authentication for security.
+                  </p>
+                </div>
+              )}
+              <Button
+                asChild
+                type="button"
+                variant="outline"
+                className="h-11 w-full rounded-2xl"
+              >
+                <a href="https://app-cdn.minepi.com/browser" target="_blank" rel="noreferrer">
+                  Download Pi Browser
+                </a>
+              </Button>
             </div>
             <p className="mt-2 text-xs text-gray-600">
               {sdkReady 
-                ? "You're using Pi Browser! Email sign-in is available in the OpenPay App, Desktop, Tablet, or regular Browser for full-screen experience, notifications, POS, and Merchant Portal access."
-                : "Use Email Sign In when using OpenPay App, Desktop, Tablet, or Browser. Enjoy full-screen experience, notifications, POS, Merchant Portal access, and more."
-              }
+                ? "You're using Pi Browser! For security, all users must authenticate through Pi Browser. Email sign-in is only available for OpenPay App, Desktop, Tablet, or regular Browser for full-screen experience, notifications, POS, and Merchant Portal access."
+                : "Please download Pi Browser to authenticate. This app requires Pi Browser authentication for security and to prevent account sharing."}
             </p>
             {piUser && (
               <p className="mt-3 text-sm text-gray-800">

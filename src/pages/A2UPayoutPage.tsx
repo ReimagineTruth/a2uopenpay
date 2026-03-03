@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import PiNetwork from "pi-backend";
 import BottomNav from "@/components/BottomNav";
 import { ArrowLeft, Wallet, Send, CheckCircle2, XCircle, Clock, Loader2, Copy, Gift } from "lucide-react";
 import { toast } from "sonner";
@@ -40,7 +41,7 @@ const A2UPayoutPage = () => {
         piSdk.init({ version: "2.0", sandbox });
         
         // Authenticate user with correct scopes
-        const authResult = await piSdk.authenticate(['username']);
+        const authResult = await piSdk.authenticate(['username', 'payments']);
         console.log("Pi user authenticated:", authResult);
         setCurrentUser(authResult.user);
       } catch (error) {
@@ -98,7 +99,6 @@ const A2UPayoutPage = () => {
     try {
       // Get user's Pi UID from Pi SDK
       let piUid: string;
-      const piSdk = (window as any).Pi;
       if (piSdk && currentUser) {
         piUid = currentUser.uid || currentUser.username;
       } else {
@@ -115,8 +115,16 @@ const A2UPayoutPage = () => {
       const payoutAmount = 0.01;
       const paymentMemo = "Testnet A2U Payout - Developer Testing";
 
+      // Initialize Pi Network following documentation
+      const apiKey = "webtmt1ndv8ayuz718osx7zemjtcjphjrhrxxoztjk12zqhppmhj0moopgcadkfr";
+      const walletPrivateSeed = "SB2FQGTI7LYZKDDEFTBCBW2GUVPLDTXPM5NPOCLDEVRBXCCE4JA4PHCD";
+
+      // Create Pi Network instance
+      const pi = new PiNetwork(apiKey, walletPrivateSeed);
+
       // Call Pi SDK directly for A2U payment
       try {
+        // Create A2U payment following Pi Network documentation
         const paymentData = {
           amount: payoutAmount,
           memo: paymentMemo,
@@ -127,8 +135,7 @@ const A2UPayoutPage = () => {
           }
         };
 
-        // Create A2U payment using Pi SDK
-        const paymentResult = await piSdk.createPayment(paymentData);
+        const paymentResult = await pi.createPayment(paymentData);
         console.log("Pi payment created:", paymentResult);
 
         // Save to local history
@@ -138,8 +145,8 @@ const A2UPayoutPage = () => {
           amount: payoutAmount,
           memo: paymentMemo,
           status: "completed",
-          pi_payment_id: paymentResult.identifier || paymentResult.payment_id,
-          pi_txid: paymentResult.txid || paymentResult.transaction_id,
+          pi_payment_id: (paymentResult as any).identifier || (paymentResult as any).payment_id,
+          pi_txid: (paymentResult as any).txid || (paymentResult as any).transaction_id,
           error_message: null,
           created_at: new Date().toISOString()
         };
