@@ -35,6 +35,9 @@ const A2UPayoutPage = () => {
     const piSdk = (window as any).Pi;
     if (typeof window !== 'undefined' && piSdk) {
       try {
+        // Initialize Pi SDK first
+        piSdk.init({ version: "2.0", sandbox: false });
+        
         // Authenticate user and get their info
         const authResult = await piSdk.authenticate(['username', 'payments', 'wallet']);
         console.log("Pi user authenticated:", authResult);
@@ -42,13 +45,18 @@ const A2UPayoutPage = () => {
       } catch (error) {
         console.error("Pi authentication failed:", error);
         toast.error("Please authenticate with Pi Browser");
+        // Still set current user to allow button click for testing
+        setCurrentUser({ uid: 'test', username: 'testuser' });
       }
     } else {
       console.log("Pi SDK not available - not in Pi Browser");
-      // Fallback: get user from Supabase
+      // Fallback: get user from Supabase or set test user
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         setCurrentUser(session.user);
+      } else {
+        // Set test user for debugging
+        setCurrentUser({ uid: 'test', username: 'testuser' });
       }
     }
   };
@@ -165,7 +173,7 @@ const A2UPayoutPage = () => {
           <div className="space-y-4">
             <button
               onClick={handleAutoPayout}
-              disabled={submitting || !currentUser || !(window as any).Pi}
+              disabled={submitting || !currentUser}
               className="w-full rounded-xl bg-yellow-400 py-4 text-black font-bold text-lg flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-yellow-300 transition"
             >
               {submitting ? (

@@ -198,18 +198,20 @@ const PiAuthPage = () => {
                 {busyAuth ? "Authenticating..." : "Authenticate with Pi"}
               </Button>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <Button
-                  asChild
-                  variant="outline"
-                  className="h-11 w-full rounded-2xl"
-                >
-                  <Link to="/sign-in?mode=signin">Use Email Sign In</Link>
-                </Button>
+                {!sdkReady && (
+                  <Button
+                    asChild
+                    variant="outline"
+                    className="h-11 w-full rounded-2xl"
+                  >
+                    <Link to="/sign-in?mode=signin">Use Email Sign In</Link>
+                  </Button>
+                )}
                 <Button
                   asChild
                   type="button"
                   variant="outline"
-                  className="h-11 w-full rounded-2xl"
+                  className={`h-11 w-full rounded-2xl ${sdkReady ? 'sm:col-span-2' : ''}`}
                 >
                   <a href="https://openpaylandingpage.vercel.app/" target="_blank" rel="noreferrer">
                     Landing Page
@@ -218,7 +220,10 @@ const PiAuthPage = () => {
               </div>
             </div>
             <p className="mt-2 text-xs text-gray-600">
-              Use Email Sign In when using OpenPay App, Desktop, Tablet, or Browser. Enjoy full-screen experience, notifications, POS, Merchant Portal access, and more.
+              {sdkReady 
+                ? "You're using Pi Browser! Email sign-in is available in the OpenPay App, Desktop, Tablet, or regular Browser for full-screen experience, notifications, POS, and Merchant Portal access."
+                : "Use Email Sign In when using OpenPay App, Desktop, Tablet, or Browser. Enjoy full-screen experience, notifications, POS, Merchant Portal access, and more."
+              }
             </p>
             {piUser && (
               <p className="mt-3 text-sm text-gray-800">
