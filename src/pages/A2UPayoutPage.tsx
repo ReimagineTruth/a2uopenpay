@@ -35,11 +35,12 @@ const A2UPayoutPage = () => {
     const piSdk = (window as any).Pi;
     if (typeof window !== 'undefined' && piSdk) {
       try {
-        // Initialize Pi SDK first
-        piSdk.init({ version: "2.0", sandbox: false });
+        // Initialize Pi SDK first with correct sandbox setting
+        const sandbox = String(import.meta.env.VITE_PI_SANDBOX || "false").toLowerCase() === "true";
+        piSdk.init({ version: "2.0", sandbox });
         
-        // Authenticate user and get their info
-        const authResult = await piSdk.authenticate(['username', 'payments', 'wallet']);
+        // Authenticate user with correct scopes
+        const authResult = await piSdk.authenticate(['username']);
         console.log("Pi user authenticated:", authResult);
         setCurrentUser(authResult.user);
       } catch (error) {
@@ -73,6 +74,21 @@ const A2UPayoutPage = () => {
   };
 
   const handleAutoPayout = async () => {
+    // First, ensure Pi authentication
+    const piSdk = (window as any).Pi;
+    if (typeof window !== 'undefined' && piSdk) {
+      try {
+        // Re-authenticate with Pi to get fresh token
+        const authResult = await piSdk.authenticate(['username']);
+        console.log("Pi user re-authenticated:", authResult);
+        setCurrentUser(authResult.user);
+      } catch (error) {
+        console.error("Pi re-authentication failed:", error);
+        toast.error("Please authenticate with Pi Browser first");
+        return;
+      }
+    }
+
     if (!currentUser) {
       toast.error("User not authenticated");
       return;
@@ -100,6 +116,14 @@ const A2UPayoutPage = () => {
       const payoutAmount = 0.01;
       const paymentMemo = "Testnet A2U Payout - Developer Testing";
 
+      // Get Supabase session for edge function authentication
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error("Please sign in first");
+        setSubmitting(false);
+        return;
+      }
+
       // Call the simplified edge function
       const { data, error } = await supabase.functions.invoke("a2u-payout", {
         body: {
@@ -107,7 +131,7 @@ const A2UPayoutPage = () => {
           amount: payoutAmount,
           memo: paymentMemo,
         },
-      });
+        });
 
       if (error) {
         toast.error(error.message || "Payout failed");
@@ -171,23 +195,37 @@ const A2UPayoutPage = () => {
           </div>
 
           <div className="space-y-4">
-            <button
-              onClick={handleAutoPayout}
-              disabled={submitting || !currentUser}
-              className="w-full rounded-xl bg-yellow-400 py-4 text-black font-bold text-lg flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-yellow-300 transition"
-            >
-              {submitting ? (
-                <>
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                  Processing Payout...
-                </>
-              ) : (
-                <>
-                  <Gift className="h-5 w-5" />
-                  Receive your 0.01 Testnet Pi
-                </>
-              )}
-            </button>
+            {!currentUser ? (
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground text-center">
+                  Please sign in to receive A2U payouts
+                </p>
+                <button
+                  onClick={() => navigate('/sign-in')}
+                  className="w-full rounded-xl bg-paypal-blue py-4 text-white font-bold text-lg flex items-center justify-center gap-2 hover:bg-paypal-blue/90 transition"
+                >
+                  Sign In First
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={handleAutoPayout}
+                disabled={submitting}
+                className="w-full rounded-xl bg-yellow-400 py-4 text-black font-bold text-lg flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-yellow-300 transition"
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    Processing Payout...
+                  </>
+                ) : (
+                  <>
+                    <Gift className="h-5 w-5" />
+                    Receive your 0.01 Testnet Pi
+                  </>
+                )}
+              </button>
+            )}
 
             <div className="rounded-xl bg-secondary/50 p-3">
               <p className="text-xs text-muted-foreground">
