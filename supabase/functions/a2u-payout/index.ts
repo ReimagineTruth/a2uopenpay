@@ -1,9 +1,12 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+// @ts-ignore - Stellar SDK for Deno
+import * as StellarSdk from "https://esm.sh/stellar-sdk@11.3.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 const json = (body: Record<string, unknown>, status = 200) =>
@@ -11,6 +14,37 @@ const json = (body: Record<string, unknown>, status = 200) =>
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+
+// Pi API base URL
+const PI_API_BASE = "https://api.minepi.com";
+
+// Helper: make authenticated Pi API request
+async function piApiRequest(
+  method: string,
+  path: string,
+  apiKey: string,
+  body?: Record<string, unknown>,
+) {
+  const opts: RequestInit = {
+    method,
+    headers: {
+      Authorization: `Key ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+  };
+  if (body) opts.body = JSON.stringify(body);
+
+  const resp = await fetch(`${PI_API_BASE}${path}`, opts);
+  const data = await resp.json();
+
+  if (!resp.ok) {
+    console.error(`Pi API error [${resp.status}] ${path}:`, JSON.stringify(data));
+    throw new Error(
+      data?.error_message || data?.message || data?.error || `Pi API error: ${resp.status}`,
+    );
+  }
+  return data;
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -21,245 +55,155 @@ serve(async (req) => {
     const apiKey = Deno.env.get("PI_API_KEY");
     const walletSeed = Deno.env.get("WALLET_PRIVATE_SEED");
 
-    if (!apiKey) {
-      console.error("PI_API_KEY not configured");
-      return json({ error: "Pi API not configured" }, 500);
-    }
-    if (!walletSeed) {
-      console.error("WALLET_PRIVATE_SEED not configured");
-      return json({ error: "Wallet not configured" }, 500);
-    }
+    if (!apiKey) return json({ error: "Pi API not configured" }, 500);
+    if (!walletSeed) return json({ error: "Wallet not configured" }, 500);
 
     const supabase = createClient(supabaseUrl, serviceKey);
 
-    // Auth - allow both authenticated users and test requests
+    // Auth — get calling user
     const authHeader = req.headers.get("Authorization");
-    let user = null;
-    
+    let userId: string | null = null;
+
     if (authHeader?.startsWith("Bearer ")) {
       const token = authHeader.replace("Bearer ", "");
-      const { data: { user: authUser }, error: userErr } = await supabase.auth.getUser(token);
-      if (!userErr && authUser) {
-        user = authUser;
-      }
+      const { data, error: userErr } = await supabase.auth.getUser(token);
+      if (!userErr && data?.user) userId = data.user.id;
     }
-    
-    // For testing, allow requests without authentication
-    if (!user) {
-      console.log("No valid authentication, using test user");
-      user = { id: 'test-user-id', email: 'test@example.com' };
-    }
+
+    if (!userId) return json({ error: "Authentication required" }, 401);
 
     const { amount, piUsername, memo } = await req.json();
     if (!amount || amount <= 0) return json({ error: "Invalid amount" }, 400);
-    if (!piUsername) return json({ error: "Pi username required" }, 400);
+    if (!piUsername) return json({ error: "Pi username (uid) required" }, 400);
 
     const paymentMemo = memo || `A2U payout to @${piUsername}`;
 
-    // Check if this is a test request
-    const isTest = piUsername === "test" || amount === 0.01;
-    if (isTest) {
-      console.log("Test mode detected - returning success without Pi API calls");
-      return json({ 
-        success: true, 
-        paymentId: `test_payment_${Date.now()}`,
-        txid: `test_txid_${Date.now()}`,
-        payout_id: `test_${Date.now()}`,
-        message: "Test payout completed successfully"
-      });
-    }
-
     // Insert payout record
-    let payoutId: string;
-    try {
-      const { data: payout, error: insertErr } = await supabase
-        .from("a2u_payouts")
-        .insert({
-          user_id: user.id,
-          pi_username: piUsername,
-          amount,
-          memo: paymentMemo,
-          status: "processing",
-        })
-        .select("id")
-        .single();
+    const { data: payout, error: insertErr } = await supabase
+      .from("a2u_payouts")
+      .insert({
+        user_id: userId,
+        pi_username: piUsername,
+        amount,
+        memo: paymentMemo,
+        status: "processing",
+      })
+      .select("id")
+      .single();
 
-      if (insertErr) {
-        console.error("Failed to insert payout:", insertErr);
-        // If table doesn't exist, create a temporary ID
-        payoutId = `temp_${Date.now()}_${user.id}`;
-        console.log("Using temporary payout ID:", payoutId);
-      } else {
-        payoutId = (payout as any).id;
-      }
-    } catch (dbError: any) {
-      console.error("Database error:", dbError);
-      // Create temporary ID for testing
-      payoutId = `temp_${Date.now()}_${user.id}`;
-      console.log("Using temporary payout ID due to DB error:", payoutId);
+    if (insertErr) {
+      console.error("Failed to insert payout:", insertErr);
+      return json({ error: "Failed to create payout record" }, 500);
     }
+
+    const payoutId = payout.id;
     console.log("Starting A2U payout:", { payoutId, piUsername, amount });
 
-    // Step 1: Create A2U payment via Pi Platform API
-    const createRes = await fetch("https://api.minepi.com/v2/payments", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Key ${apiKey}`,
-      },
-      body: JSON.stringify({
-        payment: {
-          amount,
-          memo: paymentMemo,
-          metadata: { payout_id: payoutId, user_id: user.id },
-          uid: piUsername,
-        },
-      }),
-    });
-
-    const createData = await createRes.json();
-    console.log("Create payment response:", createData);
-
-    if (!createRes.ok) {
-      console.error("Failed to create Pi payment:", createData);
-      // Safe database update
-      try {
-        await supabase.from("a2u_payouts").update({
-          status: "failed",
-          error_message: JSON.stringify(createData),
-        }).eq("id", payoutId);
-      } catch (updateErr: any) {
-        console.error("Failed to update failure status:", updateErr);
-      }
-      return json({ error: "Failed to create Pi payment", details: createData }, 400);
-    }
-
-    const paymentId = (createData as any).identifier;
-    console.log("Payment created with ID:", paymentId);
-
-    // Update record with payment ID (safe operation)
     try {
-      await supabase.from("a2u_payouts").update({
-        pi_payment_id: paymentId,
-      }).eq("id", payoutId);
-    } catch (updateErr: any) {
-      console.error("Failed to update payment ID:", updateErr);
-      // Continue anyway - payment was created successfully
-    }
+      // ===== STEP 1: Create payment via Pi API =====
+      const paymentBody = {
+        amount,
+        memo: paymentMemo,
+        metadata: { payout_id: payoutId, user_id: userId },
+        uid: piUsername,
+      };
 
-    // Step 2: Approve payment (server-side)
-    const approveRes = await fetch(`https://api.minepi.com/v2/payments/${paymentId}/approve`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Key ${apiKey}`,
-      },
-    });
+      console.log("Step 1: Creating payment via Pi API...");
+      const createResp = await piApiRequest("POST", "/v2/payments", apiKey, paymentBody);
+      const paymentId = createResp.identifier;
+      const recipientAddress = createResp.recipient;
 
-    if (!approveRes.ok) {
-      const approveErr = await approveRes.text();
-      console.error("Failed to approve payment:", approveErr);
-      // Safe database update
-      try {
-        await supabase.from("a2u_payouts").update({
-          status: "failed",
-          error_message: `Approve failed: ${approveErr}`,
-        }).eq("id", payoutId);
-      } catch (updateErr: any) {
-        console.error("Failed to update approval failure:", updateErr);
-      }
-      return json({ error: "Failed to approve payment", details: approveErr }, 400);
-    }
+      console.log("Payment created:", { paymentId, recipientAddress });
 
-    console.log("Payment approved successfully");
+      await supabase
+        .from("a2u_payouts")
+        .update({ pi_payment_id: paymentId })
+        .eq("id", payoutId);
 
-    // Step 3: Get payment details to find transaction data
-    const getPaymentRes = await fetch(`https://api.minepi.com/v2/payments/${paymentId}`, {
-      method: "GET",
-      headers: {
-        Authorization: `Key ${apiKey}`,
-      },
-    });
+      // ===== STEP 2: Determine network & load account =====
+      // Derive public key from wallet seed
+      const myKeypair = StellarSdk.Keypair.fromSecret(walletSeed);
+      const myPublicKey = myKeypair.publicKey();
 
-    const paymentData = await getPaymentRes.json();
-    console.log("Payment details:", paymentData);
+      // Determine network based on sandbox setting or payment network
+      const piSandbox = Deno.env.get("VITE_PI_SANDBOX") || "false";
+      const isTestnet = piSandbox.toLowerCase() === "true";
+      const horizonUrl = isTestnet
+        ? "https://api.testnet.minepi.com"
+        : "https://api.mainnet.minepi.com";
+      const networkPassphrase = isTestnet ? "Pi Testnet" : "Pi Network";
 
-    if (!getPaymentRes.ok) {
-      console.error("Failed to get payment details:", paymentData);
-      // Safe database update
-      try {
-        await supabase.from("a2u_payouts").update({
-          status: "failed",
-          error_message: `Get payment failed: ${JSON.stringify(paymentData)}`,
-        }).eq("id", payoutId);
-      } catch (updateErr: any) {
-        console.error("Failed to update get payment failure:", updateErr);
-      }
-      return json({ error: "Failed to get payment details", details: paymentData }, 400);
-    }
+      console.log("Step 2: Loading account from", horizonUrl);
+      const server = new StellarSdk.Horizon.Server(horizonUrl);
+      const myAccount = await server.loadAccount(myPublicKey);
+      const baseFee = await server.fetchBaseFee();
 
-    // Check if transaction already exists
-    if ((paymentData as any).transaction && (paymentData as any).transaction.txid) {
-      const txid = (paymentData as any).transaction.txid;
-      console.log("Transaction already submitted:", txid);
-      
-      // Step 4: Complete the payment
-      const completeRes = await fetch(`https://api.minepi.com/v2/payments/${paymentId}/complete`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Key ${apiKey}`,
-        },
-        body: JSON.stringify({ txid }),
+      // ===== STEP 3: Build transaction =====
+      console.log("Step 3: Building transaction...");
+      const payment = StellarSdk.Operation.payment({
+        destination: recipientAddress,
+        asset: StellarSdk.Asset.native(),
+        amount: amount.toString(),
       });
 
-      const completeData = await completeRes.json();
-      if (!completeRes.ok) {
-        console.error("Failed to complete payment:", completeData);
-        // Safe database update
-        try {
-          await supabase.from("a2u_payouts").update({
-            status: "failed",
-            error_message: `Complete failed: ${JSON.stringify(completeData)}`,
-          }).eq("id", payoutId);
-        } catch (updateErr: any) {
-          console.error("Failed to update complete failure:", updateErr);
-        }
-        return json({ error: "Failed to complete payment", details: completeData }, 400);
-      }
+      const timebounds = await server.fetchTimebounds(180);
 
-      // Safe database update for success
-      try {
-        await supabase.from("a2u_payouts").update({
-          status: "completed",
-          pi_txid: txid,
-        }).eq("id", payoutId);
-      } catch (updateErr: any) {
-        console.error("Failed to update completion status:", updateErr);
-      }
+      let transaction = new StellarSdk.TransactionBuilder(myAccount, {
+        fee: baseFee.toString(),
+        networkPassphrase,
+        timebounds,
+      })
+        .addOperation(payment)
+        .addMemo(StellarSdk.Memo.text(paymentId))
+        .build();
 
-      return json({ success: true, paymentId, txid, payout_id: payoutId });
+      // ===== STEP 4: Sign transaction =====
+      console.log("Step 4: Signing transaction...");
+      transaction.sign(myKeypair);
+
+      // ===== STEP 5: Submit transaction to Pi Blockchain =====
+      console.log("Step 5: Submitting transaction...");
+      const submitResult = await server.submitTransaction(transaction);
+      const txid = submitResult.id || submitResult.hash;
+      console.log("Transaction submitted, txid:", txid);
+
+      // ===== STEP 6: Complete payment via Pi API =====
+      console.log("Step 6: Completing payment...");
+      const completeResp = await piApiRequest(
+        "POST",
+        `/v2/payments/${paymentId}/complete`,
+        apiKey,
+        { txid },
+      );
+      console.log("Payment completed:", completeResp);
+
+      // Update payout record as completed
+      await supabase
+        .from("a2u_payouts")
+        .update({ status: "completed", pi_txid: txid })
+        .eq("id", payoutId);
+
+      return json({
+        success: true,
+        paymentId,
+        txid,
+        payout_id: payoutId,
+        message: "A2U payout completed successfully",
+      });
+    } catch (piError: unknown) {
+      const errMsg = piError instanceof Error ? piError.message : String(piError);
+      console.error("A2U payout step failed:", errMsg);
+
+      await supabase
+        .from("a2u_payouts")
+        .update({
+          status: "failed",
+          error_message: errMsg.substring(0, 500),
+        })
+        .eq("id", payoutId);
+
+      return json({ error: "Pi payment failed", details: errMsg }, 400);
     }
-
-    // For now, mark as completed without blockchain submission for testing
-    console.log("Marking payout as completed (test mode)");
-    try {
-      await supabase.from("a2u_payouts").update({
-        status: "completed",
-        pi_txid: "test_txid_" + Date.now(),
-      }).eq("id", payoutId);
-    } catch (updateErr: any) {
-      console.error("Failed to update test completion:", updateErr);
-    }
-
-    return json({ 
-      success: true, 
-      paymentId, 
-      txid: "test_txid_" + Date.now(),
-      payout_id: payoutId,
-      message: "A2U payout completed successfully"
-    });
-
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Unexpected error";
     console.error("A2U payout error:", err);
