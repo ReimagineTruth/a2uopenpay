@@ -1,7 +1,6 @@
+// deno-lint-ignore-file no-explicit-any
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-// @ts-ignore - Stellar SDK for Deno
-import * as StellarSdk from "https://esm.sh/stellar-sdk@11.3.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -15,16 +14,14 @@ const json = (body: Record<string, unknown>, status = 200) =>
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 
-// Pi API base URL
 const PI_API_BASE = "https://api.minepi.com";
 
-// Helper: make authenticated Pi API request
 async function piApiRequest(
   method: string,
   path: string,
   apiKey: string,
   body?: Record<string, unknown>,
-) {
+): Promise<any> {
   const opts: RequestInit = {
     method,
     headers: {
@@ -46,7 +43,7 @@ async function piApiRequest(
   return data;
 }
 
-serve(async (req) => {
+serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
@@ -60,16 +57,14 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, serviceKey);
 
-    // Auth — get calling user
+    // Auth
     const authHeader = req.headers.get("Authorization");
     let userId: string | null = null;
-
     if (authHeader?.startsWith("Bearer ")) {
       const token = authHeader.replace("Bearer ", "");
       const { data, error: userErr } = await supabase.auth.getUser(token);
       if (!userErr && data?.user) userId = data.user.id;
     }
-
     if (!userId) return json({ error: "Authentication required" }, 401);
 
     const { amount, piUsername, memo } = await req.json();
@@ -79,7 +74,7 @@ serve(async (req) => {
     const paymentMemo = memo || `A2U payout to @${piUsername}`;
 
     // Insert payout record
-    const { data: payout, error: insertErr } = await supabase
+    const { data: payoutData, error: insertErr } = await supabase
       .from("a2u_payouts")
       .insert({
         user_id: userId,
@@ -91,16 +86,16 @@ serve(async (req) => {
       .select("id")
       .single();
 
-    if (insertErr) {
+    if (insertErr || !payoutData) {
       console.error("Failed to insert payout:", insertErr);
       return json({ error: "Failed to create payout record" }, 500);
     }
 
-    const payoutId = payout.id;
+    const payoutId = (payoutData as any).id;
     console.log("Starting A2U payout:", { payoutId, piUsername, amount });
 
     try {
-      // ===== STEP 1: Create payment via Pi API =====
+      // ===== STEP 1: Create A2U payment via Pi API =====
       const paymentBody = {
         amount,
         memo: paymentMemo,
@@ -108,24 +103,24 @@ serve(async (req) => {
         uid: piUsername,
       };
 
-      console.log("Step 1: Creating payment via Pi API...");
+      console.log("Step 1: Creating A2U payment via Pi API...");
       const createResp = await piApiRequest("POST", "/v2/payments", apiKey, paymentBody);
       const paymentId = createResp.identifier;
-      const recipientAddress = createResp.recipient;
 
-      console.log("Payment created:", { paymentId, recipientAddress });
+      console.log("Payment created:", { paymentId });
 
       await supabase
         .from("a2u_payouts")
         .update({ pi_payment_id: paymentId })
         .eq("id", payoutId);
 
-      // ===== STEP 2: Determine network & load account =====
-      // Derive public key from wallet seed
+      // ===== STEP 2: Build & submit Stellar transaction =====
+      // Use dynamic import for Stellar SDK to avoid Buffer issues
+      const StellarSdk = await import("https://esm.sh/stellar-sdk@11.3.0");
+
       const myKeypair = StellarSdk.Keypair.fromSecret(walletSeed);
       const myPublicKey = myKeypair.publicKey();
 
-      // Determine network based on sandbox setting or payment network
       const piSandbox = Deno.env.get("VITE_PI_SANDBOX") || "false";
       const isTestnet = piSandbox.toLowerCase() === "true";
       const horizonUrl = isTestnet
@@ -140,6 +135,7 @@ serve(async (req) => {
 
       // ===== STEP 3: Build transaction =====
       console.log("Step 3: Building transaction...");
+      const recipientAddress = createResp.recipient;
       const payment = StellarSdk.Operation.payment({
         destination: recipientAddress,
         asset: StellarSdk.Asset.native(),
@@ -148,7 +144,7 @@ serve(async (req) => {
 
       const timebounds = await server.fetchTimebounds(180);
 
-      let transaction = new StellarSdk.TransactionBuilder(myAccount, {
+      const transaction = new StellarSdk.TransactionBuilder(myAccount, {
         fee: baseFee.toString(),
         networkPassphrase,
         timebounds,
@@ -157,27 +153,20 @@ serve(async (req) => {
         .addMemo(StellarSdk.Memo.text(paymentId))
         .build();
 
-      // ===== STEP 4: Sign transaction =====
+      // ===== STEP 4: Sign =====
       console.log("Step 4: Signing transaction...");
       transaction.sign(myKeypair);
 
-      // ===== STEP 5: Submit transaction to Pi Blockchain =====
+      // ===== STEP 5: Submit =====
       console.log("Step 5: Submitting transaction...");
       const submitResult = await server.submitTransaction(transaction);
-      const txid = submitResult.id || submitResult.hash;
+      const txid = (submitResult as any).id || (submitResult as any).hash;
       console.log("Transaction submitted, txid:", txid);
 
       // ===== STEP 6: Complete payment via Pi API =====
       console.log("Step 6: Completing payment...");
-      const completeResp = await piApiRequest(
-        "POST",
-        `/v2/payments/${paymentId}/complete`,
-        apiKey,
-        { txid },
-      );
-      console.log("Payment completed:", completeResp);
+      await piApiRequest("POST", `/v2/payments/${paymentId}/complete`, apiKey, { txid });
 
-      // Update payout record as completed
       await supabase
         .from("a2u_payouts")
         .update({ status: "completed", pi_txid: txid })
