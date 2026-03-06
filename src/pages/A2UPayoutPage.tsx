@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import PiNetwork from "pi-backend";
 import BottomNav from "@/components/BottomNav";
-import { ArrowLeft, Wallet, Send, CheckCircle2, XCircle, Clock, Loader2, Copy, Gift } from "lucide-react";
+import { ArrowLeft, CheckCircle2, XCircle, Clock, Loader2, Copy, Gift } from "lucide-react";
 import { toast } from "sonner";
 import BrandLogo from "@/components/BrandLogo";
 
@@ -25,6 +24,7 @@ const A2UPayoutPage = () => {
   const [payouts, setPayouts] = useState<PayoutRecord[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [piUser, setPiUser] = useState<any>(null);
 
   useEffect(() => {
     loadPayouts();
@@ -32,33 +32,27 @@ const A2UPayoutPage = () => {
   }, []);
 
   const initializePiSDK = async () => {
+    // Check Supabase session
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      setCurrentUser(session.user);
+    }
+
     // Check if Pi SDK is available (running in Pi Browser)
     const piSdk = (window as any).Pi;
     if (typeof window !== 'undefined' && piSdk) {
       try {
-        // Initialize Pi SDK first with correct sandbox setting
         const sandbox = String(import.meta.env.VITE_PI_SANDBOX || "false").toLowerCase() === "true";
         piSdk.init({ version: "2.0", sandbox });
-        
-        // Authenticate user with correct scopes
         const authResult = await piSdk.authenticate(['username', 'payments']);
         console.log("Pi user authenticated:", authResult);
-        setCurrentUser(authResult.user);
+        setPiUser(authResult.user);
+        // Also set currentUser if no Supabase session
+        if (!session) {
+          setCurrentUser({ id: 'pi-user', ...authResult.user });
+        }
       } catch (error) {
         console.error("Pi authentication failed:", error);
-        toast.error("Please authenticate with Pi Browser");
-        // Still set current user to allow button click for testing
-        setCurrentUser({ uid: 'test', username: 'testuser' });
-      }
-    } else {
-      console.log("Pi SDK not available - not in Pi Browser");
-      // Fallback: get user from Supabase or set test user
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        setCurrentUser(session.user);
-      } else {
-        // Set test user for debugging
-        setCurrentUser({ uid: 'test', username: 'testuser' });
       }
     }
   };
@@ -75,91 +69,58 @@ const A2UPayoutPage = () => {
   };
 
   const handleAutoPayout = async () => {
-    // First, ensure Pi authentication
+    // Re-authenticate with Pi if available
     const piSdk = (window as any).Pi;
+    let piUid: string | null = null;
+
     if (typeof window !== 'undefined' && piSdk) {
       try {
-        // Re-authenticate with Pi to get fresh token
         const authResult = await piSdk.authenticate(['username', 'payments']);
         console.log("Pi user re-authenticated:", authResult);
-        setCurrentUser(authResult.user);
+        setPiUser(authResult.user);
+        piUid = authResult.user.uid;
       } catch (error) {
         console.error("Pi re-authentication failed:", error);
-        toast.error("Please authenticate with Pi Browser first");
+        toast.error("Please open in Pi Browser to receive payouts");
         return;
       }
     }
 
-    if (!currentUser) {
-      toast.error("User not authenticated");
+    if (!piUid) {
+      toast.error("Pi Browser required - please open this app in Pi Browser");
       return;
     }
 
     setSubmitting(true);
     try {
-      // Get user's Pi UID from Pi SDK
-      let piUid: string;
-      if (piSdk && currentUser) {
-        piUid = currentUser.uid || currentUser.username;
-      } else {
-        piUid = currentUser.email?.split('@')[0] || 'unknown';
-      }
-      
-      if (!piUid) {
-        toast.error("Unable to get Pi UID");
-        setSubmitting(false);
-        return;
-      }
+      const { data, error } = await supabase.functions.invoke("a2u-payout", {
+        body: {
+          amount: 0.01,
+          piUsername: piUid,
+          memo: "Testnet A2U Payout - Developer Testing",
+        },
+      });
 
-      // Fixed amount for testnet A2U payout (0.01 Pi)
-      const payoutAmount = 0.01;
-      const paymentMemo = "Testnet A2U Payout - Developer Testing";
-
-      // Initialize Pi Network following documentation
-      const apiKey = "webtmt1ndv8ayuz718osx7zemjtcjphjrhrxxoztjk12zqhppmhj0moopgcadkfr";
-      const walletPrivateSeed = "SB2FQGTI7LYZKDDEFTBCBW2GUVPLDTXPM5NPOCLDEVRBXCCE4JA4PHCD";
-
-      // Create Pi Network instance
-      const pi = new PiNetwork(apiKey, walletPrivateSeed);
-
-      // Call Pi SDK directly for A2U payment
-      try {
-        // Create A2U payment following Pi Network documentation
-        const paymentData = {
-          amount: payoutAmount,
-          memo: paymentMemo,
-          uid: piUid,
-          metadata: {
-            type: "a2u_payout",
-            timestamp: new Date().toISOString()
+      if (error) {
+        // Try to extract error message from response
+        let errorMsg = "Payout failed";
+        try {
+          if (error.message) errorMsg = error.message;
+          if ((error as any).context?.body) {
+            const body = await (error as any).context.json();
+            if (body?.error) errorMsg = body.error;
+            if (body?.details) errorMsg += `: ${body.details}`;
           }
-        };
-
-        const paymentResult = await pi.createPayment(paymentData);
-        console.log("Pi payment created:", paymentResult);
-
-        // Save to local history
-        const newPayout = {
-          id: `local_${Date.now()}`,
-          pi_username: piUid,
-          amount: payoutAmount,
-          memo: paymentMemo,
-          status: "completed",
-          pi_payment_id: (paymentResult as any).identifier || (paymentResult as any).payment_id,
-          pi_txid: (paymentResult as any).txid || (paymentResult as any).transaction_id,
-          error_message: null,
-          created_at: new Date().toISOString()
-        };
-
-        setPayouts(prev => [newPayout, ...prev.slice(0, 19)]);
-        
+        } catch { /* ignore */ }
+        toast.error(errorMsg);
+      } else if (data?.success) {
         toast.success("A2U Payout completed successfully!");
-        
-      } catch (piError: any) {
-        console.error("Pi SDK error:", piError);
-        toast.error(piError.message || "Pi payment failed");
+      } else if (data?.error) {
+        toast.error(data.error + (data.details ? `: ${data.details}` : ""));
       }
 
+      // Refresh history
+      await loadPayouts();
     } catch (e: any) {
       toast.error(e.message || "Payout failed");
     }
@@ -181,7 +142,6 @@ const A2UPayoutPage = () => {
 
   return (
     <div className="min-h-screen bg-background pb-24">
-      {/* Header */}
       <div className="bg-gradient-to-r from-paypal-blue to-[#0a3ba8] px-4 pt-6 pb-8">
         <div className="flex items-center gap-3 mb-4">
           <button onClick={() => navigate(-1)} className="text-white">
@@ -201,14 +161,13 @@ const A2UPayoutPage = () => {
       </div>
 
       <div className="px-4 mt-6 space-y-5">
-        {/* Auto Payout Card */}
         <div className="paypal-surface rounded-2xl p-5">
           <div className="flex items-center gap-2 mb-4">
             <BrandLogo className="h-8 w-8" />
             <div>
               <h2 className="font-bold text-foreground">Receive your 0.01 Testnet Pi</h2>
               <p className="text-xs text-muted-foreground">
-                {(window as any).Pi ? "Click to receive A2U payout to your Pi wallet" : "Please open in Pi Browser"}
+                {piUser ? `Connected as ${piUser.username || piUser.uid}` : "Open in Pi Browser to receive"}
               </p>
             </div>
           </div>
@@ -248,14 +207,13 @@ const A2UPayoutPage = () => {
 
             <div className="rounded-xl bg-secondary/50 p-3">
               <p className="text-xs text-muted-foreground">
-                <strong>How it works:</strong> This initiates a 0.01 Pi app-to-user payout to your testnet Pi wallet. 
-                You must be authenticated in the Pi Browser. This is for developer payouts testing (A2U).
+                <strong>How it works:</strong> This initiates a 0.01 Pi app-to-user payout to your Pi wallet via the backend.
+                You must be authenticated in the Pi Browser. The payout is processed server-side using the Pi Platform API.
               </p>
             </div>
           </div>
         </div>
 
-        {/* Payout History */}
         <div className="paypal-surface rounded-2xl p-5">
           <h3 className="font-bold text-foreground mb-3">Payout History</h3>
           {loadingHistory ? (
@@ -280,7 +238,6 @@ const A2UPayoutPage = () => {
                     </p>
                     {p.pi_txid && (
                       <div className="mt-1">
-                        <p className="text-xs text-muted-foreground">Payout submitted</p>
                         <button
                           onClick={() => copyTxid(p.pi_txid!)}
                           className="flex items-center gap-1 text-xs text-paypal-blue hover:underline"
