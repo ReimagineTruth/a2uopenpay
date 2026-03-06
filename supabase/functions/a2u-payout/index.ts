@@ -1,4 +1,6 @@
-// deno-lint-ignore-file no-explicit-any
+// Enhanced A2U Payout Function for All Pi Users
+// This ensures every authenticated Pi user can receive payouts
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -14,60 +16,159 @@ const json = (body: Record<string, unknown>, status = 200) =>
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 
-// Function to validate and get the correct Pi user UID
-async function getValidPiUid(piUsername: string, apiKey: string): Promise<string> {
-  console.log("Validating Pi user UID for:", piUsername);
-  
-  // Ensure the UID is not empty or null
-  if (!piUsername || piUsername.trim() === '') {
-    throw new Error("Pi username/UID cannot be empty");
-  }
-  
-  const cleanedUid = piUsername.trim();
-  
-  // Test different UID formats that Pi Network might accept
-  const uidFormats = [
-    cleanedUid,                    // As-is (UUID format from logs)
-    `@${cleanedUid}`,              // With @ prefix
-    cleanedUid.replace(/[@]/g, ''), // Remove @ if present
-  ];
-  
-  console.log("Testing UID formats:", uidFormats);
-  
-  // For now, return the cleaned UUID format as it appears in your logs
-  // The real issue might be that these UUIDs are not valid Pi Network user UIDs
-  return cleanedUid;
-}
-
 const PI_API_BASE = "https://api.minepi.com";
 
+// Enhanced Pi API request with retry logic
 async function piApiRequest(
   method: string,
   path: string,
   apiKey: string,
   body?: Record<string, unknown>,
+  retries = 3
 ): Promise<any> {
-  const opts: RequestInit = {
-    method,
-    headers: {
-      Authorization: `Key ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-  };
-  if (body) opts.body = JSON.stringify(body);
+  for (let attempt = 0; attempt < retries; attempt++) {
+    const opts: RequestInit = {
+      method,
+      headers: {
+        Authorization: `Key ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+    };
+    if (body) opts.body = JSON.stringify(body);
 
-  const resp = await fetch(`${PI_API_BASE}${path}`, opts);
-  const data = await resp.json();
+    const resp = await fetch(`${PI_API_BASE}${path}`, opts);
+    const data = await resp.json();
 
-  if (!resp.ok) {
-    console.error(`Pi API error [${resp.status}] ${path}:`, JSON.stringify(data));
-    throw new Error(
-      data?.error_message || data?.message || data?.error || `Pi API error: ${resp.status}`,
-    );
+    if (resp.ok) {
+      return data;
+    }
+
+    // Log error for debugging
+    console.error(`Pi API error [${resp.status}] ${path} (attempt ${attempt + 1}):`, JSON.stringify(data));
+
+    // Don't retry on user not found or authentication errors
+    if (data?.error === "user_not_found" || resp.status === 401 || resp.status === 403) {
+      throw new Error(data?.error_message || data?.message || `Pi API error: ${resp.status}`);
+    }
+
+    // Retry on network issues or server errors
+    if (attempt < retries - 1 && (resp.status >= 500 || resp.status === 429)) {
+      const delay = Math.pow(2, attempt) * 1000; // Exponential backoff
+      console.log(`Retrying in ${delay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      continue;
+    }
+
+    throw new Error(data?.error_message || data?.message || `Pi API error: ${resp.status}`);
   }
-  return data;
 }
 
+// Comprehensive UID validation and fixing
+async function validateAndFixPiUid(
+  piUid: string | null,
+  piUsername: string | null,
+  apiKey: string
+): Promise<string> {
+  console.log("Validating Pi UID:", { piUid, piUsername });
+
+  if (!piUsername) {
+    throw new Error("Pi username is required for payouts");
+  }
+
+  // Array of UID formats to test, in order of preference
+  const uidFormats = [];
+
+  // Add stored UID if available
+  if (piUid && piUid.trim()) {
+    uidFormats.push(piUid.trim());
+  }
+
+  // Add username variations
+  uidFormats.push(
+    piUsername,
+    `@${piUsername}`,
+    piUsername.toLowerCase(),
+    `@${piUsername.toLowerCase()}`
+  );
+
+  // Remove duplicates while preserving order
+  const uniqueFormats = [...new Set(uidFormats)];
+
+  console.log("Testing UID formats:", uniqueFormats);
+
+  for (const uid of uniqueFormats) {
+    try {
+      // Test with a minimal payment to validate the UID
+      const testData = {
+        amount: 0.001,
+        memo: "UID validation test",
+        metadata: { 
+          test: true,
+          validation_type: "uid_check",
+          timestamp: Date.now()
+        },
+        uid: uid
+      };
+
+      const paymentId = await piApiRequest("POST", "/v2/payments", apiKey, testData);
+      
+      // Immediately cancel the test payment
+      try {
+        await piApiRequest("POST", `/v2/payments/${paymentId.identifier}/cancel`, apiKey);
+      } catch (cancelError) {
+        console.log("Warning: Could not cancel test payment:", cancelError.message);
+      }
+
+      console.log(`✅ UID format works: ${uid}`);
+      return uid;
+
+    } catch (error) {
+      if (error.message.includes("User with uid was not found")) {
+        console.log(`❌ UID format invalid: ${uid}`);
+        continue;
+      } else {
+        console.log(`⚠ Other error for ${uid}: ${error.message}`);
+        // For other errors, the UID might be valid but there's a different issue
+        return uid;
+      }
+    }
+  }
+
+  throw new Error(`No valid UID format found for user ${piUsername}. Tried formats: ${uniqueFormats.join(', ')}`);
+}
+
+// Handle incomplete payments
+async function handleIncompletePayments(apiKey: string): Promise<void> {
+  try {
+    const incomplete = await piApiRequest("GET", "/v2/payments/incomplete", apiKey);
+    
+    if (incomplete && incomplete.length > 0) {
+      console.log(`Found ${incomplete.length} incomplete payments, cleaning up...`);
+      
+      for (const payment of incomplete) {
+        try {
+          if (payment.transaction && payment.transaction.txid) {
+            // Try to complete if there's a transaction
+            await piApiRequest("POST", `/v2/payments/${payment.identifier}/complete`, apiKey, {
+              txid: payment.transaction.txid
+            });
+            console.log(`Completed incomplete payment: ${payment.identifier}`);
+          } else {
+            // Cancel if no transaction
+            await piApiRequest("POST", `/v2/payments/${payment.identifier}/cancel`, apiKey);
+            console.log(`Cancelled incomplete payment: ${payment.identifier}`);
+          }
+        } catch (error) {
+          console.log(`Failed to handle incomplete payment ${payment.identifier}:`, error.message);
+        }
+      }
+    }
+  } catch (error) {
+    console.log("Failed to check incomplete payments:", error.message);
+  }
+}
+
+// Main payout function
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -82,7 +183,7 @@ serve(async (req: Request) => {
 
     const supabase = createClient(supabaseUrl, serviceKey);
 
-    // Auth
+    // Authentication
     const authHeader = req.headers.get("Authorization");
     let userId: string | null = null;
     if (authHeader?.startsWith("Bearer ")) {
@@ -92,20 +193,46 @@ serve(async (req: Request) => {
     }
     if (!userId) return json({ error: "Authentication required" }, 401);
 
-    const { amount, piUsername, memo } = await req.json();
+    const { amount, memo } = await req.json();
     if (!amount || amount <= 0) return json({ error: "Invalid amount" }, 400);
-    if (!piUsername) return json({ error: "Pi username (uid) required" }, 400);
 
-    const paymentMemo = memo || `A2U payout to @${piUsername}`;
+    console.log("Starting A2U payout for user:", userId);
+
+    // Get user's Pi Network information
+    const { data: userProfile, error: profileErr } = await supabase
+      .from("user_profiles")
+      .select("pi_uid, pi_username, pi_verified")
+      .eq("supabase_user_id", userId)
+      .single();
+
+    if (profileErr || !userProfile || !userProfile.pi_verified) {
+      return json({ 
+        error: "User not authenticated with Pi Network",
+        details: "Please authenticate with Pi Network first"
+      }, 400);
+    }
+
+    // Handle any incomplete payments first
+    await handleIncompletePayments(apiKey);
+
+    // Validate and fix the UID
+    const validUid = await validateAndFixPiUid(
+      userProfile.pi_uid,
+      userProfile.pi_username,
+      apiKey
+    );
+
+    console.log(`Using validated UID: ${validUid} for user ${userProfile.pi_username}`);
 
     // Insert payout record
     const { data: payoutData, error: insertErr } = await supabase
       .from("a2u_payouts")
       .insert({
         user_id: userId,
-        pi_username: piUsername,
+        pi_username: userProfile.pi_username,
+        pi_uid: validUid,
         amount,
-        memo: paymentMemo,
+        memo: memo || `A2U payout to ${userProfile.pi_username}`,
         status: "processing",
       })
       .select("id")
@@ -117,24 +244,22 @@ serve(async (req: Request) => {
     }
 
     const payoutId = (payoutData as any).id;
-    console.log("Starting A2U payout:", { payoutId, piUsername, amount });
-
-    // ===== VALIDATION STEP: Get the correct UID format =====
-    console.log("Validating Pi user UID...");
-    const validUid = await getValidPiUid(piUsername, apiKey);
-    console.log(`Using UID: ${validUid} (input: ${piUsername})`);
+    console.log("Starting A2U payout:", { payoutId, validUid, amount });
 
     try {
-      // ===== STEP 1: Create A2U payment via Pi API =====
+      // Step 1: Create A2U payment
       const paymentBody = {
         amount,
-        memo: paymentMemo,
-        metadata: { payout_id: payoutId, user_id: userId, original_username: piUsername },
-        uid: validUid, // Use the validated UID
+        memo: memo || `A2U payout to ${userProfile.pi_username}`,
+        metadata: { 
+          payout_id: payoutId, 
+          user_id: userId,
+          pi_username: userProfile.pi_username
+        },
+        uid: validUid,
       };
 
-      console.log("Step 1: Creating A2U payment via Pi API...");
-      console.log("Payment data:", JSON.stringify(paymentBody, null, 2));
+      console.log("Step 1: Creating A2U payment...");
       const createResp = await piApiRequest("POST", "/v2/payments", apiKey, paymentBody);
       const paymentId = createResp.identifier;
 
@@ -145,8 +270,7 @@ serve(async (req: Request) => {
         .update({ pi_payment_id: paymentId })
         .eq("id", payoutId);
 
-      // ===== STEP 2: Build & submit Stellar transaction =====
-      // Use dynamic import for Stellar SDK to avoid Buffer issues
+      // Step 2: Build & submit Stellar transaction
       const StellarSdk = await import("https://esm.sh/stellar-sdk@11.3.0");
 
       const myKeypair = StellarSdk.Keypair.fromSecret(walletSeed);
@@ -164,7 +288,7 @@ serve(async (req: Request) => {
       const myAccount = await server.loadAccount(myPublicKey);
       const baseFee = await server.fetchBaseFee();
 
-      // ===== STEP 3: Build transaction =====
+      // Step 3: Build transaction
       console.log("Step 3: Building transaction...");
       const recipientAddress = createResp.recipient;
       const payment = StellarSdk.Operation.payment({
@@ -184,17 +308,17 @@ serve(async (req: Request) => {
         .addMemo(StellarSdk.Memo.text(paymentId))
         .build();
 
-      // ===== STEP 4: Sign =====
+      // Step 4: Sign
       console.log("Step 4: Signing transaction...");
       transaction.sign(myKeypair);
 
-      // ===== STEP 5: Submit =====
+      // Step 5: Submit
       console.log("Step 5: Submitting transaction...");
       const submitResult = await server.submitTransaction(transaction);
       const txid = (submitResult as any).id || (submitResult as any).hash;
       console.log("Transaction submitted, txid:", txid);
 
-      // ===== STEP 6: Complete payment via Pi API =====
+      // Step 6: Complete payment
       console.log("Step 6: Completing payment...");
       await piApiRequest("POST", `/v2/payments/${paymentId}/complete`, apiKey, { txid });
 
@@ -208,8 +332,10 @@ serve(async (req: Request) => {
         paymentId,
         txid,
         payout_id: payoutId,
+        uid_used: validUid,
         message: "A2U payout completed successfully",
       });
+
     } catch (piError: unknown) {
       const errMsg = piError instanceof Error ? piError.message : String(piError);
       console.error("A2U payout step failed:", errMsg);
@@ -222,8 +348,13 @@ serve(async (req: Request) => {
         })
         .eq("id", payoutId);
 
-      return json({ error: "Pi payment failed", details: errMsg }, 400);
+      return json({ 
+        error: "Pi payment failed", 
+        details: errMsg,
+        uid_attempted: validUid,
+      }, 400);
     }
+
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Unexpected error";
     console.error("A2U payout error:", err);
