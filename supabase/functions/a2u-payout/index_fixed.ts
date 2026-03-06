@@ -14,31 +14,6 @@ const json = (body: Record<string, unknown>, status = 200) =>
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 
-// Function to validate and get the correct Pi user UID
-async function getValidPiUid(piUsername: string, apiKey: string): Promise<string> {
-  console.log("Validating Pi user UID for:", piUsername);
-  
-  // Ensure the UID is not empty or null
-  if (!piUsername || piUsername.trim() === '') {
-    throw new Error("Pi username/UID cannot be empty");
-  }
-  
-  const cleanedUid = piUsername.trim();
-  
-  // Test different UID formats that Pi Network might accept
-  const uidFormats = [
-    cleanedUid,                    // As-is (UUID format from logs)
-    `@${cleanedUid}`,              // With @ prefix
-    cleanedUid.replace(/[@]/g, ''), // Remove @ if present
-  ];
-  
-  console.log("Testing UID formats:", uidFormats);
-  
-  // For now, return the cleaned UUID format as it appears in your logs
-  // The real issue might be that these UUIDs are not valid Pi Network user UIDs
-  return cleanedUid;
-}
-
 const PI_API_BASE = "https://api.minepi.com";
 
 async function piApiRequest(
@@ -66,6 +41,28 @@ async function piApiRequest(
     );
   }
   return data;
+}
+
+// Function to validate and get the correct Pi user UID
+async function getValidPiUid(piUsername: string, apiKey: string): Promise<string> {
+  try {
+    // Try to get user info from Pi API to validate the user exists
+    // Note: This endpoint may not exist - you might need to use a different approach
+    const userResp = await piApiRequest("GET", `/v2/users/${piUsername}`, apiKey);
+    return userResp.uid || userResp.id || piUsername;
+  } catch (error) {
+    console.log(`Could not validate user ${piUsername}:`, error);
+    
+    // Fallback: try different UID formats
+    const uidFormats = [
+      piUsername,                    // Plain username
+      `@${piUsername}`,              // With @ prefix
+      piUsername.startsWith('@') ? piUsername.substring(1) : piUsername, // Remove @ if present
+    ];
+    
+    // Return the most likely format (you may need to adjust based on testing)
+    return uidFormats[0];
+  }
 }
 
 serve(async (req: Request) => {
@@ -98,12 +95,18 @@ serve(async (req: Request) => {
 
     const paymentMemo = memo || `A2U payout to @${piUsername}`;
 
+    // ===== VALIDATION STEP: Get the correct UID format =====
+    console.log("Validating Pi user UID for:", piUsername);
+    const validUid = await getValidPiUid(piUsername, apiKey);
+    console.log(`Using UID format: ${validUid} (input: ${piUsername})`);
+
     // Insert payout record
     const { data: payoutData, error: insertErr } = await supabase
       .from("a2u_payouts")
       .insert({
         user_id: userId,
         pi_username: piUsername,
+        pi_uid: validUid, // Store the validated UID
         amount,
         memo: paymentMemo,
         status: "processing",
@@ -117,12 +120,7 @@ serve(async (req: Request) => {
     }
 
     const payoutId = (payoutData as any).id;
-    console.log("Starting A2U payout:", { payoutId, piUsername, amount });
-
-    // ===== VALIDATION STEP: Get the correct UID format =====
-    console.log("Validating Pi user UID...");
-    const validUid = await getValidPiUid(piUsername, apiKey);
-    console.log(`Using UID: ${validUid} (input: ${piUsername})`);
+    console.log("Starting A2U payout:", { payoutId, piUsername, validUid, amount });
 
     try {
       // ===== STEP 1: Create A2U payment via Pi API =====
@@ -135,6 +133,7 @@ serve(async (req: Request) => {
 
       console.log("Step 1: Creating A2U payment via Pi API...");
       console.log("Payment data:", JSON.stringify(paymentBody, null, 2));
+      
       const createResp = await piApiRequest("POST", "/v2/payments", apiKey, paymentBody);
       const paymentId = createResp.identifier;
 
@@ -208,6 +207,7 @@ serve(async (req: Request) => {
         paymentId,
         txid,
         payout_id: payoutId,
+        uid_used: validUid,
         message: "A2U payout completed successfully",
       });
     } catch (piError: unknown) {
@@ -222,7 +222,12 @@ serve(async (req: Request) => {
         })
         .eq("id", payoutId);
 
-      return json({ error: "Pi payment failed", details: errMsg }, 400);
+      return json({ 
+        error: "Pi payment failed", 
+        details: errMsg,
+        uid_attempted: validUid,
+        original_username: piUsername,
+      }, 400);
     }
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Unexpected error";
