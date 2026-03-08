@@ -1,14 +1,22 @@
-import PiNetwork from 'pi-backend';
+import piBackend from 'pi-backend';
+import { loadEnv } from '../config/loadEnv.js';
 
-// DO NOT expose these values to public
-const apiKey = "okebrorkawmpe9t1yy0a5iybng31m8w9acpcurcafsi3cvilhk4lmnr0r2z7pasw";
-const walletPrivateSeed = "SA7HAEE64IDWFQ2MSXO5AK355PBVRMBCZOLDNAWTMY5JK3LPBQ7MYQO6"; // starts with S
+loadEnv();
+
+const PiNetwork = piBackend?.default ?? piBackend;
+
+const apiKey = process.env.PI_API_KEY;
+const walletPrivateSeed = process.env.PI_WALLET_PRIVATE_SEED;
+
+if (!apiKey || !walletPrivateSeed) {
+  throw new Error('Missing required env vars: PI_API_KEY, PI_WALLET_PRIVATE_SEED');
+}
 
 const pi = new PiNetwork(apiKey, walletPrivateSeed);
 
 console.log("=== Pi Network A2U Payout Test (Node.js) ===");
-console.log("API Key:", apiKey.substring(0, 20) + "...");
-console.log("Wallet Seed:", walletPrivateSeed.substring(0, 20) + "...");
+console.log("API Key: [set]");
+console.log("Wallet Seed: [set]");
 console.log("=".repeat(50));
 
 // Test different UID formats for user "Wain2020"

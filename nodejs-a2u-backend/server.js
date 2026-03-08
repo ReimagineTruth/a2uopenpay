@@ -1,12 +1,12 @@
 import express from "express";
-import dotenv from "dotenv";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
 import paymentRoutes from "./routes/payments.js";
 import { initializeDatabase } from "./db/database.js";
+import { loadEnv } from "./config/loadEnv.js";
 
-dotenv.config();
+loadEnv();
 
 const app = express();
 

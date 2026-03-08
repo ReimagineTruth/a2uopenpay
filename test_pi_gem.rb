@@ -9,9 +9,28 @@ require 'json'
 puts "=== Pi Network Ruby Gem Test ==="
 puts
 
-# Your credentials (keep these secure!)
-api_key = "okebrorkawmpe9t1yy0a5iybng31m8w9acpcurcafsi3cvilhk4lmnr0r2z7pasw"
-wallet_private_seed = "SA7HAEE64IDWFQ2MSXO5AK355PBVRMBCZOLDNAWTMY5JK3LPBQ7MYQO6"
+def load_dotenv_file(path)
+  return unless File.file?(path)
+
+  File.foreach(path) do |line|
+    line = line.strip
+    next if line.empty? || line.start_with?('#')
+
+    key, value = line.split('=', 2)
+    next unless key && value
+
+    key = key.strip
+    value = value.strip
+    value = value[1..-2] if (value.start_with?('"') && value.end_with?('"')) || (value.start_with?("'") && value.end_with?("'"))
+
+    ENV[key] = value unless ENV.key?(key)
+  end
+end
+
+load_dotenv_file(File.join(__dir__, '.env'))
+
+api_key = ENV.fetch('PI_API_KEY')
+wallet_private_seed = ENV.fetch('PI_WALLET_PRIVATE_SEED')
 
 puts "1. Testing Pi Network gem initialization..."
 begin

@@ -1,7 +1,9 @@
-import PiNetwork from "pi-backend";
-import dotenv from "dotenv";
+import piBackend from "pi-backend";
+import { loadEnv } from "../config/loadEnv.js";
 
-dotenv.config();
+loadEnv();
+
+const PiNetwork = piBackend?.default ?? piBackend;
 
 // Initialize Pi Network SDK
 const pi = new PiNetwork(

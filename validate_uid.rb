@@ -1,8 +1,27 @@
 require 'pinetwork'
 
-# DO NOT expose these values to public
-api_key = "okebrorkawmpe9t1yy0a5iybng31m8w9acpcurcafsi3cvilhk4lmnr0r2z7pasw"
-wallet_private_seed = "SB2FQGTI7LYZKDDEFTBCBW2GUVPLDTXPM5NPOCLDEVRBXCCE4JA4PHCD"
+def load_dotenv_file(path)
+  return unless File.file?(path)
+
+  File.foreach(path) do |line|
+    line = line.strip
+    next if line.empty? || line.start_with?('#')
+
+    key, value = line.split('=', 2)
+    next unless key && value
+
+    key = key.strip
+    value = value.strip
+    value = value[1..-2] if (value.start_with?('"') && value.end_with?('"')) || (value.start_with?("'") && value.end_with?("'"))
+
+    ENV[key] = value unless ENV.key?(key)
+  end
+end
+
+load_dotenv_file(File.join(__dir__, '.env'))
+
+api_key = ENV.fetch('PI_API_KEY')
+wallet_private_seed = ENV.fetch('PI_WALLET_PRIVATE_SEED')
 
 pi = PiNetwork.new(api_key: api_key, wallet_private_seed: wallet_private_seed)
 
@@ -16,8 +35,8 @@ test_uids = [
 ]
 
 puts "Testing different UID formats..."
-puts "API Key: #{api_key[0..20]}..."
-puts "Wallet Seed: #{wallet_private_seed[0..20]}..."
+puts "API Key: [set]"
+puts "Wallet Seed: [set]"
 puts "=" * 50
 
 test_uids.each_with_index do |uid, index|

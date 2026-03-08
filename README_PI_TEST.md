@@ -2,19 +2,27 @@
 
 ## Quick Setup
 
-### 1. Install Dependencies
+### 1. Configure secrets (do not commit)
+Copy the example env file and fill in values:
+
 ```bash
-npm install pi-backend
+cp .env.example .env
 ```
 
-### 2. Run the Node.js Test
+### 2. Run the Node.js test (recommended)
+
+`pi-backend` is already included in `nodejs-a2u-backend/`, so run the test scripts from there:
+
 ```bash
-node a2u_payout_nodejs.mjs
+cd nodejs-a2u-backend
+npm install
+cp .env.example .env
+node scripts/a2u_payout_nodejs.mjs
 ```
 
 ## What This Script Does
 
-The `a2u_payout_nodejs.mjs` script will:
+The `nodejs-a2u-backend/scripts/a2u_payout_nodejs.mjs` script will:
 
 1. **Test the problematic UID**: Confirms that `ccecc12e-76d1-41f4-a099-9173cce0c9f0` (Supabase UUID) fails
 2. **Test correct formats**: Ties different UID formats for "Wain2020":
@@ -68,6 +76,7 @@ UPDATE user_profiles SET pi_uid = 'Wain2020' WHERE pi_username = 'Wain2020';
 
 If you prefer Ruby, you can also run:
 ```bash
+ruby test_pi_gem.rb
 ruby a2u_payout_working.rb
 ```
 
