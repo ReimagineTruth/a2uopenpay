@@ -17,12 +17,14 @@ export type Database = {
       a2u_payouts: {
         Row: {
           amount: number
+          completed_at: string | null
           created_at: string
           error_message: string | null
           id: string
           memo: string
           pi_payment_id: string | null
           pi_txid: string | null
+          pi_uid: string | null
           pi_username: string
           status: string
           updated_at: string
@@ -30,12 +32,14 @@ export type Database = {
         }
         Insert: {
           amount: number
+          completed_at?: string | null
           created_at?: string
           error_message?: string | null
           id?: string
           memo?: string
           pi_payment_id?: string | null
           pi_txid?: string | null
+          pi_uid?: string | null
           pi_username?: string
           status?: string
           updated_at?: string
@@ -43,12 +47,14 @@ export type Database = {
         }
         Update: {
           amount?: number
+          completed_at?: string | null
           created_at?: string
           error_message?: string | null
           id?: string
           memo?: string
           pi_payment_id?: string | null
           pi_txid?: string | null
+          pi_uid?: string | null
           pi_username?: string
           status?: string
           updated_at?: string
@@ -116,7 +122,15 @@ export type Database = {
           title?: string
           user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "app_notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       contacts: {
         Row: {
@@ -137,7 +151,22 @@ export type Database = {
           id?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "contacts_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "contacts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       disputes: {
         Row: {
@@ -229,6 +258,13 @@ export type Database = {
             referencedRelation: "transactions"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "email_notifications_outbox_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
+          },
         ]
       }
       invoices: {
@@ -265,7 +301,22 @@ export type Database = {
           status?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "invoices_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "invoices_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       ledger_events: {
         Row: {
@@ -310,7 +361,22 @@ export type Database = {
           source_table?: string
           status?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "ledger_events_actor_user_id_fkey"
+            columns: ["actor_user_id"]
+            isOneToOne: false
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "ledger_events_related_user_id_fkey"
+            columns: ["related_user_id"]
+            isOneToOne: false
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       merchant_api_keys: {
         Row: {
@@ -355,7 +421,15 @@ export type Database = {
           secret_key_last4?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "merchant_api_keys_merchant_user_id_fkey"
+            columns: ["merchant_user_id"]
+            isOneToOne: false
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       merchant_balance_transfers: {
         Row: {
@@ -388,7 +462,15 @@ export type Database = {
           merchant_user_id?: string
           note?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "merchant_balance_transfers_merchant_user_id_fkey"
+            columns: ["merchant_user_id"]
+            isOneToOne: false
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       merchant_checkout_session_items: {
         Row: {
@@ -510,6 +592,13 @@ export type Database = {
             referencedRelation: "merchant_api_keys"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "merchant_checkout_sessions_merchant_user_id_fkey"
+            columns: ["merchant_user_id"]
+            isOneToOne: false
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
+          },
         ]
       }
       merchant_payment_link_items: {
@@ -614,6 +703,13 @@ export type Database = {
             referencedRelation: "merchant_payment_links"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "merchant_payment_link_share_settings_merchant_user_id_fkey"
+            columns: ["merchant_user_id"]
+            isOneToOne: false
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
+          },
         ]
       }
       merchant_payment_links: {
@@ -697,6 +793,13 @@ export type Database = {
             referencedRelation: "merchant_api_keys"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "merchant_payment_links_merchant_user_id_fkey"
+            columns: ["merchant_user_id"]
+            isOneToOne: false
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
+          },
         ]
       }
       merchant_payments: {
@@ -754,6 +857,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "merchant_payments_buyer_user_id_fkey"
+            columns: ["buyer_user_id"]
+            isOneToOne: false
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "merchant_payments_merchant_user_id_fkey"
+            columns: ["merchant_user_id"]
+            isOneToOne: false
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
+          },
+          {
             foreignKeyName: "merchant_payments_payment_link_id_fkey"
             columns: ["payment_link_id"]
             isOneToOne: false
@@ -802,6 +919,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "merchant_api_keys"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "merchant_pos_api_settings_merchant_user_id_fkey"
+            columns: ["merchant_user_id"]
+            isOneToOne: true
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "merchant_pos_api_settings_sandbox_api_key_id_fkey"
@@ -879,7 +1003,15 @@ export type Database = {
           unit_amount?: number
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "merchant_products_merchant_user_id_fkey"
+            columns: ["merchant_user_id"]
+            isOneToOne: false
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       merchant_profiles: {
         Row: {
@@ -912,7 +1044,15 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "merchant_profiles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       mining_rewards: {
         Row: {
@@ -933,7 +1073,15 @@ export type Database = {
           id?: string
           user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "mining_rewards_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       mining_sessions: {
         Row: {
@@ -957,7 +1105,15 @@ export type Database = {
           started_at?: string | null
           user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "mining_sessions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       notification_preferences: {
         Row: {
@@ -990,7 +1146,15 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "notification_preferences_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       open_partner_leads: {
         Row: {
@@ -1047,7 +1211,15 @@ export type Database = {
           use_case_summary?: string
           website_url?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "open_partner_leads_requester_user_id_fkey"
+            columns: ["requester_user_id"]
+            isOneToOne: false
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       openpay_authorization_codes: {
         Row: {
@@ -1074,7 +1246,15 @@ export type Database = {
           used_at?: string | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "openpay_authorization_codes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       openpay_runtime_settings: {
         Row: {
@@ -1093,6 +1273,60 @@ export type Database = {
           value_json?: Json
         }
         Relationships: []
+      }
+      payment_audit_log: {
+        Row: {
+          action: string
+          created_at: string | null
+          details: Json | null
+          error_message: string | null
+          id: string
+          ip_address: unknown
+          payout_id: string | null
+          status_after: string | null
+          status_before: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string | null
+          details?: Json | null
+          error_message?: string | null
+          id?: string
+          ip_address?: unknown
+          payout_id?: string | null
+          status_after?: string | null
+          status_before?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string | null
+          details?: Json | null
+          error_message?: string | null
+          id?: string
+          ip_address?: unknown
+          payout_id?: string | null
+          status_after?: string | null
+          status_before?: string | null
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_audit_log_payout_id_fkey"
+            columns: ["payout_id"]
+            isOneToOne: false
+            referencedRelation: "a2u_payouts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_audit_log_payout_id_fkey"
+            columns: ["payout_id"]
+            isOneToOne: false
+            referencedRelation: "recent_payouts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       payment_requests: {
         Row: {
@@ -1125,7 +1359,22 @@ export type Database = {
           status?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "payment_requests_payer_id_fkey"
+            columns: ["payer_id"]
+            isOneToOne: false
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "payment_requests_requester_id_fkey"
+            columns: ["requester_id"]
+            isOneToOne: false
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       pi_payment_credits: {
         Row: {
@@ -1155,7 +1404,15 @@ export type Database = {
           txid?: string | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "pi_payment_credits_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -1185,7 +1442,22 @@ export type Database = {
           referred_by_user_id?: string | null
           username?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_id_fkey"
+            columns: ["id"]
+            isOneToOne: true
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "profiles_referred_by_user_id_fkey"
+            columns: ["referred_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       referral_rewards: {
         Row: {
@@ -1215,7 +1487,22 @@ export type Database = {
           reward_amount?: number
           status?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "referral_rewards_referred_user_id_fkey"
+            columns: ["referred_user_id"]
+            isOneToOne: true
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "referral_rewards_referrer_user_id_fkey"
+            columns: ["referrer_user_id"]
+            isOneToOne: false
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       remittance_merchants: {
         Row: {
@@ -1287,7 +1574,15 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "remittance_merchants_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       support_agents: {
         Row: {
@@ -1305,7 +1600,15 @@ export type Database = {
           handle?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "support_agents_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       support_conversations: {
         Row: {
@@ -1332,7 +1635,15 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "support_conversations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       support_faq_categories: {
         Row: {
@@ -1429,6 +1740,13 @@ export type Database = {
             referencedRelation: "support_conversations"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "support_messages_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
+          },
         ]
       }
       support_tickets: {
@@ -1456,7 +1774,15 @@ export type Database = {
           subject?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "support_tickets_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       supported_currencies: {
         Row: {
@@ -1494,6 +1820,33 @@ export type Database = {
         }
         Relationships: []
       }
+      system_config: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          is_encrypted: boolean | null
+          key: string
+          updated_at: string | null
+          value: string
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          is_encrypted?: boolean | null
+          key: string
+          updated_at?: string | null
+          value: string
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          is_encrypted?: boolean | null
+          key?: string
+          updated_at?: string | null
+          value?: string
+        }
+        Relationships: []
+      }
       transactions: {
         Row: {
           amount: number
@@ -1522,7 +1875,22 @@ export type Database = {
           sender_id?: string
           status?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "transactions_receiver_id_fkey"
+            columns: ["receiver_id"]
+            isOneToOne: false
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "transactions_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       user_accounts: {
         Row: {
@@ -1552,7 +1920,71 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "user_accounts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      user_balance_tracking: {
+        Row: {
+          created_at: string | null
+          daily_payouts: number | null
+          daily_reset_date: string | null
+          id: string
+          last_payout_at: string | null
+          monthly_payouts: number | null
+          monthly_reset_date: string | null
+          payout_count: number | null
+          total_payouts: number | null
+          updated_at: string | null
+          user_id: string | null
+          weekly_payouts: number | null
+          weekly_reset_date: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          daily_payouts?: number | null
+          daily_reset_date?: string | null
+          id?: string
+          last_payout_at?: string | null
+          monthly_payouts?: number | null
+          monthly_reset_date?: string | null
+          payout_count?: number | null
+          total_payouts?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+          weekly_payouts?: number | null
+          weekly_reset_date?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          daily_payouts?: number | null
+          daily_reset_date?: string | null
+          id?: string
+          last_payout_at?: string | null
+          monthly_payouts?: number | null
+          monthly_reset_date?: string | null
+          payout_count?: number | null
+          total_payouts?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+          weekly_payouts?: number | null
+          weekly_reset_date?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_balance_tracking_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       user_loan_applications: {
         Row: {
@@ -1621,7 +2053,22 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "user_loan_applications_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "user_loan_applications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       user_loan_payments: {
         Row: {
@@ -1667,6 +2114,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "user_loans"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_loan_payments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
           },
         ]
       }
@@ -1716,7 +2170,15 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "user_loans_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       user_preferences: {
         Row: {
@@ -1764,7 +2226,62 @@ export type Database = {
           usage_agreement_accepted?: boolean
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "user_preferences_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      user_profiles: {
+        Row: {
+          created_at: string | null
+          id: string
+          pi_access_token: string | null
+          pi_refresh_token: string | null
+          pi_token_expires_at: string | null
+          pi_uid: string | null
+          pi_username: string | null
+          pi_verified: boolean | null
+          supabase_user_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          pi_access_token?: string | null
+          pi_refresh_token?: string | null
+          pi_token_expires_at?: string | null
+          pi_uid?: string | null
+          pi_username?: string | null
+          pi_verified?: boolean | null
+          supabase_user_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          pi_access_token?: string | null
+          pi_refresh_token?: string | null
+          pi_token_expires_at?: string | null
+          pi_uid?: string | null
+          pi_username?: string | null
+          pi_verified?: boolean | null
+          supabase_user_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_profiles_supabase_user_id_fkey"
+            columns: ["supabase_user_id"]
+            isOneToOne: true
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       user_savings_accounts: {
         Row: {
@@ -1788,7 +2305,15 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "user_savings_accounts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       user_savings_transfers: {
         Row: {
@@ -1818,7 +2343,15 @@ export type Database = {
           note?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "user_savings_transfers_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       virtual_cards: {
         Row: {
@@ -1872,7 +2405,15 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "virtual_cards_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       wallets: {
         Row: {
@@ -1896,7 +2437,15 @@ export type Database = {
           user_id?: string
           welcome_bonus_claimed_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "wallets_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
     }
     Views: {
@@ -1916,7 +2465,56 @@ export type Database = {
             referencedRelation: "merchant_products"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "merchant_checkout_sessions_merchant_user_id_fkey"
+            columns: ["merchant_user_id"]
+            isOneToOne: false
+            referencedRelation: "user_payout_summary"
+            referencedColumns: ["user_id"]
+          },
         ]
+      }
+      payout_statistics: {
+        Row: {
+          average_amount: number | null
+          date: string | null
+          max_amount: number | null
+          min_amount: number | null
+          payout_count: number | null
+          status: string | null
+          total_amount: number | null
+        }
+        Relationships: []
+      }
+      recent_payouts: {
+        Row: {
+          amount: number | null
+          completed_at: string | null
+          created_at: string | null
+          id: string | null
+          memo: string | null
+          pi_username: string | null
+          status: string | null
+          status_icon: string | null
+        }
+        Relationships: []
+      }
+      user_payout_summary: {
+        Row: {
+          daily_payouts: number | null
+          email: string | null
+          last_payout_at: string | null
+          monthly_payouts: number | null
+          pi_uid: string | null
+          pi_username: string | null
+          pi_verified: boolean | null
+          total_payout_count: number | null
+          total_payouts: number | null
+          user_id: string | null
+          user_profile_created_at: string | null
+          weekly_payouts: number | null
+        }
+        Relationships: []
       }
     }
     Functions: {
