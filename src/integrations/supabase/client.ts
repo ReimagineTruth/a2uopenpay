@@ -2,12 +2,19 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const PROJECT_ID = (import.meta as any).env.VITE_SUPABASE_PROJECT_ID as string | undefined;
+const meta = (name: string) =>
+  typeof document !== "undefined"
+    ? document.querySelector(`meta[name="${name}"]`)?.getAttribute("content") || undefined
+    : undefined;
+const PROJECT_ID =
+  ((import.meta as any).env.VITE_SUPABASE_PROJECT_ID as string | undefined) ||
+  meta("supabase-project-id");
 const SUPABASE_URL =
   (import.meta as any).env.VITE_SUPABASE_URL ||
   (PROJECT_ID ? `https://${PROJECT_ID}.supabase.co` : undefined);
-const SUPABASE_PUBLISHABLE_KEY = (import.meta as any).env
-  .VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
+const SUPABASE_PUBLISHABLE_KEY =
+  ((import.meta as any).env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined) ||
+  meta("supabase-anon-key");
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";

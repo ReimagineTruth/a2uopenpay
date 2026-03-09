@@ -22,3 +22,10 @@ declare module "https://esm.sh/stellar-sdk@11.3.0" {
   export const TransactionBuilder: any;
   export const Networks: any;
 }
+
+// Minimal Deno global typings for local type-checking of Edge Functions
+declare const Deno: {
+  env: {
+    get(name: string): string | undefined;
+  };
+};

@@ -107,11 +107,19 @@ const PiAuthPage = () => {
   };
 
   const verifyPiAccessToken = async (accessToken: string) => {
-    const projectId = (import.meta as any).env.VITE_SUPABASE_PROJECT_ID as string | undefined;
+    const meta = (name: string) =>
+      typeof document !== "undefined"
+        ? document.querySelector(`meta[name=\"${name}\"]`)?.getAttribute(\"content\") || undefined
+        : undefined;
+    const projectId =
+      ((import.meta as any).env.VITE_SUPABASE_PROJECT_ID as string | undefined) ||
+      meta(\"supabase-project-id\");
     const supabaseUrl =
       (import.meta as any).env.VITE_SUPABASE_URL ||
       (projectId ? `https://${projectId}.supabase.co` : undefined);
-    const supabaseAnonKey = (import.meta as any).env.VITE_SUPABASE_PUBLISHABLE_KEY;
+    const supabaseAnonKey =
+      ((import.meta as any).env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined) ||
+      meta(\"supabase-anon-key\");
 
     const res = await fetch(`${supabaseUrl}/functions/v1/pi-platform`, {
       method: "POST",

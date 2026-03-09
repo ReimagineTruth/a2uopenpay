@@ -68,19 +68,46 @@ serve(async (req: Request) => {
     }
     if (!userId) return json({ error: "Authentication required" }, 401);
 
-    const { amount, piUsername, memo } = await req.json();
+    const { amount, piUsername, memo, accessToken } = await req.json();
     if (!amount || amount <= 0) return json({ error: "Invalid amount" }, 400);
-    if (!piUsername) return json({ error: "Pi username (uid) required" }, 400);
+    if (!piUsername && !accessToken) {
+      return json({ error: "Pi uid or accessToken required" }, 400);
+    }
 
-    const paymentMemo = memo || `A2U payout to @${piUsername}`;
+    // Resolve uid: prefer accessToken verification to ensure uid belongs to this app
+    let resolvedUid: string | null = null;
+    let resolvedUsername: string | null = null;
+    if (accessToken && typeof accessToken === "string") {
+      try {
+        const meResp = await fetch("https://api.minepi.com/v2/me", {
+          method: "GET",
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        const meData = await meResp.json();
+        if (!meResp.ok || !meData?.uid) {
+          console.error("Pi /v2/me failed:", meResp.status, meData);
+          throw new Error("Pi auth token verification failed");
+        }
+        resolvedUid = String(meData.uid);
+        resolvedUsername = typeof meData.username === "string" ? meData.username : null;
+      } catch (e) {
+        console.error("Failed to verify accessToken:", e);
+      }
+    }
+    // Fallback to provided uid (named piUsername in payload)
+    if (!resolvedUid && piUsername) resolvedUid = String(piUsername);
+
+    if (!resolvedUid) return json({ error: "Could not resolve Pi uid" }, 400);
+
+    const paymentMemo = memo || `A2U payout to @${resolvedUsername || "user"}`;
 
     // Insert payout record
     const { data: payoutData, error: insertErr } = await supabase
       .from("a2u_payouts")
       .insert({
         user_id: userId,
-        pi_username: piUsername,
-        pi_uid: piUsername,
+        pi_username: resolvedUsername || resolvedUid,
+        pi_uid: resolvedUid,
         amount,
         memo: paymentMemo,
         status: "processing",
@@ -94,7 +121,7 @@ serve(async (req: Request) => {
     }
 
     const payoutId = payoutData.id;
-    console.log("Starting A2U payout:", { payoutId, piUsername, amount });
+    console.log("Starting A2U payout:", { payoutId, uid: resolvedUid, amount });
 
     try {
       // Step 1: Create A2U payment via Pi API
@@ -102,7 +129,7 @@ serve(async (req: Request) => {
         amount,
         memo: paymentMemo,
         metadata: { payout_id: payoutId, user_id: userId },
-        uid: piUsername,
+        uid: resolvedUid,
       };
 
       console.log("Step 1: Creating A2U payment...");
@@ -175,7 +202,7 @@ serve(async (req: Request) => {
         paymentId,
         txid,
         payout_id: payoutId,
-        uid_used: piUsername,
+        uid_used: resolvedUid,
         message: "A2U payout completed successfully",
       });
     } catch (piError: any) {

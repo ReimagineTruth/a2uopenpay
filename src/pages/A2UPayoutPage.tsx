@@ -72,6 +72,7 @@ const A2UPayoutPage = () => {
     // Re-authenticate with Pi if available
     const piSdk = (window as any).Pi;
     let piUid: string | null = null;
+    let accessToken: string | null = null;
 
     if (typeof window !== 'undefined' && piSdk) {
       try {
@@ -79,6 +80,7 @@ const A2UPayoutPage = () => {
         console.log("Pi user re-authenticated:", authResult);
         setPiUser(authResult.user);
         piUid = authResult.user.uid;
+        accessToken = authResult.accessToken || null;
       } catch (error) {
         console.error("Pi re-authentication failed:", error);
         toast.error("Please open in Pi Browser to receive payouts");
@@ -98,6 +100,7 @@ const A2UPayoutPage = () => {
           amount: 0.01,
           piUsername: piUid,
           memo: "Testnet A2U Payout - Developer Testing",
+          accessToken,
         },
       });
 
