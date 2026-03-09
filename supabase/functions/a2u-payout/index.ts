@@ -50,7 +50,8 @@ serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const apiKey = Deno.env.get("PI_API_KEY");
-    const walletSeed = Deno.env.get("WALLET_PRIVATE_SEED");
+    const walletSeed =
+      Deno.env.get("WALLET_PRIVATE_SEED") || Deno.env.get("PI_WALLET_PRIVATE_SEED");
 
     if (!apiKey) return json({ error: "Pi API not configured" }, 500);
     if (!walletSeed) return json({ error: "Wallet not configured" }, 500);

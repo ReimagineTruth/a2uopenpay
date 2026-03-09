@@ -107,8 +107,11 @@ const PiAuthPage = () => {
   };
 
   const verifyPiAccessToken = async (accessToken: string) => {
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+    const projectId = (import.meta as any).env.VITE_SUPABASE_PROJECT_ID as string | undefined;
+    const supabaseUrl =
+      (import.meta as any).env.VITE_SUPABASE_URL ||
+      (projectId ? `https://${projectId}.supabase.co` : undefined);
+    const supabaseAnonKey = (import.meta as any).env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
     const res = await fetch(`${supabaseUrl}/functions/v1/pi-platform`, {
       method: "POST",
