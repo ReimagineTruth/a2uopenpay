@@ -68,16 +68,23 @@ serve(async (req: Request) => {
     }
     if (!userId) return json({ error: "Authentication required" }, 401);
 
-    const { amount, piUsername, memo, accessToken } = await req.json();
+    const { amount, piUsername, piUid, memo, accessToken } = await req.json();
     if (!amount || amount <= 0) return json({ error: "Invalid amount" }, 400);
-    if (!piUsername && !accessToken) {
-      return json({ error: "Pi uid or accessToken required" }, 400);
+    if (!piUid && !piUsername && !accessToken) {
+      return json({ error: "Pi uid, username, or accessToken required" }, 400);
     }
 
-    // Resolve uid: prefer accessToken verification to ensure uid belongs to this app
+    // Resolve uid: prioritize direct piUid, then accessToken verification
     let resolvedUid: string | null = null;
     let resolvedUsername: string | null = null;
-    if (accessToken && typeof accessToken === "string") {
+    
+    // First, try to use direct piUid parameter
+    if (piUid && typeof piUid === "string") {
+      resolvedUid = piUid;
+      resolvedUsername = piUsername; // Use provided username for display
+    }
+    // Fallback to accessToken verification if no direct uid
+    else if (accessToken && typeof accessToken === "string") {
       try {
         const meResp = await fetch("https://api.minepi.com/v2/me", {
           method: "GET",
@@ -94,8 +101,11 @@ serve(async (req: Request) => {
         console.error("Failed to verify accessToken:", e);
       }
     }
-    // Fallback to provided uid (named piUsername in payload)
-    if (!resolvedUid && piUsername) resolvedUid = String(piUsername);
+    // Fallback to provided username if no uid or accessToken
+    else if (piUsername && typeof piUsername === "string") {
+      resolvedUid = piUsername;
+      resolvedUsername = piUsername;
+    }
 
     if (!resolvedUid) return json({ error: "Could not resolve Pi uid" }, 400);
 

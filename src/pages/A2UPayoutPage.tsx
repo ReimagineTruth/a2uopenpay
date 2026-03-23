@@ -44,6 +44,10 @@ const A2UPayoutPage = () => {
       try {
         const sandbox = String(import.meta.env.VITE_PI_SANDBOX || "false").toLowerCase() === "true";
         piSdk.init({ version: "2.0", sandbox });
+        
+        // Add a small delay to ensure SDK is fully initialized
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
         const authResult = await piSdk.authenticate(['username', 'payments']);
         console.log("Pi user authenticated:", authResult);
         setPiUser(authResult.user);
@@ -53,7 +57,11 @@ const A2UPayoutPage = () => {
         }
       } catch (error) {
         console.error("Pi authentication failed:", error);
+        toast.error("Pi authentication failed. Please ensure you're using Pi Browser.");
       }
+    } else {
+      console.warn("Pi SDK not available - please open in Pi Browser");
+      toast.error("Please open this app in Pi Browser to receive payouts");
     }
   };
 
@@ -76,6 +84,13 @@ const A2UPayoutPage = () => {
 
     if (typeof window !== 'undefined' && piSdk) {
       try {
+        // Ensure SDK is initialized before re-authenticating
+        if (!(piSdk as any)._initialized) {
+          const sandbox = String(import.meta.env.VITE_PI_SANDBOX || "false").toLowerCase() === "true";
+          piSdk.init({ version: "2.0", sandbox });
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        
         const authResult = await piSdk.authenticate(['username', 'payments']);
         console.log("Pi user re-authenticated:", authResult);
         setPiUser(authResult.user);
@@ -86,6 +101,9 @@ const A2UPayoutPage = () => {
         toast.error("Please open in Pi Browser to receive payouts");
         return;
       }
+    } else {
+      toast.error("Pi Browser required - please open this app in Pi Browser");
+      return;
     }
 
     if (!piUid) {
@@ -98,7 +116,8 @@ const A2UPayoutPage = () => {
       const { data, error } = await supabase.functions.invoke("a2u-payout", {
         body: {
           amount: 0.01,
-          piUsername: piUid,
+          piUsername: piUser?.username || piUid,
+          piUid: piUid, // Use the actual Pi UID, not username
           memo: "Testnet A2U Payout - Developer Testing",
           accessToken,
         },
